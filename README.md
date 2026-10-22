@@ -522,27 +522,108 @@ own stylesheets; not checked by running Thunderbird here.
 
 ## Themes
 
-Each file's header names its sources and says where values are approximate.
+80 themes, each with a `[dark]` and a `[light]` section. The first batch was taken
+by hand from the projects' own palettes; the rest come from the Gogh collection of
+terminal schemes through `tools/gogh2theme.py`, which picks the roles from the
+sixteen colours (bg, the white that reads best on it, the most saturated colour
+that reads 3:1 as the accent with reds and yellows left to urgent and warning) and
+derives the missing side where a scheme has only one: the same hues with the
+lightness flipped, then the readability rules on load. Backgrounds run from black
+through mid greys (afterglow, zenburn, warmneon, espresso, lunaria) to coloured
+(belafonte, cyberpunk, ubuntu, mono-amber), and the lights from white through
+cream (belafonte, novel, lunaria, sonoran-sunrise, manpage). Each file's header
+names its source.
 
 | Theme | Source |
 |---|---|
-| habamax, crimson, desert, slate | neovim-derived |
-| catppuccin | Mocha (dark), Latte (light) |
-| gruvbox | dark and light |
-| rose-pine | main (dark), dawn (light) |
-| dracula | Dracula (dark), Alucard (light) |
-| nord | dark; the light section is derived |
-| tokyonight | night (dark), day (light) |
-| solarized | dark and light |
+| 3024 | `3024night`, `3024day` |
+| afterglow | `afterglow`; light derived |
+| atom | `atom`; light derived |
+| aura | `aura`; light derived |
+| ayu-mirage | `ayu_mirage`, `ayu_light` |
+| ayu | `ayu_dark`, `ayu_light` |
+| belafonte | `belafonte_night`, `belafonte_day` |
+| bluloco | `bluloco_light`; dark derived |
+| breeze | `breeze`, `breath_light` |
+| c64 | `c64`; light derived |
+| catppuccin-frappe | `catppuccin_frappe`, `catppuccin_latte` |
+| catppuccin-macchiato | `catppuccin_macchiato`, `catppuccin_latte` |
+| catppuccin | Mocha (dark) and Latte (light) |
+| chalk | `chalk`; light derived |
+| cobalt2 | `cobalt2`; light derived |
+| crimson | this project's; light derived |
+| cyberpunk | `cyberpunk`; light derived |
+| dehydration | `dehydration`; light derived |
+| desert | neovim's desert; light derived |
+| doom-one | `doomone`; light derived |
+| dracula | Dracula (dark) and Alucard (light), the official Dracula palettes |
+| earthsong | `earthsong`; light derived |
+| elementary | `elementary`; light derived |
+| espresso | `espresso`; light derived |
+| fairyfloss | `fairyfloss`; light derived |
+| flat | `flat`; light derived |
 | github | Primer default dark and light (terminal colours approximate) |
-| zenbones | zenwritten, dark and light |
-| xterm | xterm's own defaults, dark and light |
+| gotham | `gotham`; light derived |
 | greyscale | neutral greys, high contrast |
-| suckless | dwm's and dmenu's default colours; ANSI approximate, light derived |
+| gruvbox | dark and light, medium contrast |
+| habamax | neovim's habamax; light derived |
+| hemisu | `hemisu_dark`, `hemisu_light` |
+| hopscotch | `hopscotch`; light derived |
+| horizon | `horizon_dark`, `horizon_bright` |
+| hybrid | `hybrid`; light derived |
+| ibm3270 | `ibm3270`; light derived |
+| iceberg | `iceberg_dark`, `iceberg_light` |
+| jellybeans | `jellybeans`; light derived |
+| kanagawa | `kanagawa`; light derived |
+| laserwave | `laserwave`; light derived |
+| lunaria | `lunaria_dark`, `lunaria_light` |
+| manpage | `manpage`; dark derived |
+| material | `material`; light derived |
+| mono-amber | `mono_amber`; light derived |
+| mono-green | `mono_green`; light derived |
+| monokai-pro | `monokai_pro`; light derived |
+| monokai | `monokai_dark`; light derived |
+| night-owl | `nightowl`, `nightowlish_light` |
+| nighty | `nighty`; light derived |
+| nord | `nord`, `nord_light` |
+| novel | `novel`; dark derived |
+| oceanic-next | `oceanicnext`; light derived |
+| one | `onedark`, `onelight` |
+| palenight | `palenight`; light derived |
+| papercolor | `papercolor_dark`, `papercolor_light` |
+| paraiso | `paraiso_dark`; light derived |
+| pencil | `pencil_dark`, `pencil_light` |
+| relaxed | `relaxed`; light derived |
+| rose-pine-moon | `rosepine_moon`, `rosepine_dawn` |
+| rose-pine | main (dark) and dawn (light) |
+| ryuuko | `ryuuko`; light derived |
+| seashells | `seashells`; light derived |
+| slate | neovim's slate; light derived |
+| solarized | dark and light, canonical values |
+| sonoran-sunrise | `sonoransunrise`; dark derived |
+| spacegray | `spacegray`; light derived |
+| suckless | dwm's and dmenu's default colours; light derived |
+| terminix | `terminix_dark`; light derived |
+| tokyonight | night (dark) and day (light) |
+| tomorrow-night | `tomorrow_night`; light derived |
+| twilight | `twilight`; light derived |
+| ubuntu | `ubuntu`; light derived |
+| vaughn | `vaughn`; light derived |
+| vscode | `vscode_dark`, `vscode_light` |
+| warmneon | `warmneon`; light derived |
+| wombat | `wombat`; light derived |
+| wryan | `wryan`; light derived |
+| xterm | xterm's own defaults, dark and light |
+| zenbones | zenwritten, dark and light |
+| zenburn | `zenburn`; light derived |
 
 A theme is a `.theme` file with a `[dark]` and a `[light]` section, each giving `bg`,
 `fg`, `surf`, `acc`, `accfg`, `urg`, `warn` and `ansi0`–`ansi15`. Drop your own into
-`~/.config/themer/themes/`.
+`~/.config/themer/themes/`, or make one from any Gogh-style line of sixteen colours:
+
+```sh
+python3 tools/gogh2theme.py schemes.txt ~/.config/themer/themes mytheme=my_dark/my_light
+```
 
 ## Fonts
 

@@ -1,21 +1,21 @@
-# Nord (dark). Palette from https://github.com/nordtheme/nord.
-# The light section is derived (nord6 background, nord0 text): Nord ships no light variant.
+# nord: dark from Gogh "nord", light from Gogh "nord_light".
+# Terminal colors as published; roles chosen by tools/gogh2theme.py (see it).
 [dark]
 bg=2e3440
-fg=d8dee9
-surf=3b4252
+fg=eceff4
+surf=454a56
 acc=88c0d0
-accfg=2e3440
+accfg=000000
 urg=bf616a
 warn=ebcb8b
-ansi0=3b4252
+ansi0=2e3440
 ansi1=bf616a
 ansi2=a3be8c
 ansi3=ebcb8b
 ansi4=81a1c1
 ansi5=b48ead
 ansi6=88c0d0
-ansi7=e5e9f0
+ansi7=d8dee9
 ansi8=4c566a
 ansi9=bf616a
 ansi10=a3be8c
@@ -25,21 +25,21 @@ ansi13=b48ead
 ansi14=8fbcbb
 ansi15=eceff4
 [light]
-bg=eceff4
-fg=2e3440
-surf=e5e9f0
-acc=5e81ac
-accfg=eceff4
+bg=e5e9f0
+fg=414858
+surf=d5d9e1
+acc=5f88b0
+accfg=000000
 urg=bf616a
-warn=d08770
-ansi0=3b4252
+warn=ad7d1e
+ansi0=e5e9f0
 ansi1=bf616a
 ansi2=a3be8c
 ansi3=ebcb8b
 ansi4=81a1c1
 ansi5=b48ead
 ansi6=88c0d0
-ansi7=e5e9f0
+ansi7=414858
 ansi8=4c566a
 ansi9=bf616a
 ansi10=a3be8c
