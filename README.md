@@ -20,6 +20,18 @@ themer toggle          # flip dark/light, apply everywhere
 themer theme gruvbox   # switch theme, apply everywhere
 ```
 
+<p align="center">
+  <img src="screenshots/themer-gtk-dark.png" width="49%" alt="themer-gtk, gruvbox dark">
+  <img src="screenshots/themer-gtk-light.png" width="49%" alt="themer-gtk, gruvbox light">
+</p>
+<p align="center"><sub>themer-gtk: the same theme in dark and light. The preview on the right is the GTK theme the gtk module writes, drawn by the window itself.</sub></p>
+
+<p align="center">
+  <img src="screenshots/firefox-gruvbox-dark.png" width="100%" alt="Firefox chrome, gruvbox dark">
+  <img src="screenshots/firefox-nord-light.png" width="100%" alt="Firefox chrome, nord light">
+</p>
+<p align="center"><sub>Firefox 140 with the firefox module: three flat rows, tabs like sway's, the URL bar in the terminal font.</sub></p>
+
 ## Contents
 
 - [Build and install](#build-and-install)
@@ -160,6 +172,16 @@ already have into part of a set (a GTK theme directory, a `.qss`, a `chrome/`
 directory...), **Check** renders the selected set for every theme and shows the report.
 The TUI has the same under *Template set* (`n`, `i`, `c`). Module options are on the
 Modules page and take effect at once; `template` pins one module to a set of its own.
+
+<p align="center">
+  <img src="screenshots/themer-qt-dark.png" width="49%" alt="themer-qt, nord dark">
+  <img src="screenshots/themer-qt-cursor.png" width="49%" alt="themer-qt, cursor page">
+</p>
+<p align="center">
+  <img src="screenshots/themer-gtk-icons.png" width="49%" alt="themer-gtk, icons page">
+  <img src="screenshots/themer-gtk-modules.png" width="49%" alt="themer-gtk, modules page">
+</p>
+<p align="center"><sub>themer-qt (nord dark) and themer-gtk (gruvbox light): the Cursor page draws the cursor theme's own files, the Icons page the icon theme's, and the Modules page holds every module's options.</sub></p>
 
 `themer-qt` needs no moc. `make gui` repeats what the build found; `make themer-gtk` or
 `make themer-qt` builds one on purpose.
