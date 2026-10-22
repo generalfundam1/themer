@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc="suckless-style theme manager: one theme, one dark/light switch, for GTK, Qt, Firefox, sway/i3, waybar, terminals, and more"
 arch=('x86_64' 'aarch64')
 url="https://github.com/ron/themer"
-license=('MIT')
+license=('GPL-2.0-only')
 depends=('glibc')
 makedepends=('pkgconf')
 # each front end and the Qt platform theme plugin are built when their toolkit is

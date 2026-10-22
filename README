@@ -606,3 +606,6 @@ Upgrading:
   before the cursor and rendering settings and the present() hook (TM_ABI 3 or 4)
   must be rebuilt (TM_ABI 5). The sway/i3 border, gaps, and titlebar options and the
   qt interface options are gone: set those in your own config; a saved value is ignored.
+
+License:
+  GPL-2.0-only, see LICENSE. Copyright (c) 2026 Ronald.
