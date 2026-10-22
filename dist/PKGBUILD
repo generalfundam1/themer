@@ -1,0 +1,39 @@
+# Maintainer: Ronald
+# Build from a checkout: cp dist/PKGBUILD . && makepkg -si   (or point source= at a tag)
+pkgname=themer
+pkgver=0.1
+pkgrel=1
+pkgdesc="suckless-style theme manager: one theme, one dark/light switch, for GTK, Qt, Firefox, sway/i3, waybar, terminals, and more"
+arch=('x86_64' 'aarch64')
+url="https://github.com/ron/themer"
+license=('MIT')
+depends=('glibc')
+makedepends=('pkgconf')
+# each front end and the Qt platform theme plugin are built when their toolkit is
+# installed at build time; list the ones you want as makedepends so the package is
+# reproducible: gtk3 (themer-gtk), qt6-base and/or qt5-base (themer-qt, the plugin)
+optdepends=('gtk3: themer-gtk, GTK 3 programs themed'
+            'qt6-base: themer-qt and Qt 6 programs themed through the platform theme plugin'
+            'qt5-base: Qt 5 programs themed through the platform theme plugin'
+            'fontconfig: font rendering settings applied'
+            'xsettingsd: live GTK changes on X11')
+install=themer.install
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+	cd "$pkgname-$pkgver"
+	make PREFIX=/usr
+}
+
+check() {
+	cd "$pkgname-$pkgver"
+	make PREFIX=/usr check
+}
+
+package() {
+	cd "$pkgname-$pkgver"
+	make PREFIX=/usr DESTDIR="$pkgdir" install
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm644 README "$pkgdir/usr/share/doc/$pkgname/README"
+}

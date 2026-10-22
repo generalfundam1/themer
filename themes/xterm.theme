@@ -1,0 +1,53 @@
+# xterm: the default colors from xterm's own resource file (XTerm-col.ad in
+# https://github.com/ThomasDickey/xterm-snapshots). The ANSI colors are the X11
+# names there, converted to hex (red3 = cd0000, gray90 = e5e5e5, and so on).
+# Dark: its default, gray90 text on black. Light: the alternative the file
+# comments on, black text on gray90. The surface and accent are derived.
+[dark]
+bg=000000
+fg=e5e5e5
+surf=262626
+acc=5c5cff
+accfg=ffffff
+urg=ff0000
+warn=ffff00
+ansi0=000000
+ansi1=cd0000
+ansi2=00cd00
+ansi3=cdcd00
+ansi4=0000ee
+ansi5=cd00cd
+ansi6=00cdcd
+ansi7=e5e5e5
+ansi8=7f7f7f
+ansi9=ff0000
+ansi10=00ff00
+ansi11=ffff00
+ansi12=5c5cff
+ansi13=ff00ff
+ansi14=00ffff
+ansi15=ffffff
+[light]
+bg=e5e5e5
+fg=000000
+surf=ffffff
+acc=0000ee
+accfg=ffffff
+urg=cd0000
+warn=cdcd00
+ansi0=000000
+ansi1=cd0000
+ansi2=00cd00
+ansi3=cdcd00
+ansi4=0000ee
+ansi5=cd00cd
+ansi6=00cdcd
+ansi7=e5e5e5
+ansi8=7f7f7f
+ansi9=ff0000
+ansi10=00ff00
+ansi11=ffff00
+ansi12=5c5cff
+ansi13=ff00ff
+ansi14=00ffff
+ansi15=ffffff

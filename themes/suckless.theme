@@ -1,0 +1,54 @@
+# suckless: dwm's default scheme (config.def.h of dwm, flexipatch copy:
+# normal #bbbbbb on #222222 with #444444 borders; selected #eeeeee on #005577),
+# and dmenu's (the same colors). The urgent border is dwm's #ff0000.
+# The ANSI colors are an approximation (st's default palette could not be read
+# here); the light section is derived (suckless has no light scheme).
+# Sources: https://github.com/bakkeby/dwm-flexipatch, dmenu's config.def.h
+[dark]
+bg=222222
+fg=bbbbbb
+surf=333333
+acc=005577
+accfg=eeeeee
+urg=ff0000
+warn=ffb000
+ansi0=222222
+ansi1=cc5555
+ansi2=88aa66
+ansi3=ddbb55
+ansi4=5588bb
+ansi5=aa77aa
+ansi6=55aaaa
+ansi7=bbbbbb
+ansi8=444444
+ansi9=ff5555
+ansi10=99cc77
+ansi11=ffdd66
+ansi12=66aadd
+ansi13=bb88bb
+ansi14=66bbbb
+ansi15=eeeeee
+[light]
+bg=eeeeee
+fg=222222
+surf=dddddd
+acc=005577
+accfg=eeeeee
+urg=cc0000
+warn=a67700
+ansi0=222222
+ansi1=aa3333
+ansi2=4d7a3a
+ansi3=8a6d1a
+ansi4=2e5f8a
+ansi5=7a4a7a
+ansi6=2e7a7a
+ansi7=444444
+ansi8=666666
+ansi9=cc4444
+ansi10=5c8f46
+ansi11=a6831f
+ansi12=3d75a8
+ansi13=8f5d8f
+ansi14=3d8f8f
+ansi15=222222

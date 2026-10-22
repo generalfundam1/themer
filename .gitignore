@@ -1,0 +1,17 @@
+# build output
+*.o
+*.so
+/themer
+/themer-gtk
+/themer-qt
+/gui/qpa/qt5/
+/gui/qpa/qt6/
+/config.h
+# make dist
+/themer-*.tar.gz
+# test output
+/test/firefox/out/
+/test/home/
+# packaging
+/pkg/
+/src-pkg/

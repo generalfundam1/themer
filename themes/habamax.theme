@@ -1,0 +1,52 @@
+# habamax: dark section from neovim runtime/colors/habamax.vim
+# Mapping: bg/fg = Normal, surf = Pmenu bg, acc/accfg = StatusLine bg/fg,
+# urg = ErrorMsg fg, warn = WarningMsg fg, ansi = g:terminal_ansi_colors.
+# Light section is ours: nvim's habamax has no light variant.
+[dark]
+bg=1c1c1c
+fg=c7c7c7
+surf=3a3a3a
+acc=9e9e9e
+accfg=1c1c1c
+urg=af5f5f
+warn=d75f87
+ansi0=1c1c1c
+ansi1=af5f5f
+ansi2=5faf5f
+ansi3=af875f
+ansi4=5f87af
+ansi5=af87af
+ansi6=5f8787
+ansi7=9e9e9e
+ansi8=767676
+ansi9=d75f87
+ansi10=87d787
+ansi11=d7af87
+ansi12=5fafd7
+ansi13=d787d7
+ansi14=87afaf
+ansi15=c7c7c7
+[light]
+bg=f2f2f2
+fg=262626
+surf=dcdcdc
+acc=3a5f8a
+accfg=ffffff
+urg=a33a3a
+warn=8a6a2a
+ansi0=262626
+ansi1=a33a3a
+ansi2=3a7a3a
+ansi3=8a6a2a
+ansi4=3a5f8a
+ansi5=8a4a8a
+ansi6=3a7a7a
+ansi7=bcbcbc
+ansi8=6c6c6c
+ansi9=c04848
+ansi10=2e8b57
+ansi11=b8860b
+ansi12=4169e1
+ansi13=9932cc
+ansi14=20b2aa
+ansi15=111111

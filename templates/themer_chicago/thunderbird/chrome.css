@@ -1,0 +1,118 @@
+/* the window: tabs, the unified toolbar, the spaces bar, menus, and dialogs */
+#messengerWindow, window, dialog, #tabmail, #tabpanelcontainer {
+  background-color: #{{bg}} !important; color: #{{fg}} !important;
+}
+
+/* ---- tabs: raised, flush, the selected one is the accent. The fill is painted on
+ * .tab-content, above .tab-background, so Thunderbird's own tab painting stays
+ * underneath. ---- */
+#tabs-toolbar, #tabmail-tabs {
+  background-color: #{{bar}} !important; color: #{{bar_text}} !important;
+  min-height: var(--tm-row) !important; padding: 0 !important; margin: 0 !important;
+  border: none !important; border-bottom: 1px solid #{{line}} !important;
+}
+#tabmail-tabs .tabmail-tab {
+  margin: 0 !important; padding: 0 !important;
+  min-height: var(--tm-row) !important; height: var(--tm-row) !important;
+  border: none !important; background: transparent !important; box-shadow: none !important;
+  font-family: var(--tm-font) !important; font-size: var(--tm-size) !important;
+}
+.tabmail-tab .tab-background { background: transparent !important; background-image: none !important; }
+.tabmail-tab .tab-line { display: none !important; }
+.tabmail-tab .tab-content {
+  box-sizing: border-box !important; height: var(--tm-row) !important; padding: 0 8px !important;
+  background-color: #{{face}} !important; color: #{{tab_text}} !important;
+  border: 1px solid !important; border-color: #{{light}} #{{shade}} #{{shade}} #{{light}} !important;
+}
+.tabmail-tab:hover:not([selected]) .tab-content { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+.tabmail-tab[selected] .tab-content, .tabmail-tab[visuallyselected] .tab-content {
+  background-color: #{{acc}} !important; color: #{{tab_active_text}} !important;
+  border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
+}
+.tabmail-tab .tab-label { color: inherit !important; }
+.tabmail-tab .tab-close-button { fill: currentColor !important; -moz-context-properties: fill; }
+#tabmail-tabs .tabmail-tab[selected] .tab-close-button { fill: #{{tab_active_text}} !important; }
+.tabs-alltabs-button, #alltabs-button { color: #{{bar_text}} !important; }
+
+/* ---- the unified toolbar and the menu bar ---- */
+#toolbar-menubar, #unifiedToolbarContainer, #unifiedToolbar, .unified-toolbar, #unifiedToolbarContent,
+#mail-toolbar-menubar2, .toolbar, toolbox {
+  background-color: #{{bar}} !important; color: #{{bar_text}} !important;
+  background-image: none !important; border: none !important; box-shadow: none !important;
+}
+#unifiedToolbarContainer { border-bottom: 1px solid #{{line}} !important; }
+.unified-toolbar-button, .toolbarbutton-1, toolbarbutton {
+  color: #{{bar_text}} !important; fill: #{{bar_text}} !important;
+  background: transparent !important; border: none !important; box-shadow: none !important;
+}
+.unified-toolbar-button:hover, .toolbarbutton-1:hover, toolbarbutton:hover { color: #{{glyph_hover}} !important; fill: #{{glyph_hover}} !important; }
+.unified-toolbar-button[checked], .unified-toolbar-button[open], .toolbarbutton-1[checked], .toolbarbutton-1[open] {
+  background-color: #{{acc}} !important; color: #{{accfg}} !important; fill: #{{accfg}} !important;
+}
+global-search-bar, #searchInput, .search-bar, search-bar {
+  background-color: #{{field}} !important; color: #{{fg}} !important;
+  border: 1px solid !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
+}
+global-search-bar:focus-within, search-bar:focus-within { border-color: #{{acc}} !important; outline: none !important; }
+#toolbar-menubar > menu, menubar > menu { color: #{{bar_text}} !important; }
+menubar > menu[_moz-menuactive], menubar > menu[open] { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+
+/* ---- the spaces bar ---- */
+#spacesToolbar {
+  background-color: #{{bar}} !important; background-image: none !important;
+  border: none !important; border-right: 1px solid #{{line}} !important;
+}
+.spaces-toolbar-button { color: #{{bar_text}} !important; fill: #{{bar_text}} !important; background: transparent !important; }
+.spaces-toolbar-button:hover { color: #{{glyph_hover}} !important; fill: #{{glyph_hover}} !important; }
+.spaces-toolbar-button.current, .spaces-toolbar-button[open] { background-color: #{{acc}} !important; color: #{{accfg}} !important; fill: #{{accfg}} !important; }
+
+/* ---- menus and panels: flat, outlined; the highlight is the hover color ---- */
+menupopup, panel, .panel-arrowcontent, panelview, .panel-subview-body, #customizationPanel {
+  background-color: #{{bg}} !important; color: #{{fg}} !important; --panel-border-radius: 0 !important;
+}
+menupopup, panel, .panel-arrowcontent { border: 1px solid #{{line}} !important; padding: {{pad_surface}} !important; }
+menu, menuitem, menucaption, .subviewbutton { padding: {{pad_control}} !important; color: #{{fg}} !important; }
+menuseparator, toolbarseparator { border-color: #{{line}} !important; margin: 2px 0 !important; }
+menu[_moz-menuactive], menuitem[_moz-menuactive], menu[_moz-menuactive] *, menuitem[_moz-menuactive] *,
+.subviewbutton:hover, .subviewbutton:hover * {
+  background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; fill: #{{hover_fg}} !important;
+}
+menu[disabled], menuitem[disabled], menu[disabled] *, menuitem[disabled] * { color: #{{disabled}} !important; }
+
+/* ---- the message pane splitters and the status bar ---- */
+#folderPaneSplitter, #messagePaneSplitter, pane-splitter, splitter { background-color: #{{line}} !important; }
+#status-bar, .statusbar, #statusbar { background-color: #{{bar}} !important; color: #{{bar_text}} !important; border-top: 1px solid #{{line}} !important; }
+
+/* ---- dialogs, compose, address book windows: controls with the Chicago bevel ---- */
+button, .button, toolbarbutton.menulist-button, menulist {
+  appearance: none !important; background-color: #{{face}} !important; color: #{{fg}} !important;
+  border: 1px solid !important; border-color: #{{light}} #{{shade}} #{{shade}} #{{light}} !important;
+  padding: {{pad_control}} !important; min-height: 0 !important;
+}
+button:hover, .button:hover, menulist:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+button:active, .button:active, button[open], menulist[open] {
+  background-color: #{{pressed}} !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
+}
+button[default], button.primary { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+input, textarea , search-textbox, .textbox-input, #msgSubject, .address-input, #toAddrInput {
+  appearance: none !important; background-color: #{{field}} !important; color: #{{fg}} !important;
+  border: 1px solid !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
+}
+input:focus, textarea:focus { border-color: #{{acc}} !important; outline: none !important; }
+tree, richlistbox, listbox, treechildren { background-color: #{{field}} !important; color: #{{fg}} !important; }
+treecols, treecol, .treecol-image { background-color: #{{surf}} !important; color: #{{fg}} !important; border: none !important; border-bottom: 1px solid #{{line}} !important; }
+treechildren::-moz-tree-row(selected), richlistitem[selected], richlistitem[selected] * { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+treechildren::-moz-tree-row(selected, focus) { background-color: #{{acc}} !important; }
+treechildren::-moz-tree-cell-text(selected) { color: #{{hover_fg}} !important; }
+treechildren::-moz-tree-cell-text(selected, focus) { color: #{{accfg}} !important; }
+treechildren::-moz-tree-row(hover) { background-color: #{{hover_bg}} !important; }
+#headersBox, #MsgHeadersToolbar, #composeContentBox, #compose-toolbox, .address-container {
+  background-color: #{{bg}} !important; color: #{{fg}} !important;
+}
+.address-pill { background-color: #{{surf}} !important; color: #{{fg}} !important; border: 1px solid #{{line}} !important; }
+.address-pill[selected] { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+#FormatToolbar, #FormatToolbox { background-color: #{{bar}} !important; border-bottom: 1px solid #{{line}} !important; }
+#msgSubject, #msgIdentity { background-color: #{{field}} !important; }
+.notificationbox-stack, notification-message, notification, .infobar {
+  background-color: #{{surf}} !important; color: #{{fg}} !important; border: none !important; border-bottom: 1px solid #{{line}} !important;
+}

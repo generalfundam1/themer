@@ -1,0 +1,83 @@
+/* the panes and pages Thunderbird draws as content documents: the folder pane, the
+ * message list, the message header (about:3pane, about:message), the settings,
+ * account, and address book pages, and the calendar */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+  html, body { background-color: #{{bg}} !important; color: #{{fg}} !important; }
+  /* the folder pane: a sidebar on the window color, the current folder the accent */
+  #folderPane, #folderTree, #folderPaneHeaderBar, .folder-tree-row { background-color: #{{bg}} !important; color: #{{fg}} !important; }
+  #folderPaneHeaderBar { border-bottom: 1px solid #{{line}} !important; }
+  #folderTree li.selected > .container, #folderTree li.selected > .container * { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  #folderTree:focus-within li.selected > .container, #folderTree:focus-within li.selected > .container * { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+  #folderTree li > .container:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  .unread-count, .total-count { border-radius: 0 !important; }
+  /* the message list: the field color, a flat header, rows in the hover and accent colors */
+  #threadPane, #threadTree, #threadPaneHeader, tree-view-table-body, .tree-table { background-color: #{{field}} !important; color: #{{fg}} !important; }
+  #threadPaneHeader, #threadPane thead, tree-view-table-header, .tree-table thead th, .tree-table-header {
+    background-color: #{{surf}} !important; color: #{{fg}} !important; border-bottom: 1px solid #{{line}} !important;
+  }
+  .tree-table thead th, tree-view-table-header-cell { border-right: 1px solid #{{line}} !important; }
+  tr.selected, tr[aria-selected="true"], .card-container.selected, .thread-card.selected { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  tr.selected.current, tr.current.selected, #threadTree:focus-within tr.selected { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+  tr.selected *, tr.selected.current * { color: inherit !important; }
+  tr:hover:not(.selected) { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  .card-container, .thread-card { border-color: #{{line}} !important; border-radius: 0 !important; }
+  /* the quick filter bar: on the bar color with the field inside */
+  #quick-filter-bar, #quickFilterBarContainer, #quickFilterBarSecondFilters, #quickFilterBarTagsContainer {
+    background-color: #{{bar}} !important; color: #{{bar_text}} !important; border-bottom: 1px solid #{{line}} !important;
+  }
+  #qfb-qs-textbox, #quick-filter-bar input, #quick-filter-bar search-bar {
+    background-color: #{{field}} !important; color: #{{fg}} !important;
+    border: 1px solid !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
+  }
+  #quick-filter-bar button, #quick-filter-bar .button { padding: {{pad_field}} !important; }
+  #quick-filter-bar button[aria-pressed="true"], #quick-filter-bar button[checked] { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+  /* the message header: the bar color, outlined below; the subject in the text color */
+  #messageHeader, #msgHeaderView, .message-header-container, #expandedHeadersTopBox, #headingWrapper, #attachmentBar, #attachmentView, #attachmentList {
+    background-color: #{{bar}} !important; color: #{{bar_text}} !important;
+  }
+  #messageHeader, #msgHeaderView { border-bottom: 1px solid #{{line}} !important; }
+  .message-header-label, .headerName { color: #{{disabled}} !important; opacity: 1 !important; }
+  .header-recipient, .headerValue, .recipient-single-line, .recipient-address, #expandedsubjectBox, .message-header-datetime { color: #{{bar_text}} !important; }
+  .header-recipient:hover, .recipient-single-line:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  #expandedBoxSpacer, #attachmentList, .attachmentItem { background-color: #{{bar}} !important; }
+  .attachmentItem[selected] { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+  .recipient-avatar { background-color: #{{surf}} !important; color: #{{fg}} !important; border-radius: 0 !important; }
+  /* the message itself and the welcome page keep the field color behind them */
+  #messagePane, #messagepanebox, #multiMessageBrowser, #accountCentralBrowser, #webBrowser, #placeholderNoMessages, #placeholderMultipleFolders {
+    background-color: #{{field}} !important; color: #{{fg}} !important;
+  }
+  /* controls on every page: the Chicago bevel */
+  button:not(.text-link):not(.plain), .button, input[type="button"], select, .select, menulist {
+    appearance: none !important; background-color: #{{face}} !important; color: #{{fg}} !important;
+    border: 1px solid !important; border-color: #{{light}} #{{shade}} #{{shade}} #{{light}} !important;
+    padding: {{pad_control}} !important;
+  }
+  button:not(.text-link):not(.plain):hover, .button:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  button:not(.text-link):not(.plain):active, .button:active { background-color: #{{pressed}} !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important; }
+  button.primary, button[default], .primary { background-color: #{{acc}} !important; color: #{{accfg}} !important; border-color: #{{acc}} !important; }
+  input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], textarea, .input-container input {
+    appearance: none !important; background-color: #{{field}} !important; color: #{{fg}} !important;
+    border: 1px solid !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important; padding: {{pad_field}} !important;
+  }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 1px solid #{{acc}} !important; outline-offset: -1px !important; }
+  /* settings and account pages: the category list like a sway tab */
+  #categories > .category[selected], .category[selected], .category.selected, #accounttree li.selected > .container {
+    background-color: #{{acc}} !important; color: #{{accfg}} !important;
+  }
+  #categories > .category:hover:not([selected]), .category:hover:not(.selected) { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  groupbox, .groupbox-body, .card, moz-card, .account-section { background-color: #{{surf}} !important; border: 1px solid #{{line}} !important; }
+  /* the address book */
+  #booksPane, #cardsPane, #detailsPane, #books, #cards { background-color: #{{bg}} !important; color: #{{fg}} !important; }
+  #cards, #cardsBody, .card-row, #cardsHeader { background-color: #{{field}} !important; }
+  #cardsHeader { background-color: #{{surf}} !important; border-bottom: 1px solid #{{line}} !important; }
+  #books li.selected > .bookRow-container, #books li.selected > .bookRow-container *, #cards .card-row.selected, #cards tr.selected { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
+  /* the calendar */
+  #calendar-view-box, .calendar-month-day-box, .calendar-day-box, #view-deck, calendar-month-view, calendar-multiday-view { background-color: #{{field}} !important; color: #{{fg}} !important; }
+  .calendar-month-day-box-day-label, .calendar-day-label, calendar-day-label { background-color: #{{surf}} !important; color: #{{fg}} !important; border-color: #{{line}} !important; }
+  .calendar-month-day-box-current-month { background-color: #{{field}} !important; }
+  .calendar-month-day-box-other-month { background-color: #{{bg}} !important; }
+  .calendar-month-day-box-day-off { background-color: #{{bg}} !important; }
+  ::selection { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  a, a:link { color: #{{acc}} !important; }
+  a:hover { color: #{{hover_bg}} !important; }
+}

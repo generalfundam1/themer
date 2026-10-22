@@ -1,0 +1,52 @@
+# Greyscale: neutral grays only (red = green = blue). The ramps are this project's
+# own, set for high contrast: pure black and white anchor the dark and light
+# modes, and the accent is inverted (white on black, black on white), like a
+# classic monochrome display. No upstream palette.
+[dark]
+bg=000000
+fg=ffffff
+surf=1a1a1a
+acc=ffffff
+accfg=000000
+urg=9a9a9a
+warn=cccccc
+ansi0=000000
+ansi1=7a7a7a
+ansi2=8a8a8a
+ansi3=9a9a9a
+ansi4=aaaaaa
+ansi5=b8b8b8
+ansi6=c6c6c6
+ansi7=d8d8d8
+ansi8=7a7a7a
+ansi9=9a9a9a
+ansi10=aaaaaa
+ansi11=bcbcbc
+ansi12=cacaca
+ansi13=d8d8d8
+ansi14=e6e6e6
+ansi15=ffffff
+[light]
+bg=ffffff
+fg=000000
+surf=e8e8e8
+acc=000000
+accfg=ffffff
+urg=404040
+warn=595959
+ansi0=000000
+ansi1=2a2a2a
+ansi2=3a3a3a
+ansi3=4a4a4a
+ansi4=5a5a5a
+ansi5=666666
+ansi6=707070
+ansi7=6e6e6e
+ansi8=6a6a6a
+ansi9=1e1e1e
+ansi10=2c2c2c
+ansi11=3c3c3c
+ansi12=4c4c4c
+ansi13=5c5c5c
+ansi14=686868
+ansi15=000000

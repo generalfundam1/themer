@@ -1,0 +1,5 @@
+Fallback icons for the Firefox chrome: the symbolic icons of the GNOME Adwaita
+icon theme (version 46), used for a glyph the user's icon theme and the themes
+it inherits from do not provide. The Adwaita icon theme is licensed under the
+GNU LGPL v3 or the Creative Commons Attribution-Share Alike 3.0 United States
+License, at your option. See https://gitlab.gnome.org/GNOME/adwaita-icon-theme.

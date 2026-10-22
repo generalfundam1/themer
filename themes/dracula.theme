@@ -1,0 +1,53 @@
+# Dracula (dark) and Alucard (light), the official Dracula palettes.
+# The dark selection accent is Dracula's purple (bd93f9) with the background as text:
+# the current-line color (44475a) is too close to the background to show a selection.
+# Source: https://draculatheme.com/spec (the repo's ports are submodules here).
+# Alucard's terminal colors are approximate.
+[dark]
+bg=282a36
+fg=f8f8f2
+surf=44475a
+acc=bd93f9
+accfg=282a36
+urg=ff5555
+warn=ffb86c
+ansi0=21222c
+ansi1=ff5555
+ansi2=50fa7b
+ansi3=f1fa8c
+ansi4=bd93f9
+ansi5=ff79c6
+ansi6=8be9fd
+ansi7=f8f8f2
+ansi8=6272a4
+ansi9=ff6e6e
+ansi10=69ff94
+ansi11=ffffa5
+ansi12=d6acff
+ansi13=ff92df
+ansi14=a4ffff
+ansi15=ffffff
+[light]
+bg=fffbeb
+fg=1f1f1f
+surf=cfcfde
+acc=644ac9
+accfg=fffbeb
+urg=cb3a2a
+warn=a34d14
+ansi0=1f1f1f
+ansi1=cb3a2a
+ansi2=14710a
+ansi3=846e15
+ansi4=644ac9
+ansi5=a3144d
+ansi6=036a96
+ansi7=cfcfde
+ansi8=6c664b
+ansi9=cb3a2a
+ansi10=14710a
+ansi11=846e15
+ansi12=644ac9
+ansi13=a3144d
+ansi14=036a96
+ansi15=fffbeb

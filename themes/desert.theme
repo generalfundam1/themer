@@ -1,0 +1,52 @@
+# desert: dark section from neovim runtime/colors/desert.vim
+# Mapping: bg/fg = Normal, surf = Pmenu bg, acc/accfg = StatusLine bg/fg,
+# urg = ErrorMsg fg, warn = WarningMsg fg, ansi = g:terminal_ansi_colors.
+# Light section is ours: nvim's desert is dark-only.
+[dark]
+bg=333333
+fg=ffffff
+surf=666666
+acc=c2bfa5
+accfg=333333
+urg=ff0000
+warn=cd5c5c
+ansi0=7f7f8c
+ansi1=cd5c5c
+ansi2=9acd32
+ansi3=bdb76b
+ansi4=75a0ff
+ansi5=eeee00
+ansi6=cd853f
+ansi7=666666
+ansi8=8a7f7f
+ansi9=ff0000
+ansi10=89fb98
+ansi11=f0e68c
+ansi12=6dceeb
+ansi13=ffde9b
+ansi14=ffa0a0
+ansi15=c2bfa5
+[light]
+bg=f4efe0
+fg=2b2b2b
+surf=e4dcc6
+acc=c9a86a
+accfg=2b2b2b
+urg=b03a2e
+warn=8a6d1a
+ansi0=2b2b2b
+ansi1=b03a2e
+ansi2=4f7a3a
+ansi3=8a6d1a
+ansi4=3d5f8a
+ansi5=7a4a7a
+ansi6=3a7a7a
+ansi7=c8c0a8
+ansi8=7a7a7a
+ansi9=c85a4e
+ansi10=6a9a4a
+ansi11=a8862a
+ansi12=5a7aa8
+ansi13=946494
+ansi14=5a9a9a
+ansi15=111111

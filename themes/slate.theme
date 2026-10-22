@@ -1,0 +1,52 @@
+# slate: dark section from neovim runtime/colors/slate.vim
+# Mapping: bg/fg = Normal, surf = Pmenu bg, acc/accfg = StatusLine bg/fg,
+# urg = ErrorMsg fg, warn = WarningMsg fg, ansi = g:terminal_ansi_colors.
+# Light section is ours: nvim's slate is dark-only.
+[dark]
+bg=262626
+fg=ffffff
+surf=4a4a4a
+acc=afaf87
+accfg=000000
+urg=ff0000
+warn=ff8787
+ansi0=000000
+ansi1=cd0000
+ansi2=00cd00
+ansi3=cdcd00
+ansi4=0000ee
+ansi5=cd00cd
+ansi6=00cdcd
+ansi7=e5e5e5
+ansi8=7f7f7f
+ansi9=ff0000
+ansi10=00ff00
+ansi11=ffff00
+ansi12=5c5cff
+ansi13=ff00ff
+ansi14=00ffff
+ansi15=ffffff
+[light]
+bg=eef1f5
+fg=2a2f3a
+surf=dde2ea
+acc=4a6a9a
+accfg=ffffff
+urg=b03a48
+warn=8a6a1a
+ansi0=2a2f3a
+ansi1=b03a48
+ansi2=4a7a3a
+ansi3=8a6a1a
+ansi4=4a6a9a
+ansi5=7a4a9a
+ansi6=3a7a80
+ansi7=b8bfcc
+ansi8=6c7280
+ansi9=c85060
+ansi10=5a8a4a
+ansi11=a08030
+ansi12=5a7ab0
+ansi13=8a5aaa
+ansi14=4a9098
+ansi15=111111

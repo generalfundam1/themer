@@ -1,0 +1,19 @@
+post_install() {
+	cat <<'MSG'
+themer: run `themer` (TUI), `themer-gtk`, or `themer-qt` and apply a theme.
+  Qt programs take the theme through themer's platform theme plugin; the qt
+  module writes the variables to ~/.config/environment.d/50-themer.conf and
+  ~/.config/themer/env.sh. For a session that reads neither, add to /etc/environment:
+    QT_QPA_PLATFORMTHEME=themer
+    QT_PLUGIN_PATH=/usr/lib/themer/qt/qt5:/usr/lib/themer/qt/qt6
+  then log out and in.
+MSG
+}
+
+post_upgrade() {
+	cat <<'MSG'
+themer: run `themer apply` to re-render with the new templates. The Qt platform
+theme plugin is built against the installed Qt; rebuild the package after a Qt
+minor upgrade (Qt loads only plugins built for its own major.minor).
+MSG
+}
