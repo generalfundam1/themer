@@ -5,7 +5,7 @@
 themer is a suckless-style theme manager written in C99. It takes a colour theme and a
 mode (dark or light) and writes the configuration of everything on the desktop from
 them: GTK 2/3/4, Qt 5/6, Firefox, Thunderbird, sway or i3, waybar, foot, nvim, fcitx5,
-launchers, newt dialogs, the TTY. Every write is recorded, so unloading a module puts
+launchers, newt dialogs, the TTY — and YouTube, through Stylus. Every write is recorded, so unloading a module puts
 the user's files back byte for byte.
 
 It replaces nwg-look, qt5ct and qt6ct: icons, cursor, fonts and font rendering are
@@ -46,6 +46,7 @@ themer theme gruvbox   # switch theme, apply everywhere
 - [Design language](#design-language)
 - [Readability](#readability)
 - [Firefox](#firefox)
+- [Stylus (web sites)](#stylus-web-sites)
 - [Thunderbird](#thunderbird)
 - [Themes](#themes)
 - [Fonts](#fonts)
@@ -260,6 +261,7 @@ All on by default unless noted:
 | **fontconfig** | font rendering for everything that reads fontconfig |
 | **firefox** | the browser chrome (`chrome/userChrome.css`) and Firefox's own pages (`chrome/userContent.css`), as marked blocks in the profile |
 | **thunderbird** | the mail window and the panes Thunderbird draws as content, the same way |
+| **stylus** | userstyles for web sites, for the Stylus extension in Firefox or Chromium: `~/.config/themer/stylus/<site>.user.css`, one per `*.user.css` in the set (YouTube ships). Installed once from `file://` with Live reload on; every apply then restyles the site at once |
 | **sway** | window and bar colours, the font, `$menu`, the seat cursor; loads only where sway is in use. Borders, gaps and titlebars stay in your own config |
 | **i3** | the same for i3 |
 | **waybar** | dwm-style bar; owns `style.css`, the original is kept as `style.css.themer-orig` and put back on unload. `config.jsonc` is not touched |
@@ -307,6 +309,7 @@ its own.
 | | `recolor` | `all` \| `symbolic` | `all` |
 | | `raster` | `color` \| `ink` | `color` |
 | thunderbird | `font` | `ui` \| `terminal` | `ui` |
+| stylus | `font` | `ui` \| `terminal` \| `site` (the site's own) | `ui` |
 | waybar | `font` | `terminal` \| `ui` | `terminal` |
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |
 | fcitx, wmenu, dmenu | `font` | `ui` \| `terminal` | `ui` |
@@ -326,6 +329,7 @@ gtk/          gtk.css                        GTK 3 and 4
 qt/           qt.qss, colors.conf, *.svg     the plugin, qt5ct and qt6ct
 firefox/      userChrome.css, userContent.css
 thunderbird/  tokens.css, chrome.css, content.css
+stylus/       youtube.user.css, <site>.user.css  Stylus userstyles, one per site
 wm/           themer.conf, bar.conf          sway and i3
 launcher/     launcher                       wmenu and dmenu
 waybar/       style.css
@@ -406,6 +410,7 @@ What each module directory takes, and what becomes of it on apply:
 | | `colors.conf` | the qt5ct/qt6ct palette; `{{qt_active}}`, `{{qt_disabled}}`, `{{qt_inactive}}` are the role lists built from the theme |
 | `firefox/` | `userChrome.css`, `userContent.css` | a marked block at the end of the profile's files; other files copied into `chrome/`. Variables: `{{tab_font}}`, `{{tab_size}}`, `{{glyph_size}}`, and per toolbar icon `{{icon_X}}`, `{{icon_X_hover}}`, `{{raster_X}}`, `{{tint_X}}`, `{{tint_X_hover}}` (X: back forward reload stop home newtab menu downloads extensions star_off star reader identity close), data URIs of the icon theme |
 | `thunderbird/` | `tokens.css`, `chrome.css`, `content.css` | tokens+chrome → userChrome, tokens+content → userContent. `{{font_family}}`, `{{font_size}}` |
+| `stylus/` | `<site>.user.css` | a UserCSS file (`/* ==UserStyle==` header, `@-moz-document domain(...)`), rendered to `~/.config/themer/stylus/<site>.user.css`; every such file in the set is a site, and the built-in set's sites are kept when a set adds one. `{{font_family}}`, `{{font_size}}`, `{{font_rule}}` (a complete `font-family` declaration, empty with `font=site`). The marker goes in `@description` |
 | `wm/` | `themer.conf`, `bar.conf` | included from the sway/i3 config. `{{font_family}}`, `{{font_size}}`, `{{bar_block}}`, `{{cursor_block}}` |
 | `launcher/` | `launcher` | the wmenu/dmenu wrapper script. `{{menu}}`, `{{args}}` |
 | `waybar/` | `style.css` | replaces waybar's `style.css`. `{{font_family}}`, `{{font_size}}`, `{{ws_pad}}`, `{{mod_pad}}` |
@@ -503,6 +508,30 @@ and 158.
 
 Limit: a stylesheet cannot move Firefox's page-action buttons into the nav bar; use
 Customize Toolbar once to drag them there.
+
+## Stylus (web sites)
+
+The firefox module themes the browser; the stylus module themes pages, through the
+[Stylus](https://github.com/openstyles/stylus) extension, which runs in Firefox and
+the Chromium family. It renders every `<site>.user.css` of the template set into
+`~/.config/themer/stylus/`, as UserCSS: the metadata header Stylus reads, then the
+rules under `@-moz-document domain("...")`. YouTube ships: its `--yt-spec-*`
+variables set to the roles on both of YouTube's own modes, square corners, the
+Chicago bevel on buttons and chips, the accent on the selected chip and guide entry
+and on the player's progress bar, menus and dialogs flat and outlined.
+
+Stylus keeps its styles inside the browser, where nothing outside can write, so the
+file is installed once by hand:
+
+1. open `file:///home/<you>/.config/themer/stylus/youtube.user.css` in the browser
+   (Chromium: turn on *Allow access to file URLs* for Stylus first);
+2. Stylus opens its install page: tick **Live reload**, then **Install style**.
+
+From then on every apply restyles the site at once, since Stylus re-reads the file
+when it changes. A set adds a site by adding `stylus/<site>.user.css`; nothing in the
+module changes. Not checked against a live YouTube here: the selectors and variable
+names are from YouTube's current stylesheets, and the rendered file is checked to
+parse (every rule kept) in Chromium.
 
 ## Thunderbird
 
