@@ -68,7 +68,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "foot",
-	.desc = "terminal font and colors, set in foot.ini",
+	.desc = "foot: the terminal's font and colors (foot.ini)",
 	.default_on = 1,
 	.present = present,
 	.load = load,

@@ -24,6 +24,18 @@ void gui_scheme(const Config *c, Scheme *s);
 int gui_cursor_image(const char *theme, const char *name, int size, unsigned *pix,
                      int maxpix, int *w, int *h);
 
+/* The file of an icon in an icon theme, at the size wanted (pixels), found as GTK
+ * and Qt find it: the theme, the themes it inherits, then hicolor. Returns 0 with
+ * the path in out, or -1 when no theme in the chain has it. */
+int gui_icon_path(const char *theme, const char *name, int size, char *out, size_t n);
+
+/* That icon's file, read: falls back to NAME-symbolic as GTK and Qt do (current
+ * Adwaita has many icons only in that form), and paints a symbolic SVG in the
+ * color fg (hex without #; NULL leaves it). Returns the bytes (NUL-terminated,
+ * free them) with len and the MIME type, or NULL when the theme lacks it. */
+char *gui_icon_load(const char *theme, const char *name, int size, const char *fg,
+                    size_t *len, const char **mime);
+
 /* The icons the icon preview shows, as (icon name, caption) pairs, and the cursors
  * the cursor preview shows, as Xcursor names with "|" between alternatives. Both
  * NULL-terminated. */

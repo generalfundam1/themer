@@ -51,7 +51,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "nvim",
-	.desc = "nvim colorscheme 'themer', selected from init.lua",
+	.desc = "Neovim: the themer colorscheme, selected from init.lua or init.vim",
 	.templates = "nvim",
 	.default_on = 1,
 	.present = present,

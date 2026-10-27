@@ -6,7 +6,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +21,6 @@ enum { K_UP = 1000, K_DOWN, K_LEFT, K_RIGHT, K_ENTER, K_BS, K_ESC, K_REDRAW, K_N
 enum { ST_NORM, ST_SEL, ST_DIM, ST_INPUT };
 
 #define MAXL     2048
-#define MAX_OPTS 16
 #define PANEL_W  72
 
 extern char **environ;
@@ -29,6 +30,14 @@ static Scheme sc;
 static struct termios orig;
 static int rows = 24, cols = 80, dirty, last_key;
 static int ptop, pleft, pw, prow, pcol;
+/* A panel taller than the room between the title bar and the hint line scrolls: pskip
+ * of its lines are above the room, pvis fit, and the line pfocus (the selection, when
+ * the caller sets it before pbegin) is kept in view. Lines out of view are written to
+ * sink, so they never land on the hint line or the title bar. */
+static int pskip, pvis = 1 << 30, pfocus = -1;
+/* the settings as last saved, for front_sync to merge against */
+static Config base;
+static FILE *out, *sink;
 static char msg[160];
 static char lst[MAXL][NAME_LEN + 32];
 static int lstn;
@@ -51,7 +60,7 @@ setfg(const char *h)
 	int r, g, b;
 
 	rgb_of(h, &r, &g, &b);
-	printf("\x1b[38;2;%d;%d;%dm", r, g, b);
+	fprintf(out, "\x1b[38;2;%d;%d;%dm", r, g, b);
 }
 
 static void
@@ -60,13 +69,13 @@ setbg(const char *h)
 	int r, g, b;
 
 	rgb_of(h, &r, &g, &b);
-	printf("\x1b[48;2;%d;%d;%dm", r, g, b);
+	fprintf(out, "\x1b[48;2;%d;%d;%dm", r, g, b);
 }
 
 static void
 at(int r, int c)
 {
-	printf("\x1b[%d;%dH", r, c);
+	fprintf(out, "\x1b[%d;%dH", r, c);
 }
 
 static void
@@ -80,7 +89,7 @@ flash(const char *s)
 static void
 term_off(void)
 {
-	fputs("\x1b[0m\x1b[?25h\x1b[?1049l", stdout);
+	fputs("\x1b[0m\x1b[?25h\x1b[?1049l", out);
 	fflush(stdout);
 	tcsetattr(STDIN_FILENO, TCSANOW, &orig);
 }
@@ -104,6 +113,11 @@ term_on(void)
 	struct termios t;
 	struct sigaction sa;
 
+	out = stdout;
+	if (!sink)
+		sink = fopen("/dev/null", "w");
+	if (!sink)
+		sink = stdout;              /* no /dev/null: overdraw rather than crash */
 	tcgetattr(STDIN_FILENO, &orig);
 	t = orig;
 	t.c_lflag &= ~(ICANON | ECHO);
@@ -114,7 +128,7 @@ term_on(void)
 	signal(SIGINT, onsig);
 	signal(SIGTERM, onsig);
 	setvbuf(stdout, NULL, _IOFBF, 1 << 16);
-	fputs("\x1b[?1049h\x1b[?25l", stdout);
+	fputs("\x1b[?1049h\x1b[?25l", out);
 }
 
 /* ---- keys ---- */
@@ -133,11 +147,39 @@ rd(void)
 	return -1;
 }
 
+/* takes in what another front end saved, keeping the changes not applied here */
+static void
+tui_sync(void)
+{
+	if (front_sync()) {
+		dirty = !config_same(cfg, &base);
+		flash("updated with changes made in another front end");
+	}
+}
+
 static int
 readkey(void)
 {
 	struct termios t, raw;
-	int c = rd(), a, b;
+	int c, a, b;
+
+	/* waits for a key, but wakes once a second: when another front end saved, the
+	 * screen is redrawn with what it changed */
+	for (;;) {
+		struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
+		int r = poll(&p, 1, 1000);
+
+		if (r > 0)
+			break;
+		if (r < 0 && errno != EINTR)
+			return K_ESC;
+		if (r < 0 || state_changed()) {     /* a resize, or the state file */
+			msg[0] = '\0';
+			tui_sync();
+			return K_REDRAW;
+		}
+	}
+	c = rd();
 
 	msg[0] = '\0';                 /* a message shows for one frame */
 	if (c == -2)
@@ -198,12 +240,12 @@ bar(int row, const char *bgc, const char *fgc, const char *left, const char *rig
 	at(row, 1);
 	setbg(bgc);
 	setfg(fgc);
-	fputs("\x1b[1m", stdout);
-	printf("%.*s", lw, left);
+	fputs("\x1b[1m", out);
+	fprintf(out, "%.*s", lw, left);
 	pad = max - lw - rw;
-	printf("%*s", pad, "");
-	printf("%.*s", rw, right);
-	fputs("\x1b[22m", stdout);
+	fprintf(out, "%*s", pad, "");
+	fprintf(out, "%.*s", rw, right);
+	fputs("\x1b[22m", out);
 }
 
 static void
@@ -212,13 +254,14 @@ frame_begin(const char *hint)
 	char right[160];
 	int r;
 
+	tui_sync();
 	getsize();
 	theme_scheme(cfg, &sc);
-	fputs("\x1b[0m\x1b[H", stdout);
+	fputs("\x1b[0m\x1b[H", out);
 	for (r = 1; r <= rows; r++) {
 		at(r, 1);
 		setbg(sc.hex[C_BG]);
-		printf("%*s", cols - 1, "");
+		fprintf(out, "%*s", cols - 1, "");
 	}
 	snprintf(right, sizeof right, "%s  %s%s ", cfg->th.name,
 	         cfg->mode == MODE_DARK ? "dark" : "light", dirty ? "  *" : "");
@@ -237,7 +280,7 @@ frame_end(void)
 		at(rows - 1, col);
 		setbg(sc.hex[C_BG]);
 		setfg(sc.hex[C_WARN]);
-		fputs(msg, stdout);
+		fputs(msg, out);
 	}
 	fflush(stdout);
 }
@@ -247,7 +290,7 @@ frame_end(void)
 static void
 style(int st)
 {
-	fputs("\x1b[22m", stdout);
+	fputs("\x1b[22m", out);
 	switch (st) {
 	case ST_SEL:   setbg(sc.hex[C_ACC]);  setfg(sc.hex[C_ACCFG]); break;
 	case ST_DIM:   setbg(sc.hex[C_SURF]); setfg(sc.ansi[8]); break;
@@ -257,13 +300,41 @@ style(int st)
 }
 
 /* opens a panel whose top-left corner is at (top, left) */
+/* positions the cursor for the panel line prow, or sends the line to sink when it is
+ * scrolled out of view */
+static void
+prow_at(void)
+{
+	int li = prow - ptop;
+
+	out = li >= pskip && li < pskip + pvis ? stdout : sink;
+	at(ptop + li - pskip, pleft);
+}
+
 static void
 pbegin_at(const char *title, int inner, int w, int left, int top)
 {
-	int k, tl;
+	int k, tl, h = inner + 2, room;
 	char t[64];
 
-	(void)inner;
+	if (top < 2)
+		top = 2;
+	room = rows - 1 - top;             /* from top down to the line above the hint */
+	if (h > room) {
+		/* too tall: right under the title bar, scrolled to the focus */
+		top = 2;
+		room = rows - 3 > 3 ? rows - 3 : 3;
+		pvis = room;
+		pskip = pfocus < 0 ? 0 : pfocus - room / 2;
+		if (pskip > h - room)
+			pskip = h - room;
+		if (pskip < 0)
+			pskip = 0;
+	} else {
+		pskip = 0;
+		pvis = h;
+	}
+	pfocus = -1;
 	pw = w;
 	pleft = left;
 	ptop = top;
@@ -274,20 +345,21 @@ pbegin_at(const char *title, int inner, int w, int left, int top)
 		t[tl] = '\0';
 	}
 	prow = ptop;
-	at(prow, pleft);
+	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("┌─ ", stdout);
-	fputs("\x1b[1m", stdout);
+	fputs("┌─ ", out);
+	fputs("\x1b[1m", out);
 	setfg(sc.hex[C_FG]);
-	printf("%s", t);
-	fputs("\x1b[22m", stdout);
+	fprintf(out, "%s", t);
+	fputs("\x1b[22m", out);
 	setfg(sc.hex[C_ACC]);
-	fputs(" ", stdout);
+	fputs(" ", out);
 	for (k = 0; k < pw - tl - 3; k++)
-		fputs("─", stdout);
-	fputs("┐", stdout);
+		fputs("─", out);
+	fputs("┐", out);
 	prow++;
+	out = stdout;
 }
 
 /* a centered panel of inner lines */
@@ -301,7 +373,7 @@ pbegin(const char *title, int inner, int w)
 	left = (cols - width - 2) / 2 + 1;
 	top = (rows - h) / 2 + 1;
 	if (top < 3)
-		top = 3;
+		top = 3;   /* pbegin_at moves it up and scrolls when it does not fit */
 	if (left < 1)
 		left = 1;
 	pbegin_at(title, inner, width, left, top);
@@ -310,10 +382,10 @@ pbegin(const char *title, int inner, int w)
 static void
 pstart(int st)
 {
-	at(prow, pleft);
+	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("│", stdout);
+	fputs("│", out);
 	style(st);
 	pcol = 0;
 }
@@ -327,7 +399,7 @@ pput(const char *s)
 		n = room;
 	if (n <= 0)
 		return;
-	printf("%.*s", n, s);
+	fprintf(out, "%.*s", n, s);
 	pcol += n;
 }
 
@@ -335,13 +407,14 @@ static void
 pend(void)
 {
 	while (pcol < pw) {
-		putchar(' ');
+		putc(' ', out);
 		pcol++;
 	}
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("│", stdout);
+	fputs("│", out);
 	prow++;
+	out = stdout;
 }
 
 static void
@@ -357,13 +430,14 @@ pbottom(void)
 {
 	int k;
 
-	at(prow, pleft);
+	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("└", stdout);
+	fputs("└", out);
 	for (k = 0; k < pw; k++)
-		fputs("─", stdout);
-	fputs("┘", stdout);
+		fputs("─", out);
+	fputs("┘", out);
+	out = stdout;
 }
 
 /* a 7-color row, a 16-color row and an ANSI row: the theme, shown in itself */
@@ -376,21 +450,21 @@ preview_lines(void)
 	pstart(ST_NORM);
 	for (i = 0; i < 8; i++) {
 		setfg(sc.ansi[i]);
-		fputs("██", stdout);
+		fputs("██", out);
 		pcol += 2;
 	}
 	pend();
 	pstart(ST_NORM);
 	for (i = 8; i < 16; i++) {
 		setfg(sc.ansi[i]);
-		fputs("██", stdout);
+		fputs("██", out);
 		pcol += 2;
 	}
 	pend();
 	pstart(ST_NORM);
 	for (i = 0; i < 7; i++) {
 		setfg(sc.hex[sem[i]]);
-		fputs("██", stdout);
+		fputs("██", out);
 		pcol += 2;
 	}
 	pend();
@@ -531,7 +605,6 @@ pick(const char *title, const char *sub, const char **items, int n, int *sel, co
 	}
 }
 
-/* filterable list over lst[]: type to narrow, enter chooses. returns 1 on choice */
 /* writes a specimen for family and opens it in the browser when xdg-open exists */
 static void
 show_preview(const char *family)
@@ -545,9 +618,8 @@ show_preview(const char *family)
 		return;
 	}
 	if (tm_have("xdg-open")) {
-		snprintf(text, sizeof text, "xdg-open '%s' >/dev/null 2>&1 &", path);
-		if (system(text) != 0)
-			flash("xdg-open failed; the preview is in ~/.cache/themer/fonts");
+		if (front_open(path) != 0)
+			flash("xdg-open failed; the preview is in ~/.config/themer/cache/fonts");
 		else
 			flash("preview opened in the browser");
 	} else {
@@ -671,7 +743,7 @@ input(const char *title, const char *label, char *buf, size_t n)
 		pline(ST_NORM, "");
 		pstart(ST_INPUT);
 		pput(b);
-		fputs("\x1b[7m \x1b[27m", stdout);
+		fputs("\x1b[7m \x1b[27m", out);
 		pcol++;
 		pend();
 		pline(ST_NORM, "");
@@ -703,65 +775,6 @@ input(const char *title, const char *label, char *buf, size_t n)
 
 /* family plus size. opens the font browser first; + and - set the size.
  * b browses again, t types a name. Esc at the browser cancels the edit. */
-static int
-font_edit(const char *title, int mono)
-{
-	char f[NAME_LEN];
-	int sz = mono ? cfg->mono_size : cfg->ui_size, k;
-
-	snprintf(f, sizeof f, "%s", mono ? cfg->mono_font : cfg->ui_font);
-	if (load_fonts(mono)) {
-		if (!browse(mono ? "Monospace fonts" : "Installed fonts", f, sizeof f, 1))
-			return 0;
-	} else if (!input("Font family", "no fonts found; type a family name", f, sizeof f)) {
-		return 0;
-	}
-	for (;;) {
-		char s[32];
-
-		frame_begin("+/- size   b browse   ^P preview   t type   enter accept   esc cancel");
-		pbegin(title, 7, PANEL_W);
-		pline(ST_DIM, "family");
-		pline(ST_INPUT, f);
-		pline(ST_NORM, "");
-		pline(ST_DIM, "size");
-		snprintf(s, sizeof s, "<  %d  >", sz);
-		pline(ST_INPUT, s);
-		pline(ST_NORM, "");
-		pbottom();
-		frame_end();
-
-		k = readkey();
-		switch (k) {
-		case '+':
-		case '=':
-		case K_RIGHT:
-			if (sz < 72)
-				sz++;
-			break;
-		case '-':
-		case K_LEFT:
-			if (sz > 4)
-				sz--;
-			break;
-		case 'b':
-			if (load_fonts(mono))
-				browse(mono ? "Monospace fonts" : "Installed fonts", f, sizeof f, 1);
-			break;
-		case '\x10':
-			show_preview(f);
-			break;
-		case 't':
-			input("Font family", "family name", f, sizeof f);
-			break;
-		case K_ENTER:
-			return front_set_font(cfg, mono, f, sz) == 0;
-		case 'q':
-		case K_ESC:
-			return 0;
-		}
-	}
-}
 
 /* ---- screens ---- */
 
@@ -772,15 +785,23 @@ load_theme(const char *name)
 		flash("cannot load that theme");
 }
 
+static int with_report(const char *title, int (*fn)(FILE *, void *), void *arg);
+
+static int
+import_scheme_cb(FILE *f, void *path)
+{
+	return scheme_import(path, NULL, f) > 0 ? 0 : -1;
+}
+
 static void
 theme_menu(void)
 {
-	char names[64][NAME_LEN];
-	const char *items[64];
+	static char names[MAX_THEMES][NAME_LEN];
+	static const char *items[MAX_THEMES];
 	Theme orig_th = cfg->th;
 	int omode = cfg->mode, n, sel = 0, i, vis, off, k;
 
-	n = theme_list(names, 64);
+	n = theme_list(names, MAX_THEMES);
 	if (!n) {
 		flash("no themes found in ~/.config/themer/themes or the install dir");
 		return;
@@ -791,6 +812,7 @@ theme_menu(void)
 			sel = i;
 	}
 	for (;;) {
+		char path[PATH_MAX], what[NAME_LEN];
 		char b[96];
 
 		getsize();
@@ -805,7 +827,7 @@ theme_menu(void)
 		if (off < 0)
 			off = 0;
 
-		frame_begin("j/k preview live   m mode   enter keep   esc revert");
+		frame_begin("j/k preview   / find   m mode   i import   d remove   r restore   enter keep   esc revert");
 		pbegin("themes", vis + 4, PANEL_W);
 		for (i = 0; i < vis; i++) {
 			snprintf(b, sizeof b, "  %s", items[off + i]);
@@ -834,6 +856,62 @@ theme_menu(void)
 			break;
 		case 'm':
 			cfg->mode ^= 1;
+			break;
+		case 'g':
+		case 'G':
+			sel = k == 'g' ? 0 : n - 1;
+			load_theme(items[sel]);
+			break;
+		case '/':
+			what[0] = '\0';
+			if (input("Find a scheme", "part of its name", what, sizeof what) && what[0])
+				for (i = 1; i <= n; i++)
+					if (strstr(items[(sel + i) % n], what)) {
+						sel = (sel + i) % n;
+						load_theme(items[sel]);
+						break;
+					}
+			break;
+		case 'i':
+			/* a scheme file: .theme, Gogh lines, Xresources, kitty, foot, alacritty */
+			path[0] = '\0';
+			if (!input("Import a colour scheme", "path of a .theme, Xresources, kitty, foot or alacritty file",
+			           path, sizeof path) || !path[0])
+				break;
+			with_report("scheme import", import_scheme_cb, path);
+			n = theme_list(names, MAX_THEMES);
+			for (i = 0; i < n; i++)
+				items[i] = names[i];
+			if (sel >= n)
+				sel = n - 1;
+			break;
+		case 'd':
+			if (!strcmp(items[sel], orig_th.name)) {
+				flash("that is the scheme in use: keep another first");
+				break;
+			}
+			snprintf(what, sizeof what, "%s", items[sel]);
+			switch (scheme_remove(what)) {
+			case 0: flash("deleted"); break;
+			case 1: flash("hidden (a built-in scheme: r brings every hidden one back)"); break;
+			default: flash("could not remove it");
+			}
+			n = theme_list(names, MAX_THEMES);
+			for (i = 0; i < n; i++)
+				items[i] = names[i];
+			if (sel >= n)
+				sel = n - 1;
+			load_theme(items[sel]);
+			break;
+		case 'r':
+			if (scheme_restore(NULL) == 0)
+				flash("every hidden built-in scheme is back");
+			n = theme_list(names, MAX_THEMES);
+			for (i = 0; i < n; i++) {
+				items[i] = names[i];
+				if (!strcmp(names[i], cfg->th.name))
+					sel = i;
+			}
 			break;
 		case K_ENTER:
 			if (strcmp(cfg->th.name, orig_th.name) || cfg->mode != omode)
@@ -927,7 +1005,14 @@ env_line(const char *line)
 	}
 	memcpy(name, line, k);
 	name[k] = '\0';
-	env_set(cfg, name, eq + 1);
+	{
+		char msg[160];
+
+		if (front_env_set(cfg, name, eq + 1, msg, sizeof msg) < 0) {
+			flash(msg);
+			return 0;
+		}
+	}
 	return 1;
 }
 
@@ -1036,8 +1121,6 @@ set_option(int mod, int opt, const char *value)
 		flash(msg);
 }
 
-/* the options a module offers: shows each value, changes it on enter */
-/* One line per option of a module: name, value, and the choices. */
 /* The values an option accepts, as the option pane shows them. */
 static void
 option_range(const TmOption *o, char *out, size_t n)
@@ -1050,13 +1133,117 @@ option_range(const TmOption *o, char *out, size_t n)
 		snprintf(out, n, "free text");
 }
 
-/* Two panes: modules on the left, the selected module's options on the right.
- * j/k move within a pane, h/l (or the arrows) switch panes, enter acts:
- * on a module it loads or unloads it, on an option it changes the value. */
+/* An option's value as the TUI draws it, the same controls as the windows draw:
+ * [x] on for a switch, the choices side by side with the chosen one in
+ * brackets, < 2 > for a number, the set's title for the template. */
+static void
+option_shown(int mod, int opt, char *out, size_t n)
+{
+	const TmOption *o = themer_option(mod, opt);
+	const char *v = themer_option_value(cfg, mod, opt);
+	size_t len = 0;
+
+	switch (front_option_control(mod, opt)) {
+	case OC_SWITCH:
+		snprintf(out, n, "[%c] %s", strcmp(v, "on") ? ' ' : 'x', v);
+		return;
+	case OC_BUTTONS:
+		out[0] = '\0';
+		for (const char *p = o->choices; *p && len + 1 < n; ) {
+			size_t k = strcspn(p, "|");
+			int on = strlen(v) == k && !strncmp(p, v, k);
+
+			len += (size_t)snprintf(out + len, n - len, on ? "[%.*s] " : " %.*s  ", (int)k, p);
+			p += k;
+			if (*p)
+				p++;
+		}
+		return;
+	case OC_SLIDER:
+		snprintf(out, n, "< %s >", v);
+		return;
+	case OC_LIST:
+		if (!strcmp(o->name, "template")) {
+			char t[NAME_LEN];
+
+			snprintf(out, n, "%s", front_set_title(v, t, sizeof t));
+			return;
+		}
+		/* fall through */
+	default:
+		snprintf(out, n, "%s", v);
+	}
+}
+
+/* steps an option one way: the next or previous choice, a number up or down, a
+ * switch flipped */
+static void
+option_step(int mod, int opt, int dir)
+{
+	const TmOption *o = themer_option(mod, opt);
+	const char *cur = themer_option_value(cfg, mod, opt);
+	char v[NAME_LEN];
+
+	switch (front_option_control(mod, opt)) {
+	case OC_SWITCH:
+		set_option(mod, opt, strcmp(cur, "on") ? "on" : "off");
+		return;
+	case OC_SLIDER: {
+		int k = atoi(cur) + dir;
+
+		if (k >= o->min && k <= o->max) {
+			snprintf(v, sizeof v, "%d", k);
+			set_option(mod, opt, v);
+		}
+		return;
+	}
+	case OC_BUTTONS:
+	case OC_LIST:
+		if (!o->choices)
+			return;
+		if (dir > 0) {
+			next_choice(o->choices, cur, v, sizeof v);
+		} else {
+			/* the previous one: step forward until the next would be cur */
+			char a[NAME_LEN], b[NAME_LEN];
+
+			snprintf(a, sizeof a, "%s", cur);
+			for (int guard = 0; guard < 64; guard++) {
+				next_choice(o->choices, a, b, sizeof b);
+				if (!strcmp(b, cur))
+					break;
+				snprintf(a, sizeof a, "%s", b);
+			}
+			snprintf(v, sizeof v, "%s", a);
+		}
+		set_option(mod, opt, v);
+		return;
+	}
+}
+
+/* a module's options in the order every front end shows them: by section */
+static int
+option_order(int mod, int *out)
+{
+	int n = 0, no = themer_option_count(mod);
+
+	for (int g = 0; g < OG_N; g++)
+		for (int j = 0; j < no; j++)
+			if (front_option_group(mod, j) == g)
+				out[n++] = j;
+	return n;
+}
+
+/* Two panes: modules on the left, the selected module's options on the right, in
+ * sections (Server, Look, What it themes) as in the other front ends; a value the
+ * user set is marked with *. j/k move within a pane, h/l (or the arrows) switch
+ * panes, enter acts: on a module it loads or unloads it, on an option it changes
+ * the value (the next choice, a set from the list, or typed). r resets an option to
+ * its default; s starts or stops themer-web on a module with a server. */
 static void
 modules_menu(void)
 {
-	int order[MAX_MODULES];
+	int order[MAX_MODULES], oo[MAX_OPTS];
 	int n = front_module_order(order, MAX_MODULES), sel = 0, osel = 0, focus = 0, k;
 
 	if (!n) {
@@ -1064,11 +1251,13 @@ modules_menu(void)
 		return;
 	}
 	for (;;) {
-		int vis, off, i, no, inner, pane, total, left, top, j;
+		int vis, off, i, no, inner, pane, total, left, top, j, mod = order[sel], lines;
 		char b[256];
 
 		getsize();
-		no = themer_option_count(order[sel]);
+		no = option_order(mod, oo);
+		if (osel >= no)
+			osel = no ? no - 1 : 0;
 		vis = rows - 10;
 		if (vis > n)
 			vis = n;
@@ -1079,10 +1268,16 @@ modules_menu(void)
 			off = n - vis;
 		if (off < 0)
 			off = 0;
-		inner = vis > no + 3 ? vis : no + 3;
+		/* the options pane: the module line, a header per section, the server
+		 * status, the options, a blank, the description and the range */
+		lines = 1 + no + 4;
+		for (int g = 0, last = -1; g < no; g++)
+			if (front_option_group(mod, oo[g]) != last)
+				lines++, last = front_option_group(mod, oo[g]);
+		inner = vis > lines ? vis : lines;
 		pane = (cols - 6) / 2;
-		if (pane > PANEL_W / 2 + 14)
-			pane = PANEL_W / 2 + 14;
+		if (pane > PANEL_W / 2 + 18)
+			pane = PANEL_W / 2 + 18;
 		if (pane < 22)
 			pane = 22;
 		total = 2 * pane + 2;
@@ -1093,42 +1288,87 @@ modules_menu(void)
 		if (top < 3)
 			top = 3;
 
-		frame_begin(focus ? "j/k move   enter change   h back to modules   q back"
-		                  : "j/k move   enter load/unload   l options   q back");
+		frame_begin(!focus ? "j/k move   enter on/off   l options   q back"
+		            : no && front_option_action(cfg, mod, oo[osel])
+		            ? "j/k move   h/l change   i install   r reset   esc modules"
+		            : "j/k move   h/l change   enter choose or type   r reset   esc modules");
 
+		pfocus = focus ? -1 : 1 + sel - off;
 		pbegin_at("modules", inner, pane, left, top);
 		for (i = 0; i < vis; i++) {
-			snprintf(b, sizeof b, "%c [%c] %s%s", off + i == sel ? '>' : ' ',
-			         themer_module_on(cfg, order[off + i]) ? 'x' : ' ',
-			         themer_module_name(order[off + i]),
-			         themer_module_present(cfg, order[off + i]) ? "" : "  (not installed)");
+			int m = order[off + i];
+
+			snprintf(b, sizeof b, "%c [%c] %-12s %s", off + i == sel ? '>' : ' ',
+			         themer_module_on(cfg, m) ? 'x' : ' ', themer_module_name(m),
+			         themer_module_present(cfg, m) ? "" : "not installed");
 			pline(off + i == sel && !focus ? ST_SEL : ST_NORM, b);
 		}
 		for (; i < inner; i++)
 			pline(ST_NORM, "");
 		pbottom();
 
-		pbegin_at(no ? "options" : "options (none)", inner, pane, left + pane + 2, top);
-		snprintf(b, sizeof b, "%s: %s", themer_module_name(order[sel]),
-		         themer_module_on(cfg, order[sel]) ? "loaded" : "not loaded");
-		pline(ST_DIM, b);
-		for (j = 0; j < no; j++) {
-			const TmOption *o = themer_option(order[sel], j);
-
-			snprintf(b, sizeof b, "  %-10s %s", o->name, themer_option_value(cfg, order[sel], j));
-			pline(focus && j == osel ? ST_SEL : ST_NORM, b);
+		pfocus = -1;
+		if (focus) {
+			/* the selected option's line: the status line, its section headers, the rows */
+			pfocus = 2 + osel;
+			for (int g = 0, last = -1; g <= osel && g < no; g++)
+				if (front_option_group(mod, oo[g]) != last)
+					pfocus++, last = front_option_group(mod, oo[g]);
 		}
-		if (!no)
+		pbegin_at(no ? "options" : "options (none)", inner, pane, left + pane + 2, top);
+		snprintf(b, sizeof b, "%s: %s", themer_module_name(mod),
+		         !themer_module_present(cfg, mod) ? "program not installed" :
+		         themer_module_on(cfg, mod) ? "on" : "off");
+		pline(ST_DIM, b);
+		i = 1;
+		for (j = 0; j < no; j++) {
+			int g = front_option_group(mod, oo[j]);
+			const TmOption *o = themer_option(mod, oo[j]);
+
+			if (!j || g != front_option_group(mod, oo[j - 1])) {
+				pline(ST_DIM, front_option_groups[g]);
+				i++;
+			}
+			char shown[160];
+
+			option_shown(mod, oo[j], shown, sizeof shown);
+			snprintf(b, sizeof b, "  %-12s %s%s", o->name, shown,
+			         themer_option_is_set(cfg, mod, oo[j]) ? " *" : "");
+			if (front_option_action(cfg, mod, oo[j]))
+				snprintf(b + strlen(b), sizeof b - strlen(b), "   i: %s", front_option_action(cfg, mod, oo[j]));
+			pline(focus && j == osel ? ST_SEL : ST_NORM, b);
+			i++;
+		}
+		if (!no) {
 			pline(ST_DIM, "  this module has no options");
-		else {
-			const TmOption *o = themer_option(order[sel], osel);
+			i++;
+		} else {
+			const TmOption *o = themer_option(mod, oo[osel]);
+
+			int w = pane - 2 > 10 ? pane - 2 : 10, len = (int)strlen(o->desc), cut = len;
 
 			pline(ST_NORM, "");
-			snprintf(b, sizeof b, "%s", o->desc);
+			/* the description over two lines, broken at a space */
+			if (len > w) {
+				cut = w;
+				while (cut > w / 2 && o->desc[cut] != ' ')
+					cut--;
+				if (o->desc[cut] != ' ')
+					cut = w;
+			}
+			snprintf(b, sizeof b, "%.*s", cut, o->desc);
+			pline(ST_DIM, b);
+			snprintf(b, sizeof b, "%s", o->desc[cut] == ' ' ? o->desc + cut + 1 : o->desc + cut);
 			pline(ST_DIM, b);
 			option_range(o, b, sizeof b);
+			if (themer_option_is_set(cfg, mod, oo[osel]))
+				snprintf(b + strlen(b), sizeof b - strlen(b), "; default %s",
+				         !strcmp(o->name, "template") ? "the global set" : o->def);
 			pline(ST_DIM, b);
+			i += 4;
 		}
+		for (; i < inner; i++)
+			pline(ST_NORM, "");
 		pbottom();
 		frame_end();
 
@@ -1136,53 +1376,103 @@ modules_menu(void)
 		switch (k) {
 		case 'j':
 		case K_DOWN:
-			if (!focus && sel < n - 1) {
-				sel++;
-				osel = 0;
-			} else if (focus && osel < no - 1)
+			if (!focus && sel < n - 1)
+				sel++, osel = 0;
+			else if (focus && osel < no - 1)
 				osel++;
 			break;
 		case 'k':
 		case K_UP:
-			if (!focus && sel > 0) {
-				sel--;
-				osel = 0;
-			} else if (focus && osel > 0)
+			if (!focus && sel > 0)
+				sel--, osel = 0;
+			else if (focus && osel > 0)
 				osel--;
 			break;
 		case 'l':
 		case K_RIGHT:
-			if (no)
+			if (focus)
+				option_step(mod, oo[osel], 1);
+			else if (no)
 				focus = 1;
 			else
 				flash("this module has no options");
 			break;
 		case 'h':
 		case K_LEFT:
-			focus = 0;
+			if (focus)
+				option_step(mod, oo[osel], -1);
+			break;
+		case 'i':
+			if (focus && no && front_option_action(cfg, mod, oo[osel])) {
+				char msg[256];
+
+				front_option_run(cfg, mod, oo[osel], msg, sizeof msg);
+				flash(msg);
+			}
+			break;
+		case 'r':
+			if (focus && no) {
+				char msg[256];
+
+				front_option_reset(cfg, mod, oo[osel], msg, sizeof msg);
+				flash(msg);
+			}
 			break;
 		case K_ENTER:
 			if (focus) {
-				const TmOption *o = themer_option(order[sel], osel);
-				const char *cur = themer_option_value(cfg, order[sel], osel);
+				const TmOption *o = themer_option(mod, oo[osel]);
+				const char *cur = themer_option_value(cfg, mod, oo[osel]);
 				char next[NAME_LEN], buf[NAME_LEN];
 
-				if (o->choices) {
+				if (o->choices && front_option_control(mod, oo[osel]) != OC_LIST) {
 					next_choice(o->choices, cur, next, sizeof next);
-					set_option(order[sel], osel, next);
+					set_option(mod, oo[osel], next);
+				} else if (o->choices) {
+					/* a long list of choices: picked from a list */
+					static char ch[64][NAME_LEN];
+					const char *items[64];
+					int nc = 0, at = 0, r;
+
+					for (const char *p = o->choices; *p && nc < 64; ) {
+						size_t k = strcspn(p, "|");
+
+						snprintf(ch[nc], NAME_LEN, "%.*s", (int)k, p);
+						if (!strcmp(ch[nc], cur))
+							at = nc;
+						items[nc] = ch[nc];
+						nc++;
+						p += k;
+						if (*p)
+							p++;
+					}
+					r = pick(o->name, o->desc, items, nc, &at, "enter pick   q back");
+					if (r >= 0)
+						set_option(mod, oo[osel], ch[r]);
+				} else if (!strcmp(o->name, "template")) {
+					static char sets[MAX_NAMES][NAME_LEN], titles[MAX_NAMES][NAME_LEN];
+					const char *items[MAX_NAMES];
+					int ns = template_all_sets(sets, MAX_NAMES), at = 0, r;
+
+					for (int s = 0; s < ns; s++) {
+						items[s] = front_set_title(sets[s], titles[s], sizeof titles[s]);
+						if (!strcmp(sets[s], cur))
+							at = s;
+					}
+					r = pick("Template set", o->desc, items, ns, &at, "enter pick   q back");
+					if (r >= 0)
+						set_option(mod, oo[osel], sets[r]);
 				} else {
 					snprintf(buf, sizeof buf, "%s", cur);
 					if (input(o->name, o->desc, buf, sizeof buf))
-						set_option(order[sel], osel, buf);
+						set_option(mod, oo[osel], buf);
 				}
 			} else {
-				int on = themer_module_on(cfg, order[sel]);
+				int on = themer_module_on(cfg, mod);
 
-				if (themer_module_set(cfg, order[sel], !on) < 0)
+				if (front_module_set(cfg, mod, !on) < 0)
 					flash(on ? "unload had errors" : "load failed (see stderr)");
 				else
 					flash(on ? "module unloaded" : "module loaded");
-				state_save(cfg);
 			}
 			break;
 		case 'q':
@@ -1233,7 +1523,7 @@ with_report(const char *title, int (*fn)(FILE *, void *), void *arg)
 	FILE *f;
 	int r;
 
-	path_under_home(path, sizeof path, ".cache/themer/report.txt");
+	path_under_home(path, sizeof path, ".config/themer/cache/report.txt");
 	if (write_bytes(path, "", 0) < 0 || !(f = fopen(path, "w")))
 		return -1;
 	r = fn(f, arg);
@@ -1305,7 +1595,7 @@ set_import_tui(const char *into)
 static void
 set_pick(void)
 {
-	char names[MAX_NAMES][NAME_LEN];
+	static char names[MAX_NAMES][NAME_LEN], titles[MAX_NAMES][NAME_LEN * 2 + 4];
 	const char *items[MAX_NAMES];
 	int n, sel = 0, r;
 
@@ -1315,26 +1605,34 @@ set_pick(void)
 			flash("no template sets found");
 			return;
 		}
+		/* the title people read, the directory name beside it when it differs */
 		for (int i = 0; i < n; i++) {
-			items[i] = names[i];
+			char t[NAME_LEN];
+
+			front_set_title(names[i], t, sizeof t);
+			if (strcmp(t, names[i]))
+				snprintf(titles[i], sizeof titles[i], "%-24s %s", t, names[i]);
+			else
+				snprintf(titles[i], sizeof titles[i], "%s", t);
+			items[i] = titles[i];
 			if (!strcmp(names[i], cfg->set))
 				sel = i;
 		}
-		r = pick("template sets", "the files every module renders from; what a set lacks comes from themer_chicago",
+		r = pick("template sets", "the look every module renders; what a set lacks comes from Themer Chicago",
 		         items, n, &sel, "enter select   n new (copy)   i import a theme   c check   esc back");
 		if (r == -1)
 			return;
 		if (r >= 0) {
-			if (strcmp(cfg->set, items[r]) && front_set_set(cfg, items[r]) == 0)
+			if (strcmp(cfg->set, names[r]) && front_set_set(cfg, names[r]) == 0)
 				dirty = 1;
 			return;
 		}
 		if (last_key == 'n')
-			set_new(items[sel]);
+			set_new(names[sel]);
 		else if (last_key == 'i')
-			set_import_tui(items[sel]);
+			set_import_tui(names[sel]);
 		else if (last_key == 'c')
-			with_report("set check", do_check, (void *)items[sel]);
+			with_report("set check", do_check, (void *)names[sel]);
 	}
 }
 
@@ -1386,19 +1684,6 @@ icon_pick(int cursors)
 		flash("that name is not valid");
 }
 
-static void
-cursor_size_edit(void)
-{
-	char buf[16];
-
-	snprintf(buf, sizeof buf, "%d", cfg->cursor_size);
-	if (input("Cursor size", "pixels (24, 32, 48...)", buf, sizeof buf) && atoi(buf) != cfg->cursor_size) {
-		if (atoi(buf) > 0 && front_set_cursor(cfg, NULL, atoi(buf)) == 0)
-			dirty = 1;
-		else
-			flash("the size is a number of pixels");
-	}
-}
 
 /* font rendering: hinting, antialiasing, subpixel order. Applied through the GTK
  * settings, xsettingsd, and gsettings (the gtk module) and fontconfig. */
@@ -1448,7 +1733,7 @@ render_menu(void)
 	}
 }
 
-/* Applies everything with stderr sent to ~/.cache/themer/errors.log, so the
+/* Applies everything with stderr sent to ~/.config/themer/cache/errors.log, so the
  * messages do not draw over the screen. The first line is shown in the status. */
 static void
 apply_all(void)
@@ -1457,11 +1742,9 @@ apply_all(void)
 	int saved, fd, r;
 	FILE *f;
 
-	path_under_home(dir, sizeof dir, ".cache");
+	path_under_home(dir, sizeof dir, ".config/themer/cache");
 	mkdir(dir, 0755);
-	path_under_home(dir, sizeof dir, ".cache/themer");
-	mkdir(dir, 0755);
-	path_under_home(log, sizeof log, ".cache/themer/errors.log");
+	path_under_home(log, sizeof log, ".config/themer/cache/errors.log");
 
 	fflush(stderr);
 	saved = dup(STDERR_FILENO);
@@ -1518,25 +1801,160 @@ count_overrides(void)
 }
 
 /* returns 0 when quit was chosen */
-static int
-main_action(int sel)
+/* the Server screen: themer-web, which serves the web front end and the stylus
+ * module's userstyles. Started and stopped by hand; the port is saved. */
+static void
+server_menu(void)
 {
-	switch (sel) {
-	case 0: theme_menu(); break;
-	case 1: toggle_mode(); break;
-	case 2: set_pick(); break;
-	case 3: if (font_edit("UI font", 0)) dirty = 1; break;
-	case 4: if (font_edit("Terminal font", 1)) dirty = 1; break;
-	case 5: tty_pick(); break;
-	case 6: icon_pick(0); break;
-	case 7: icon_pick(1); break;
-	case 8: cursor_size_edit(); break;
-	case 9: render_menu(); break;
-	case 10: colors_menu(); break;
-	case 11: env_menu(); break;
-	case 12: modules_menu(); break;
-	case 13: apply_all(); break;
-	default: return 0;
+	int sel = 0, k;
+
+	for (;;) {
+		int port = front_web_port(cfg), up = front_web_running(port);
+		char status[128], portl[64], url[96];
+		const char *items[3];
+		int nrow = up ? 3 : 2;
+
+		snprintf(status, sizeof status, "  %s", up ? "Stop the server" : "Start the server");
+		snprintf(portl, sizeof portl, "  Port           %d", port);
+		snprintf(url, sizeof url, "http://localhost:%d/", port);
+		items[0] = status;
+		items[1] = portl;
+		if (sel >= nrow)
+			sel = nrow - 1;
+		items[2] = "  Open it in the browser";
+		frame_begin("j/k move   enter select   q back");
+		pbegin("server", 11, PANEL_W);
+		pline(ST_DIM, up ? "themer-web is running:" : "themer-web is stopped.");
+		pline(ST_NORM, up ? url : "");
+		pline(ST_NORM, "");
+		for (int i = 0; i < nrow; i++)
+			pline(i == sel ? ST_SEL : ST_NORM, items[i]);
+		pline(ST_NORM, "");
+		pline(ST_DIM, "The web front end, and where Stylus gets the userstyles");
+		pline(ST_DIM, "(Modules, stylus: i installs a site). It stops by itself");
+		pline(ST_DIM, "when no browser module (firefox, stylus) is on.");
+		pbottom();
+		frame_end();
+		k = readkey();
+		if ((k == 'j' || k == K_DOWN) && sel < nrow - 1)
+			sel++;
+		else if ((k == 'k' || k == K_UP) && sel > 0)
+			sel--;
+		else if (k == 'q' || k == K_ESC)
+			return;
+		else if (k == K_ENTER && sel == 0) {
+			if ((up ? front_web_stop(port) : front_web_start(port)) < 0)
+				flash(up ? "could not stop themer-web"
+				         : "could not start themer-web: is a browser module (firefox, stylus) on?");
+			else
+				flash(up ? "themer-web stopped" : "themer-web started");
+		} else if (k == K_ENTER && sel == 1) {
+			char buf[16];
+
+			snprintf(buf, sizeof buf, "%d", port);
+			if (input("Port", "1024 to 65535; a running server moves to it", buf, sizeof buf) &&
+			    front_set_web_port(cfg, atoi(buf)) < 0)
+				flash("the port is a number from 1024 to 65535");
+		} else if (k == K_ENTER && sel == 2) {
+			flash(front_open(url) == 0 ? "opened in the browser" : "xdg-open could not open it");
+		}
+	}
+}
+
+/* The main menu: one row per setting, in the sections of the graphical front ends'
+ * pages, so the four front ends read the same. */
+enum {
+	R_THEME, R_MODE, R_SET, R_COLORS,
+	R_UIFONT, R_UISIZE, R_MONOFONT, R_MONOSIZE, R_TTYFONT, R_RENDER,
+	R_ICONS, R_CURSOR, R_CURSIZE,
+	R_MODULES, R_SERVER, R_ENV, R_APPLY, R_QUIT, R_N
+};
+
+static const struct { const char *section, *label; } menu_rows[R_N] = {
+	[R_THEME]    = { "Theme", "Color scheme" },
+	[R_MODE]     = { NULL,    "Mode" },
+	[R_SET]      = { NULL,    "Template set" },
+	[R_COLORS]   = { NULL,    "Color overrides" },
+	[R_UIFONT]   = { "Fonts", "Interface font" },
+	[R_UISIZE]   = { NULL,    "Interface size" },
+	[R_MONOFONT] = { NULL,    "Terminal font" },
+	[R_MONOSIZE] = { NULL,    "Terminal size" },
+	[R_TTYFONT]  = { NULL,    "Console font" },
+	[R_RENDER]   = { NULL,    "Rendering" },
+	[R_ICONS]    = { "Icons and cursor", "Icon theme" },
+	[R_CURSOR]   = { NULL,    "Cursor theme" },
+	[R_CURSIZE]  = { NULL,    "Cursor size" },
+	[R_MODULES]  = { "System", "Modules" },
+	[R_SERVER]   = { NULL,    "Server" },
+	[R_ENV]      = { NULL,    "Environment" },
+	[R_APPLY]    = { NULL,    "Apply" },
+	[R_QUIT]     = { NULL,    "Quit" },
+};
+
+/* a size row: left/right steps it, enter types it */
+static void
+step_size(int row, int d)
+{
+	int mono = row == R_MONOSIZE;
+	int sz = row == R_CURSIZE ? cfg->cursor_size : mono ? cfg->mono_size : cfg->ui_size;
+
+	sz += d;
+	if (row == R_CURSIZE) {
+		if (sz >= 8 && sz <= 512 && front_set_cursor(cfg, NULL, sz) == 0)
+			dirty = 1;
+	} else if (sz >= 4 && sz <= 72 && front_set_font(cfg, mono, mono ? cfg->mono_font : cfg->ui_font, sz) == 0) {
+		dirty = 1;
+	}
+}
+
+static void
+type_size(int row)
+{
+	char buf[16];
+	int mono = row == R_MONOSIZE, cur = row == R_CURSIZE ? cfg->cursor_size : mono ? cfg->mono_size : cfg->ui_size;
+
+	snprintf(buf, sizeof buf, "%d", cur);
+	if (!input(menu_rows[row].label, row == R_CURSIZE ? "pixels (24, 32, 48...)" : "points", buf, sizeof buf))
+		return;
+	step_size(row, atoi(buf) - cur);
+}
+
+/* the family only; the size is its own row */
+static void
+font_family_pick(int mono)
+{
+	char f[NAME_LEN];
+
+	snprintf(f, sizeof f, "%s", mono ? cfg->mono_font : cfg->ui_font);
+	if (load_fonts(mono) ? !browse(mono ? "Monospace fonts" : "Installed fonts", f, sizeof f, 1)
+	                     : !input("Font family", "no fonts found; type a family name", f, sizeof f))
+		return;
+	if (front_set_font(cfg, mono, f, 0) == 0)
+		dirty = 1;
+	else
+		flash("not a font name");
+}
+
+static int
+main_action(int row)
+{
+	switch (row) {
+	case R_THEME:    theme_menu(); break;
+	case R_MODE:     toggle_mode(); break;
+	case R_SET:      set_pick(); break;
+	case R_COLORS:   colors_menu(); break;
+	case R_UIFONT:   font_family_pick(0); break;
+	case R_MONOFONT: font_family_pick(1); break;
+	case R_UISIZE: case R_MONOSIZE: case R_CURSIZE: type_size(row); break;
+	case R_TTYFONT:  tty_pick(); break;
+	case R_RENDER:   render_menu(); break;
+	case R_ICONS:    icon_pick(0); break;
+	case R_CURSOR:   icon_pick(1); break;
+	case R_MODULES:  modules_menu(); break;
+	case R_SERVER:   server_menu(); break;
+	case R_ENV:      env_menu(); break;
+	case R_APPLY:    apply_all(); break;
+	default:         return 0;
 	}
 	return 1;
 }
@@ -1544,41 +1962,52 @@ main_action(int sel)
 static void
 main_menu(void)
 {
-	static const char *labels[] = {
-		"Theme", "Mode", "Template set", "UI font", "Terminal font", "TTY font", "Icon theme",
-		"Cursor theme", "Cursor size", "Font rendering",
-		"Colors", "Environment", "Modules", "Apply", "Quit",
-	};
-	enum { N = TM_COUNT(labels) };
-	int sel = 0, armed = 0, k;
+	int sel = 0, armed = 0, k, nsec = 0;
 
+	for (int r = 0; r < R_N; r++)
+		nsec += menu_rows[r].section != NULL;
 	for (;;) {
-		char val[N][128], line[160];
-		int i;
+		char val[R_N][128], line[200], title[NAME_LEN];
+		int port = front_web_port(cfg);
 
-		snprintf(val[0], sizeof val[0], "%s", cfg->th.name);
-		snprintf(val[1], sizeof val[1], "%s", cfg->mode == MODE_DARK ? "dark" : "light");
-		snprintf(val[2], sizeof val[2], "%s", cfg->set);
-		snprintf(val[3], sizeof val[3], "%s  %d", cfg->ui_font, cfg->ui_size);
-		snprintf(val[4], sizeof val[4], "%s  %d", cfg->mono_font, cfg->mono_size);
-		snprintf(val[5], sizeof val[5], "%s", cfg->tty_font);
-		snprintf(val[6], sizeof val[6], "%s", cfg->icons);
-		snprintf(val[7], sizeof val[7], "%s", cfg->cursor);
-		snprintf(val[8], sizeof val[8], "%d", cfg->cursor_size);
-		snprintf(val[9], sizeof val[9], "%s, %s, %s", cfg->hinting,
+		snprintf(val[R_THEME], sizeof val[0], "%s", cfg->th.name);
+		snprintf(val[R_MODE], sizeof val[0], "%s", cfg->mode == MODE_DARK ? "< dark >" : "< light >");
+		snprintf(val[R_SET], sizeof val[0], "%s", front_set_title(cfg->set, title, sizeof title));
+		snprintf(val[R_COLORS], sizeof val[0], "%d", count_overrides());
+		snprintf(val[R_UIFONT], sizeof val[0], "%s", cfg->ui_font);
+		snprintf(val[R_UISIZE], sizeof val[0], "< %d >", cfg->ui_size);
+		snprintf(val[R_MONOFONT], sizeof val[0], "%s", cfg->mono_font);
+		snprintf(val[R_MONOSIZE], sizeof val[0], "< %d >", cfg->mono_size);
+		snprintf(val[R_TTYFONT], sizeof val[0], "%s", cfg->tty_font);
+		snprintf(val[R_RENDER], sizeof val[0], "%s, %s, %s", cfg->hinting,
 		         cfg->antialias ? "antialiased" : "aliased", cfg->rgba);
-		snprintf(val[10], sizeof val[10], "%d override(s)", count_overrides());
-		snprintf(val[11], sizeof val[11], "%d variable(s)", cfg->nenv);
-		snprintf(val[12], sizeof val[12], "%d of %d on", modules_on(), themer_module_count());
-		snprintf(val[13], sizeof val[13], "%s", dirty ? "unapplied changes" : "up to date");
+		snprintf(val[R_ICONS], sizeof val[0], "%s", cfg->icons);
+		snprintf(val[R_CURSOR], sizeof val[0], "%s", cfg->cursor);
+		snprintf(val[R_CURSIZE], sizeof val[0], "< %d >", cfg->cursor_size);
+		snprintf(val[R_MODULES], sizeof val[0], "%d of %d on", modules_on(), themer_module_count());
+		if (front_web_running(port))
+			snprintf(val[R_SERVER], sizeof val[0], "running, localhost:%d", port);
+		else
+			snprintf(val[R_SERVER], sizeof val[0], "stopped");
+		snprintf(val[R_ENV], sizeof val[0], "%d variable%s", cfg->nenv, cfg->nenv == 1 ? "" : "s");
+		snprintf(val[R_APPLY], sizeof val[0], "%s", dirty ? "unapplied changes" : "up to date");
+		val[R_QUIT][0] = '\0';
 
-		frame_begin("j/k move   enter select   m mode   a apply   q quit");
-		pbegin("settings", N + 4, PANEL_W);
-		for (i = 0; i < N - 1; i++) {
-			snprintf(line, sizeof line, "  %-15s%s", labels[i], val[i]);
-			pline(i == sel ? ST_SEL : ST_NORM, line);
+		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   q quit");
+		/* the selected row's line in the panel, kept in view in a short terminal */
+		pfocus = 1;
+		for (int r = 0; r <= sel; r++)
+			pfocus += (menu_rows[r].section ? (r ? 2 : 1) : 0) + (r < sel);
+		pbegin("themer", R_N + nsec + 4, PANEL_W);
+		for (int r = 0; r < R_N; r++) {
+			if (menu_rows[r].section) {
+				if (r)
+					pline(ST_NORM, "");
+				pline(ST_DIM, menu_rows[r].section);
+			}
+			snprintf(line, sizeof line, "  %-17s%.120s", menu_rows[r].label, val[r]);
+			pline(r == sel ? ST_SEL : ST_NORM, line);
 		}
-		pline(sel == N - 1 ? ST_SEL : ST_NORM, "  Quit");
 		pline(ST_NORM, "");
 		preview_lines();
 		pbottom();
@@ -1590,13 +2019,23 @@ main_menu(void)
 		switch (k) {
 		case 'j':
 		case K_DOWN:
-			if (sel < N - 1)
+			if (sel < R_N - 1)
 				sel++;
 			break;
 		case 'k':
 		case K_UP:
 			if (sel > 0)
 				sel--;
+			break;
+		case 'h':
+		case 'l':
+		case K_LEFT:
+		case K_RIGHT:
+			if (sel == R_MODE)
+				toggle_mode();
+			else if (sel == R_UISIZE || sel == R_MONOSIZE || sel == R_CURSIZE)
+				step_size(sel, k == 'l' || k == K_RIGHT ? (sel == R_CURSIZE ? 8 : 1)
+				                                        : (sel == R_CURSIZE ? -8 : -1));
 			break;
 		case 'm':
 			toggle_mode();
@@ -1624,6 +2063,8 @@ void
 tui_run(Config *c)
 {
 	cfg = c;
+	base = *c;
+	front_track(cfg, &base);
 	term_on();
 	main_menu();
 	term_off();

@@ -55,9 +55,10 @@ reload(void)
 
 static const TmModule mod = {
 	.name = "cursor",
-	.desc = "mouse cursor theme and size: Xcursor default, XCURSOR_* env, Xresources",
+	.desc = "mouse cursor: theme and size, for X11 and Wayland (Xcursor, Xresources)",
 	.default_on = 1,
 	.load = load,
 	.reload = reload,
+	.colorless = 1,
 };
 TM_EXPORT(mod)

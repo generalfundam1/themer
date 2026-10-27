@@ -10,14 +10,18 @@ static void
 usage(void)
 {
 	fputs("usage: themer [tui | apply | toggle | dark | light | theme NAME |\n"
-	      "               list | check | env NAME=VALUE |\n"
+	      "               list | check |\n"
 	      "               icons [NAME] | cursor [NAME [SIZE]] | font ui|mono FAMILY [SIZE] |\n"
+	      "               font tty [NAME] | color [ROLE HEX|reset] | env [NAME=VALUE] |\n"
 	      "               render [hinting none|slight|medium|full] [antialias on|off]\n"
 	      "                      [rgba none|rgb|bgr|vrgb|vbgr] |\n"
 	      "               set | set NAME | set list | set copy FROM TO |\n"
 	      "               set import NAME MODULE PATH | set check NAME |\n"
 	      "               module list | module load|unload NAME |\n"
 	      "               module options NAME | module option NAME KEY VALUE |\n"
+	      "               module reset NAME KEY | server start|stop|status | server port N |\n"
+	      "               server install [SITE] |\n"
+	      "               scheme import FILE [NAME] | scheme remove NAME | scheme restore [NAME] |\n"
 	      "               template list DIR [SET] | template render MODULE SET FILE [OUT] | -v]\n", stderr);
 }
 
@@ -33,8 +37,8 @@ static int
 cmd_check(void)
 {
 	static const char *mn[2] = { "dark", "light" };
-	char names[MAX_NAMES][NAME_LEN];
-	int n = theme_list(names, MAX_NAMES), bad = 0;
+	static char names[MAX_THEMES][NAME_LEN];
+	int n = theme_list(names, MAX_THEMES), bad = 0;
 
 	for (int i = 0; i < n; i++) {
 		Theme before, after;
@@ -62,6 +66,8 @@ cmd_check(void)
 	return bad ? 1 : 0;
 }
 
+/* themer module options NAME: by section, as the front ends show them; a value the
+ * user set is marked with *, the rest are defaults */
 static int
 cmd_module_options(const Config *c, int i)
 {
@@ -71,15 +77,24 @@ cmd_module_options(const Config *c, int i)
 		printf("%s has no options\n", themer_module_name(i));
 		return 0;
 	}
-	for (int j = 0; j < n; j++) {
-		const TmOption *o = themer_option(i, j);
+	for (int g = 0; g < OG_N; g++) {
+		int head = 0;
 
-		printf("%-12s = %-12s %s", o->name, themer_option_value(c, i, j), o->desc);
-		if (o->choices)
-			printf("  [%s]", o->choices);
-		else if (o->max > o->min)
-			printf("  [%d-%d]", o->min, o->max);
-		printf("\n");
+		for (int j = 0; j < n; j++) {
+			const TmOption *o = themer_option(i, j);
+
+			if (front_option_group(i, j) != g)
+				continue;
+			if (!head++)
+				printf("# %s\n", front_option_groups[g]);
+			printf("%-12s = %-14s %s %s", o->name, themer_option_value(c, i, j),
+			       themer_option_is_set(c, i, j) ? "*" : " ", o->desc);
+			if (o->choices)
+				printf("  [%s]", o->choices);
+			else if (o->max > o->min)
+				printf("  [%d-%d]", o->min, o->max);
+			printf("\n");
+		}
 	}
 	return 0;
 }
@@ -156,7 +171,7 @@ cmd_template_render(const Config *c, const char *module, const char *set, const 
 	static char out[2 * 1024 * 1024];
 	Scheme s;
 	TmTheme t;
-	TmVar v[128];
+	TmVar v[TM_MAX_VARS];
 	int i = themer_module_find(module), nv;
 	FILE *f = stdout;
 
@@ -166,8 +181,7 @@ cmd_template_render(const Config *c, const char *module, const char *set, const 
 		fprintf(stderr, "themer: %s renders no templates\n", module);
 		return 1;
 	}
-	theme_scheme(c, &s);
-	themer_view(c, &s, &t);
+	themer_module_view(c, i, &s, &t);
 	nv = themer_module_vars(i, &t, v, (int)TM_COUNT(v));
 	if (nv < 0 || tm_render(out, sizeof out, themer_module_templates(i), set, file, &t, v, nv) < 0)
 		return 1;
@@ -205,8 +219,8 @@ main(int argc, char *argv[])
 		tui_run(&c);
 		return 0;
 	} else if (!strcmp(cmd, "list")) {
-		char names[MAX_NAMES][NAME_LEN];
-		int n = theme_list(names, MAX_NAMES);
+		static char names[MAX_THEMES][NAME_LEN];
+		int n = theme_list(names, MAX_THEMES);
 
 		for (int i = 0; i < n; i++)
 			puts(names[i]);
@@ -300,6 +314,38 @@ main(int argc, char *argv[])
 			return 1;
 		}
 		r = themer_apply(&c);
+	} else if (!strcmp(cmd, "font") && argc > 3 && !strcmp(sub, "tty")) {
+		if (front_set_tty_font(&c, argv[3]) < 0) {
+			fprintf(stderr, "themer: a console font name is letters, digits, - and _ (as in ter-v16n)\n");
+			return 1;
+		}
+		r = themer_apply(&c);
+	} else if (!strcmp(cmd, "font") && argc == 3 && !strcmp(sub, "tty")) {
+		static char names[1024][NAME_LEN];
+		int n = front_tty_fonts(names, 1024);
+
+		for (int i = 0; i < n; i++)
+			printf("%s%s\n", names[i], strcmp(names[i], c.tty_font) ? "" : "  *");
+		return 0;
+	} else if (!strcmp(cmd, "color") && argc == 2) {
+		Scheme s;
+
+		theme_scheme(&c, &s);
+		for (int i = 0; i < C_N; i++)
+			printf("%-6s %s%s\n", color_names[i], s.hex[i], c.color[i][0] ? "  (yours)" : "");
+		return 0;
+	} else if (!strcmp(cmd, "color") && argc == 4) {
+		int role = front_color_role(argv[2]);
+
+		if (role < 0) {
+			fprintf(stderr, "themer: no color role %s (bg fg surf acc accfg urg warn)\n", argv[2]);
+			return 1;
+		}
+		if (front_set_color(&c, role, strcmp(argv[3], "reset") ? argv[3] : NULL) < 0) {
+			fprintf(stderr, "themer: a color is six hex digits, as 5f87af or #5f87af, or reset\n");
+			return 1;
+		}
+		r = themer_apply(&c);
 	} else if (!strcmp(cmd, "render") && argc > 3 && argc % 2 == 0) {
 		for (int i = 2; i + 1 < argc; i += 2) {
 			int ok;
@@ -319,11 +365,18 @@ main(int argc, char *argv[])
 			}
 		}
 		r = themer_apply(&c);
+	} else if (!strcmp(cmd, "env") && argc == 2) {
+		for (int i = 0; i < c.nenv; i++)
+			printf("%s=%s\n", c.env[i].name, c.env[i].value);
+		return 0;
 	} else if (!strcmp(cmd, "env") && argc > 2 && strchr(argv[2], '=')) {
-		char *eq = strchr(argv[2], '=');
+		char *eq = strchr(argv[2], '='), msg[160];
 
 		*eq = '\0';
-		env_set(&c, argv[2], eq + 1);
+		if (front_env_set(&c, argv[2], eq + 1, msg, sizeof msg) < 0) {
+			fprintf(stderr, "themer: %s\n", msg);
+			return 1;
+		}
 		r = themer_apply(&c);
 	} else if (!strcmp(cmd, "module") && (!strcmp(sub, "load") || !strcmp(sub, "unload")) && argc > 3) {
 		int i = themer_module_find(argv[3]);
@@ -331,24 +384,66 @@ main(int argc, char *argv[])
 		if (i < 0)
 			return no_module(argv[3]);
 		r = themer_module_set(&c, i, sub[0] == 'l');
-	} else if (!strcmp(cmd, "module") && !strcmp(sub, "option") && argc > 5) {
+	} else if (!strcmp(cmd, "module") && ((!strcmp(sub, "option") && argc > 5) ||
+	                                      (!strcmp(sub, "reset") && argc > 4))) {
 		int i = themer_module_find(argv[3]), j = i < 0 ? -1 : themer_option_find(i, argv[4]);
-		int set;
+		char msg[256];
 
 		if (i < 0 || j < 0) {
 			fprintf(stderr, "themer: no such module option\n");
 			return 1;
 		}
-		set = themer_option_set(&c, i, j, argv[5]);
-		if (set == -1) {
-			fprintf(stderr, "themer: '%s' is not a valid value for %s\n", argv[5], argv[4]);
+		if ((sub[0] == 'o' ? front_option_set(&c, i, j, argv[5], msg, sizeof msg)
+		                   : front_option_reset(&c, i, j, msg, sizeof msg)) < 0) {
+			fprintf(stderr, "themer: %s\n", msg);
 			return 1;
 		}
-		if (set == -2) {
-			fprintf(stderr, "themer: %s did not load with '%s'; kept the previous value\n",
-			        argv[3], argv[5]);
+		return 0;           /* front_option_* saved the state */
+	} else if (!strcmp(cmd, "scheme") && !strcmp(sub, "import") && argc > 3) {
+		return scheme_import(argv[3], argc > 4 ? argv[4] : NULL, stdout) > 0 ? 0 : 1;
+	} else if (!strcmp(cmd, "scheme") && !strcmp(sub, "remove") && argc > 3) {
+		char msg[256];
+		int bad = front_scheme_remove(&c, argv[3], msg, sizeof msg) < 0;
+
+		fprintf(bad ? stderr : stdout, "%s%s\n", bad ? "themer: " : "", msg);
+		return bad;
+	} else if (!strcmp(cmd, "scheme") && !strcmp(sub, "restore")) {
+		if (scheme_restore(argc > 3 ? argv[3] : NULL) < 0) {
+			fprintf(stderr, "themer: could not restore\n");
 			return 1;
 		}
+		return 0;
+	} else if (!strcmp(cmd, "server") && !strcmp(sub, "install")) {
+		char msg[256];
+
+		r = front_stylus_install(&c, argc > 3 ? argv[3] : NULL, msg, sizeof msg);
+		fprintf(r ? stderr : stdout, "themer: %s\n", msg);
+		return r ? 1 : 0;
+	} else if (!strcmp(cmd, "server") && !strcmp(sub, "port") && argc > 3) {
+		if (front_set_web_port(&c, atoi(argv[3])) < 0) {
+			fprintf(stderr, "themer: the port is a number from 1024 to 65535\n");
+			return 1;
+		}
+		r = 0;
+	} else if (!strcmp(cmd, "server") && (!strcmp(sub, "start") || !strcmp(sub, "stop") ||
+	                                      !strcmp(sub, "status"))) {
+		int port = front_web_port(&c), up = front_web_running(port);
+
+		if (!strcmp(sub, "status")) {
+			if (up)
+				printf("themer-web: running, http://localhost:%d/\n", port);
+			else
+				printf("themer-web: stopped (port %d)\n", port);
+			return up ? 0 : 3;
+		}
+		if ((sub[2] == 'a') == up)       /* already started, or already stopped */
+			return 0;
+		if ((sub[2] == 'a' ? front_web_start(port) : front_web_stop(port)) < 0) {
+			fprintf(stderr, "themer: could not %s themer-web on port %d%s\n", sub, port,
+			        sub[2] == 'a' ? " (is a browser module on, and themer-web installed?)" : "");
+			return 1;
+		}
+		return 0;
 	} else {
 		usage();
 		return 1;

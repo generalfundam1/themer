@@ -116,7 +116,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "newt",
-	.desc = "nmtui and other newt dialogs: NEWT_COLORS from the theme",
+	.desc = "newt: the colors of nmtui and other newt dialogs",
 	.templates = "newt",
 	.default_on = 1,
 	.load = load,

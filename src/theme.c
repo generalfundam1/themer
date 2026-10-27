@@ -220,22 +220,13 @@ scan_dir(const char *dir, char names[][NAME_LEN], int *n, int max)
 		return;
 	while ((e = readdir(d)) && *n < max) {
 		size_t l = strlen(e->d_name);
-		char nm[NAME_LEN];
-		int i;
 
 		if (l < 7 || l - 6 >= NAME_LEN || strcmp(e->d_name + l - 6, ".theme"))
 			continue;
-		memcpy(nm, e->d_name, l - 6);
-		nm[l - 6] = '\0';
-		if (!valid_name(nm))
-			continue;
-		for (i = 0; i < *n; i++)
-			if (!strcmp(names[i], nm))
-				break;
-		if (i == *n) {
-			snprintf(names[*n], NAME_LEN, "%s", nm);
+		memcpy(names[*n], e->d_name, l - 6);
+		names[*n][l - 6] = '\0';
+		if (valid_name(names[*n]))
 			(*n)++;
-		}
 	}
 	closedir(d);
 }
@@ -246,19 +237,39 @@ cmp_name(const void *a, const void *b)
 	return strcmp(a, b);
 }
 
+/* Every scheme, sorted, each once: $THEMER_THEMES, the user's, the install's,
+ * less those the user removed (themes/.removed, read once here). A removed scheme
+ * still loads, so the theme in use and the default keep working. */
 int
 theme_list(char names[][NAME_LEN], int max)
 {
+	static char found[2048][NAME_LEN], removed[512][NAME_LEN];
 	const char *env = getenv("THEMER_THEMES");
-	char dir[PATH_MAX];
-	int n = 0;
+	char dir[PATH_MAX], line[NAME_LEN + 2];
+	int nf = 0, nr = 0, n = 0;
+	FILE *f;
 
 	if (env)
-		scan_dir(env, names, &n, max);
-	if (path_under_home(dir, sizeof dir, ".config/themer/themes") == 0)
-		scan_dir(dir, names, &n, max);
-	scan_dir(SYS_THEMES_DIR, names, &n, max);
-	qsort(names, n, NAME_LEN, cmp_name);
+		scan_dir(env, found, &nf, 2048);
+	if (path_under_home(dir, sizeof dir, ".config/themer/themes") == 0) {
+		scan_dir(dir, found, &nf, 2048);
+		if (strlen(dir) + 10 < sizeof dir && (strcat(dir, "/.removed"), f = fopen(dir, "r"))) {
+			while (nr < 512 && fgets(line, sizeof line, f))
+				if ((line[strcspn(line, "\r\n")] = '\0', line[0]))
+					snprintf(removed[nr++], NAME_LEN, "%.63s", line);
+			fclose(f);
+		}
+	}
+	scan_dir(SYS_THEMES_DIR, found, &nf, 2048);
+	qsort(found, nf, NAME_LEN, cmp_name);
+	for (int i = 0; i < nf && n < max; i++) {
+		int skip = i && !strcmp(found[i], found[i - 1]);
+
+		for (int k = 0; k < nr && !skip; k++)
+			skip = !strcmp(found[i], removed[k]);
+		if (!skip)
+			snprintf(names[n++], NAME_LEN, "%.63s", found[i]);
+	}
 	return n;
 }
 

@@ -12,6 +12,9 @@
  * paintEvent only. The Makefile builds it when pkg-config finds Qt6Widgets or
  * Qt5Widgets. */
 #include <QApplication>
+#include <QBuffer>
+#include <QButtonGroup>
+#include <QColorDialog>
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
@@ -27,8 +30,10 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QIcon>
 #include <QImage>
+#include <QImageReader>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -49,10 +54,13 @@
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <cstdio>
+#include <functional>
+#include <cstdlib>
 #include <cstring>
 #include "common.h"
 
@@ -67,8 +75,8 @@ static QLabel *status, *title;
 static QWidget *swatches, *sample, *cursorArea;
 static QPushButton *applyButton;
 static QListWidget *themeList;
-static char theme_names[MAX_LIST][NAME_LEN];
-static Theme themes[MAX_LIST];
+static char theme_names[MAX_THEMES][NAME_LEN];
+static Theme themes[MAX_THEMES];
 static int ntheme_names;
 
 static QColor hex(const char *h)
@@ -82,6 +90,25 @@ static QString utf8(const char *s)
 }
 
 /* a theme's swatch: bg, surf, acc, and a stroke of fg, for the list */
+/* a template set as people read it (Themer Chicago); the directory name is the id */
+static QString setTitle(const char *set)
+{
+	char t[NAME_LEN];
+	return utf8(front_set_title(set, t, sizeof t));
+}
+
+/* a combo of the template sets, by title, the id as item data; current selected */
+static void fillSets(QComboBox *c, const char *current)
+{
+	char names[MAX_LIST][NAME_LEN];
+	int n = template_all_sets(names, MAX_LIST);
+
+	c->clear();
+	for (int i = 0; i < n; i++)
+		c->addItem(setTitle(names[i]), utf8(names[i]));
+	c->setCurrentIndex(c->findData(utf8(current)));
+}
+
 static QIcon themeSwatch(const Theme &t, int mode)
 {
 	QPixmap pm(40, 18);
@@ -129,11 +156,16 @@ static void restyle()
 	                       : !strcmp(cfg.hinting, "full") ? QFont::PreferFullHinting
 	                       : QFont::PreferVerticalHinting);
 	qApp->setFont(f);
-	if (front_render(&cfg, "qt", "qt", "qt.qss", qss, sizeof qss) == 0)
-		qApp->setStyleSheet(utf8(qss));
+	if (front_render(&cfg, "qt", "qt", "qt.qss", qss, sizeof qss) == 0) {
+		/* the window's own rule: the chosen one of a row of buttons in the accent */
+		Scheme sc;
+		gui_scheme(&cfg, &sc);
+		qApp->setStyleSheet(utf8(qss) + QString("\nQPushButton[seg=\"true\"]:checked { background: #%1; color: #%2; }\n")
+		                    .arg(sc.hex[C_ACC]).arg(sc.hex[C_ACCFG]));
+	}
 	if (title)
 		title->setText(utf8(cfg.th.name) + "  \xc2\xb7  " + (cfg.mode == MODE_DARK ? "dark" : "light") +
-		               "  \xc2\xb7  " + utf8(cfg.set));
+		               "  \xc2\xb7  " + setTitle(cfg.set));
 	if (themeList) {
 		int m = cfg.mode == MODE_DARK ? 0 : 1;
 		for (int i = 0; i < ntheme_names; i++)
@@ -154,12 +186,16 @@ static void markDirty()
 	applyButton->setEnabled(true);
 }
 
+static std::function<void()> afterChange;   /* the window's own follow-ups (the colors shown) */
+
 static void changed()
 {
 	if (updating)
 		return;
 	markDirty();
 	restyle();
+	if (afterChange)
+		afterChange();
 }
 
 /* ---- the swatches, the terminal transcript, and the cursors ---- */
@@ -296,7 +332,7 @@ public:
 	{
 		setWindowTitle("themer");
 		setWindowIcon(QIcon::fromTheme("preferences-desktop-theme"));
-		resize(980, 640);
+		resize(1200, 700);
 		menus();
 
 		QWidget *central = new QWidget;
@@ -305,7 +341,9 @@ public:
 		QSplitter *split = new QSplitter;
 		split->addWidget(settings());
 		split->addWidget(preview());
+		split->setStretchFactor(0, 2);
 		split->setStretchFactor(1, 1);
+		split->setSizes(QList<int>() << 780 << 420);   /* the settings get the room they need */
 		v->addWidget(split, 1);
 
 		/* the action bar: status on the left, Apply on the right */
@@ -323,12 +361,28 @@ public:
 	}
 
 	/* themer-qt [theme|fonts|icons|cursor|modules] opens on that page */
-	void openPage(const char *name)
+	/* another front end saved: its changes are merged in (front_sync) and shown */
+	void syncTick()
 	{
-		static const char *pages[] = { "theme", "fonts", "icons", "cursor", "modules" };
-		for (int i = 0; i < 5; i++)
+		if (!front_sync())
+			return;
+		showCfg();
+		dirty = !config_same(&cfg, &applied);
+		applyButton->setEnabled(dirty);
+		status->setText("updated with changes made in another front end");
+	}
+
+	void openPage(const char *name, const char *module = nullptr)
+	{
+		static const char *pages[] = { "theme", "fonts", "icons", "cursor", "modules", "env", "server" };
+		for (int i = 0; i < 6; i++)
 			if (!strcmp(pages[i], name))
 				pageList->setCurrentRow(i);
+		/* themer-qt modules MODULE opens on that module */
+		if (module && !strcmp(name, "modules"))
+			for (int k = 0; k < nmodules; k++)
+				if (!strcmp(themer_module_name(moduleOrder[k]), module))
+					mods->setCurrentItem(mods->topLevelItem(k));
 	}
 protected:
 	void closeEvent(QCloseEvent *e) override
@@ -353,12 +407,16 @@ protected:
 private:
 	QListWidget *pageList = nullptr;
 	QStackedWidget *pages = nullptr;
-	QRadioButton *dark = nullptr, *light = nullptr;
+	QPushButton *dark = nullptr, *light = nullptr;
 	QComboBox *sets = nullptr, *icons = nullptr, *cursorBox = nullptr, *hinting = nullptr, *rgba = nullptr;
 	QPushButton *uiFont = nullptr, *monoFont = nullptr;
-	QSpinBox *cursorSize = nullptr;
+	QSpinBox *cursorSize = nullptr, *uiSize = nullptr, *monoSize = nullptr;
 	QCheckBox *antialias = nullptr;
-	QListWidget *mods = nullptr;
+	QComboBox *ttyBox = nullptr;
+	QGridLayout *colorsGrid = nullptr;
+	QVBoxLayout *envBox = nullptr;
+	QLineEdit *envName = nullptr, *envValue = nullptr;
+	QTreeWidget *mods = nullptr;
 	QGridLayout *iconGrid = nullptr;
 	int moduleOrder[MAX_MODULES];
 	int nmodules = 0;
@@ -397,26 +455,37 @@ private:
 	void revert()
 	{
 		cfg = applied;
+		showCfg();
+		dirty = false;
+		applyButton->setEnabled(false);
+		status->setText("back to the applied settings");
+	}
+
+	/* every control set from cfg */
+	void showCfg()
+	{
 		updating = true;
 		for (int i = 0; i < ntheme_names; i++)
 			if (!strcmp(theme_names[i], cfg.th.name))
 				themeList->setCurrentRow(i);
 		(cfg.mode == MODE_DARK ? dark : light)->setChecked(true);
-		sets->setCurrentText(utf8(cfg.set));
+		sets->setCurrentIndex(sets->findData(utf8(cfg.set)));
 		fontLabel(uiFont, cfg.ui_font, cfg.ui_size);
 		fontLabel(monoFont, cfg.mono_font, cfg.mono_size);
+		uiSize->setValue(cfg.ui_size);
+		monoSize->setValue(cfg.mono_size);
 		icons->setCurrentText(utf8(cfg.icons));
 		cursorBox->setCurrentText(utf8(cfg.cursor));
 		cursorSize->setValue(cfg.cursor_size);
 		hinting->setCurrentText(utf8(cfg.hinting));
 		antialias->setChecked(cfg.antialias);
 		rgba->setCurrentText(utf8(cfg.rgba));
-		for (int k = 0; k < nmodules; k++)
-			mods->item(k)->setCheckState(themer_module_on(&cfg, moduleOrder[k]) ? Qt::Checked : Qt::Unchecked);
+		ttyBox->setCurrentText(utf8(cfg.tty_font));
+		colorsFill();
+		envFill();
+		refreshStates();
+		showModule(modSel);
 		updating = false;
-		dirty = false;
-		applyButton->setEnabled(false);
-		status->setText("back to the applied settings");
 		fillIcons();
 		restyle();
 	}
@@ -457,7 +526,17 @@ private:
 
 	static void fontLabel(QPushButton *b, const char *fam, int size)
 	{
-		b->setText(utf8(fam) + "  " + QString::number(size));
+		(void)size;          /* the size has its own field */
+		b->setText(utf8(fam));
+	}
+
+	/* a button of a row of choices: checkable, drawn in the accent when chosen */
+	static QPushButton *segButton(const QString &text)
+	{
+		QPushButton *b = new QPushButton(text);
+		b->setCheckable(true);
+		b->setProperty("seg", true);
+		return b;
 	}
 
 	/* a button that opens the font dialog and writes the family and size */
@@ -472,8 +551,8 @@ private:
 			                               mono ? "Terminal font" : "Interface font", opt);
 			if (!ok)
 				return;
-			if (front_set_font(&cfg, mono, f.family().toUtf8().constData(),
-			                   f.pointSize() > 0 ? f.pointSize() : 0) < 0)
+			/* the family only: the size is the field beside the button */
+			if (front_set_font(&cfg, mono, f.family().toUtf8().constData(), 0) < 0)
 				return;
 			(void)n;
 			fontLabel(b, fam, *size);
@@ -489,7 +568,7 @@ private:
 		h->setContentsMargins(0, 0, 0, 0);
 		h->setSpacing(0);
 		pageList = new QListWidget;
-		pageList->addItems(QStringList() << "Theme" << "Fonts" << "Icons" << "Cursor" << "Modules");
+		pageList->addItems(QStringList() << "Theme" << "Fonts" << "Icons" << "Cursor" << "Modules" << "Environment" << "Server");
 		pageList->setFixedWidth(130);
 		pageList->setFrameShape(QFrame::NoFrame);
 		pages = new QStackedWidget;
@@ -498,6 +577,8 @@ private:
 		pages->addWidget(pageIcons());
 		pages->addWidget(pageCursor());
 		pages->addWidget(pageModules());
+		pages->addWidget(pageEnv());
+		pages->addWidget(pageServer());
 		QObject::connect(pageList, &QListWidget::currentRowChanged, [this](int r) { pages->setCurrentIndex(r); });
 		pageList->setCurrentRow(0);
 		QScrollArea *scroll = new QScrollArea;
@@ -517,14 +598,8 @@ private:
 
 	void refillSets()
 	{
-		char names[MAX_LIST][NAME_LEN];
-		int n = template_all_sets(names, MAX_LIST);
-
 		updating = true;
-		sets->clear();
-		for (int i = 0; i < n; i++)
-			sets->addItem(utf8(names[i]));
-		sets->setCurrentText(utf8(cfg.set));
+		fillSets(sets, cfg.set);
 		updating = false;
 	}
 
@@ -626,79 +701,236 @@ private:
 		}
 	}
 
-	/* ---- module options: the selected module's options, set at once ---- */
+	/* ---- the modules page: the list on the left, the selected module on the right,
+	 * its options in the sections every front end uses (front_option_group). A switch
+	 * loads or unloads at once and an option takes effect at once, as in the TUI,
+	 * themer-gtk and themer-web; Apply is for the theme, fonts, icons and cursor. ---- */
 
-	QWidget *optionsPane = nullptr;
-	QFormLayout *optionsForm = nullptr;
-	QLabel *optionsTitle = nullptr;
+	QScrollArea *detail = nullptr;
+	int modSel = -1;
 
-	void showOptions(int module)
+	static QString stateText(int i)
 	{
-		while (QLayoutItem *it = optionsForm->takeAt(0)) {
-			delete it->widget();
-			delete it;
-		}
-		int n = themer_option_count(module);
-		optionsTitle->setText(QString("<b>%1</b> options%2").arg(utf8(themer_module_name(module)))
-		                      .arg(n ? "" : ": none"));
-		for (int j = 0; j < n; j++) {
-			const TmOption *o = themer_option(module, j);
-			const char *cur = themer_option_value(&cfg, module, j);
-			QWidget *w;
-			auto set = [module, j, this](const QString &value) {
-				char msg[256];
-				QByteArray b = value.toUtf8();
-				if (updating || b == themer_option_value(&cfg, module, j))
-					return;
-				front_option_set(&cfg, module, j, b.constData(), msg, sizeof msg);
-				status->setText(utf8(msg));
-				restyle();
-			};
-			if (!strcmp(o->name, "template")) {
-				QComboBox *c = new QComboBox;
-				char names[MAX_LIST][NAME_LEN];
-				int ns = template_all_sets(names, MAX_LIST);
-				for (int i = 0; i < ns; i++)
-					c->addItem(utf8(names[i]));
-				c->setCurrentText(utf8(cur));
-				QObject::connect(c, &QComboBox::currentTextChanged, set);
-				w = c;
-			} else if (o->choices) {
-				QComboBox *c = new QComboBox;
-				for (const QString &s : utf8(o->choices).split('|'))
-					c->addItem(s);
-				c->setCurrentText(utf8(cur));
-				QObject::connect(c, &QComboBox::currentTextChanged, set);
-				w = c;
-			} else if (o->max > o->min) {
-				QSpinBox *s = new QSpinBox;
-				s->setRange(o->min, o->max);
-				s->setValue(atoi(cur));
-				QObject::connect(s, QOverload<int>::of(&QSpinBox::valueChanged), [set](int v) { set(QString::number(v)); });
-				w = s;
-			} else {
-				QLineEdit *e = new QLineEdit(utf8(cur));
-				QObject::connect(e, &QLineEdit::editingFinished, [set, e]() { set(e->text()); });
-				w = e;
-			}
-			w->setToolTip(utf8(o->desc));
-			QLabel *l = new QLabel(utf8(o->name));
-			l->setToolTip(utf8(o->desc));
-			optionsForm->addRow(l, w);
-		}
+		return !themer_module_present(&cfg, i) ? "not installed" : themer_module_on(&cfg, i) ? "on" : "off";
 	}
 
-	QWidget *pageTheme()
+	void refreshStates()
 	{
-		QVBoxLayout *v;
-		QWidget *w = page(v);
-		char names[MAX_LIST][NAME_LEN];
-		int n;
+		for (int k = 0; k < nmodules; k++)
+			mods->topLevelItem(k)->setText(1, stateText(moduleOrder[k]));
+	}
 
-		v->addWidget(heading("Color theme"));
-		themeList = new QListWidget;
-		themeList->setIconSize(QSize(40, 18));
-		ntheme_names = theme_list(theme_names, MAX_LIST);
+	/* the detail is rebuilt after the signal that changed it has returned */
+	void rebuildLater()
+	{
+		QTimer::singleShot(0, [this]() { showModule(modSel); });
+	}
+
+	void setOpt(int i, int j, const QString &value)
+	{
+		char msg[256];
+		QByteArray b = value.toUtf8();
+
+		if (updating || b == themer_option_value(&cfg, i, j))
+			return;
+		front_option_set(&cfg, i, j, b.constData(), msg, sizeof msg);
+		status->setText(utf8(msg));
+		restyle();
+		rebuildLater();
+	}
+
+	/* a control for one option: a check box for on|off, buttons for mode, a combo for
+	 * other choices and for the template set, a spin box for a range, a line edit
+	 * otherwise */
+	QWidget *optionControl(int i, int j)
+	{
+		const TmOption *o = themer_option(i, j);
+		const char *cur = themer_option_value(&cfg, i, j);
+		QWidget *w;
+
+		switch (front_option_control(i, j)) {
+		case OC_SWITCH: {
+			QCheckBox *c = new QCheckBox(!strcmp(cur, "on") ? "on" : "off");
+			c->setChecked(!strcmp(cur, "on"));
+			QObject::connect(c, &QCheckBox::toggled, [this, i, j](bool on) { setOpt(i, j, on ? "on" : "off"); });
+			w = c;
+			break;
+		}
+		case OC_BUTTONS: {
+			/* the choices side by side, the chosen one in the accent */
+			QWidget *row = new QWidget;
+			QHBoxLayout *h = new QHBoxLayout(row);
+			QButtonGroup *group = new QButtonGroup(row);
+			h->setContentsMargins(0, 0, 0, 0);
+			h->setSpacing(0);
+			for (const QString &v : utf8(o->choices).split('|')) {
+				QPushButton *b = segButton(v);
+				b->setChecked(v == utf8(cur));
+				group->addButton(b);
+				QObject::connect(b, &QPushButton::clicked, [this, i, j, v]() { setOpt(i, j, v); });
+				h->addWidget(b);
+			}
+			h->addStretch();
+			w = row;
+			break;
+		}
+		case OC_LIST: {
+			QComboBox *c = new QComboBox;
+			if (!strcmp(o->name, "template")) {
+				fillSets(c, cur);
+				QObject::connect(c, QOverload<int>::of(&QComboBox::currentIndexChanged),
+				                 [this, i, j, c](int) { setOpt(i, j, c->currentData().toString()); });
+			} else {
+				for (const QString &v : utf8(o->choices).split('|'))
+					c->addItem(v);
+				c->setCurrentText(utf8(cur));
+				QObject::connect(c, &QComboBox::currentTextChanged, [this, i, j](const QString &v) { setOpt(i, j, v); });
+			}
+			w = c;
+			break;
+		}
+		case OC_SLIDER: {
+			/* a bar to drag, its value beside it; set when it is let go */
+			QWidget *row = new QWidget;
+			QHBoxLayout *h = new QHBoxLayout(row);
+			QSlider *sl = new QSlider(Qt::Horizontal);
+			QLabel *val = new QLabel(utf8(cur));
+			h->setContentsMargins(0, 0, 0, 0);
+			sl->setRange(o->min, o->max);
+			sl->setValue(atoi(cur));
+			sl->setFixedWidth(200);
+			val->setMinimumWidth(28);
+			QObject::connect(sl, &QSlider::valueChanged, [this, i, j, sl, val](int v) {
+				val->setText(QString::number(v));
+				if (!sl->isSliderDown())
+					setOpt(i, j, QString::number(v));   /* keys and clicks */
+			});
+			QObject::connect(sl, &QSlider::sliderReleased, [this, i, j, sl]() { setOpt(i, j, QString::number(sl->value())); });
+			h->addWidget(sl);
+			h->addWidget(val);
+			h->addStretch();
+			w = row;
+			break;
+		}
+		default: {
+			QLineEdit *e = new QLineEdit(utf8(cur));
+			e->setPlaceholderText(utf8(o->def));
+			QObject::connect(e, &QLineEdit::editingFinished, [this, i, j, e]() { setOpt(i, j, e->text()); });
+			w = e;
+		}
+		}
+		w->setToolTip(utf8(o->desc));
+		return w;
+	}
+
+	void showModule(int i)
+	{
+		modSel = i;
+		if (!detail || i < 0)
+			return;
+		updating = true;
+		QWidget *box = new QWidget;
+		QVBoxLayout *v = new QVBoxLayout(box);
+		v->setContentsMargins(12, 10, 12, 10);
+
+		QHBoxLayout *top = new QHBoxLayout;
+		QLabel *name = new QLabel(QString("<b><big>%1</big></b>").arg(utf8(themer_module_name(i)).toHtmlEscaped()));
+		QCheckBox *on = new QCheckBox("On");
+		on->setChecked(themer_module_on(&cfg, i));
+		on->setToolTip("on: Apply writes this program's settings; off: they are removed");
+		QObject::connect(on, &QCheckBox::toggled, [this, i](bool want) {
+			if (updating || want == (bool)themer_module_on(&cfg, i))
+				return;
+			if (front_module_set(&cfg, i, want) < 0)
+				status->setText(want ? "the module did not load; see the terminal" : "unload had errors");
+			else
+				status->setText(want ? "module loaded" : "module unloaded");
+			refreshStates();
+			rebuildLater();
+		});
+		top->addWidget(name, 1);
+		top->addWidget(on);
+		v->addLayout(top);
+		v->addWidget(caption(themer_module_desc(i)));
+		if (!themer_module_present(&cfg, i))
+			v->addWidget(caption(themer_module_on(&cfg, i)
+			             ? "Its program is not installed here; the module stays on and takes effect once it appears."
+			             : "Its program is not installed here."));
+
+		int no = themer_option_count(i);
+		for (int g = 0; g < OG_N; g++) {
+			QGridLayout *grid = nullptr;
+			int row = 0;
+			for (int j = 0; j < no; j++) {
+				const TmOption *o = themer_option(i, j);
+				if (front_option_group(i, j) != g)
+					continue;
+				if (!grid) {
+					v->addSpacing(6);
+					v->addWidget(heading(front_option_groups[g]));
+					QFrame *line = new QFrame;
+					line->setFrameShape(QFrame::HLine);
+					line->setFrameShadow(QFrame::Sunken);
+					v->addWidget(line);
+					grid = new QGridLayout;
+					grid->setContentsMargins(6, 0, 0, 0);
+					grid->setVerticalSpacing(2);
+					grid->setColumnMinimumWidth(0, 100);
+					grid->setColumnStretch(3, 1);
+					v->addLayout(grid);
+				}
+				QLabel *l = new QLabel(utf8(o->name));
+				l->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+				grid->addWidget(l, row, 0);
+				if (front_option_action(&cfg, i, j)) {
+					/* the control, then its action (Install for a stylus site) */
+					QHBoxLayout *hb = new QHBoxLayout;
+					QPushButton *ab = new QPushButton(utf8(front_option_action(&cfg, i, j)));
+					ab->setToolTip("opens the style in your browser, where Stylus offers to install it");
+					QObject::connect(ab, &QPushButton::clicked, [this, i, j]() {
+						char msg[256];
+						front_option_run(&cfg, i, j, msg, sizeof msg);
+						status->setText(utf8(msg));
+					});
+					hb->addWidget(optionControl(i, j));
+					hb->addWidget(ab);
+					hb->addStretch();
+					grid->addLayout(hb, row, 1);
+				} else {
+					grid->addWidget(optionControl(i, j), row, 1);
+				}
+				QString note = utf8(o->desc);
+				if (themer_option_is_set(&cfg, i, j)) {
+					QPushButton *r = new QPushButton("Reset");
+					QObject::connect(r, &QPushButton::clicked, [this, i, j]() {
+						char msg[256];
+						front_option_reset(&cfg, i, j, msg, sizeof msg);
+						status->setText(utf8(msg));
+						restyle();
+						rebuildLater();
+					});
+					grid->addWidget(r, row, 2);
+					note += QString(" · default: %1").arg(!strcmp(o->name, "template") ? QString("the global set") : utf8(o->def));
+				}
+				QLabel *d = caption(note.toUtf8().constData());
+				d->setContentsMargins(0, 0, 0, 6);
+				grid->addWidget(d, row + 1, 1, 1, 3);
+				row += 2;
+			}
+		}
+		if (!no)
+			v->addWidget(caption("This module has no options."));
+		v->addStretch();
+		detail->setWidget(box);       /* deletes the previous one */
+		updating = false;
+	}
+
+	/* the scheme list, refilled after an import or a removal */
+	static void fillThemes()
+	{
+		updating = true;
+		themeList->clear();
+		ntheme_names = theme_list(theme_names, MAX_THEMES);
 		for (int i = 0; i < ntheme_names; i++) {
 			theme_read(theme_names[i], &themes[i]);
 			themeList->addItem(new QListWidgetItem(themeSwatch(themes[i], cfg.mode == MODE_DARK ? 0 : 1),
@@ -706,6 +938,59 @@ private:
 			if (!strcmp(theme_names[i], cfg.th.name))
 				themeList->setCurrentRow(i);
 		}
+		updating = false;
+	}
+
+	void schemeImport()
+	{
+		QString path = QFileDialog::getOpenFileName(this, "Import a colour scheme");
+		if (path.isEmpty())
+			return;
+		QByteArray p = path.toUtf8();
+		int n = withReport("Import", [&](FILE *f) { return scheme_import(p.constData(), nullptr, f) > 0 ? 0 : -1; });
+		status->setText(n == 0 ? "imported; it is in the list" : "nothing imported");
+		fillThemes();
+	}
+
+	void schemeRemove()
+	{
+		QListWidgetItem *it = themeList->currentItem();
+		if (!it)
+			return;
+		QByteArray name = it->text().toUtf8();
+		if (!strcmp(name.constData(), applied.th.name)) {
+			status->setText("that is the scheme in use: apply another first");
+			return;
+		}
+		if (scheme_remove(name.constData()) < 0) {
+			status->setText("could not remove it");
+			return;
+		}
+		status->setText(it->text() + " removed");
+		if (!strcmp(cfg.th.name, name.constData())) {
+			front_set_theme(&cfg, applied.th.name);
+			changed();
+		}
+		fillThemes();
+	}
+
+	QWidget *pageTheme()
+	{
+		QVBoxLayout *v;
+		QWidget *w = page(v);
+
+		v->addWidget(heading("Color scheme"));
+		QLineEdit *find = new QLineEdit;
+		find->setPlaceholderText("Find a scheme");
+		find->setClearButtonEnabled(true);
+		v->addWidget(find);
+		themeList = new QListWidget;
+		themeList->setIconSize(QSize(40, 18));
+		fillThemes();
+		QObject::connect(find, &QLineEdit::textChanged, [](const QString &q) {
+			for (int i = 0; i < themeList->count(); i++)
+				themeList->item(i)->setHidden(!q.isEmpty() && !themeList->item(i)->text().contains(q));
+		});
 		QObject::connect(themeList, &QListWidget::currentTextChanged, [](const QString &t) {
 			if (updating || t.isEmpty())
 				return;
@@ -719,28 +1004,50 @@ private:
 			changed();
 		});
 		v->addWidget(themeList, 1);
+		{
+			QHBoxLayout *bar = new QHBoxLayout;
+			QPushButton *imp = new QPushButton("Import…"), *rem = new QPushButton("Remove"), *res = new QPushButton("Restore hidden");
+			imp->setToolTip("A colour scheme file: a .theme, Xresources, kitty, foot or alacritty colors, or Gogh lines");
+			rem->setToolTip("Delete the selected scheme if it is yours, or hide it if it is built in");
+			res->setToolTip("Bring back every built-in scheme that was removed");
+			QObject::connect(imp, &QPushButton::clicked, [this]() { schemeImport(); });
+			QObject::connect(rem, &QPushButton::clicked, [this]() { schemeRemove(); });
+			QObject::connect(res, &QPushButton::clicked, [this]() {
+				status->setText(scheme_restore(nullptr) == 0 ? "every hidden built-in scheme is back" : "could not restore");
+				fillThemes();
+			});
+			bar->addWidget(imp);
+			bar->addWidget(rem);
+			bar->addWidget(res);
+			bar->addStretch();
+			v->addLayout(bar);
+		}
 
 		QGridLayout *g = new QGridLayout;
+		/* dark and light side by side, the chosen one in the accent, as every
+		 * module's mode option */
 		QHBoxLayout *mode = new QHBoxLayout;
-		dark = new QRadioButton("Dark");
-		light = new QRadioButton("Light");
+		QButtonGroup *mg = new QButtonGroup(w);
+		mode->setSpacing(0);
+		dark = segButton("dark");
+		light = segButton("light");
+		mg->addButton(dark);
+		mg->addButton(light);
 		(cfg.mode == MODE_DARK ? dark : light)->setChecked(true);
-		QObject::connect(dark, &QRadioButton::toggled, [](bool on) { if (on && !updating) { cfg.mode = MODE_DARK; changed(); } });
-		QObject::connect(light, &QRadioButton::toggled, [](bool on) { if (on && !updating) { cfg.mode = MODE_LIGHT; changed(); } });
+		QObject::connect(dark, &QPushButton::toggled, [](bool on) { if (on && !updating) { cfg.mode = MODE_DARK; changed(); } });
+		QObject::connect(light, &QPushButton::toggled, [](bool on) { if (on && !updating) { cfg.mode = MODE_LIGHT; changed(); } });
 		mode->addWidget(dark);
 		mode->addWidget(light);
 		mode->addStretch();
 		g->addWidget(new QLabel("Mode"), 0, 0, Qt::AlignRight);
 		g->addLayout(mode, 0, 1);
 		sets = new QComboBox;
-		n = template_all_sets(names, MAX_LIST);
-		for (int i = 0; i < n; i++)
-			sets->addItem(utf8(names[i]));
-		sets->setCurrentText(utf8(cfg.set));
-		QObject::connect(sets, &QComboBox::currentTextChanged, [](const QString &t) {
-			if (updating || t.isEmpty())
+		fillSets(sets, cfg.set);
+		QObject::connect(sets, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](int) {
+			QString id = sets->currentData().toString();
+			if (updating || id.isEmpty())
 				return;
-			if (front_set_set(&cfg, t.toUtf8().constData()) == 0)
+			if (front_set_set(&cfg, id.toUtf8().constData()) == 0)
 				changed();
 		});
 		g->addWidget(new QLabel("Template set"), 1, 0, Qt::AlignRight);
@@ -764,7 +1071,16 @@ private:
 		}
 		v->addLayout(g);
 		v->addWidget(caption("A template set is the look: the widgets, bars, and chrome every "
-		                     "module draws. What a set lacks comes from themer_chicago."));
+		                     "module draws. What a set lacks comes from Themer Chicago."));
+		v->addWidget(heading("Colors"));
+		colorsGrid = new QGridLayout;
+		colorsGrid->setVerticalSpacing(2);
+		colorsGrid->setColumnStretch(4, 1);
+		v->addLayout(colorsGrid);
+		colorsFill();
+		v->addWidget(caption("A color of your own over the scheme's, in both modes: pick one, "
+		                     "or Scheme to go back to the scheme's."));
+		afterChange = [this]() { QTimer::singleShot(0, [this]() { colorsFill(); }); };
 		return w;
 	}
 
@@ -777,14 +1093,48 @@ private:
 		QGridLayout *g = new QGridLayout;
 		uiFont = fontButton(cfg.ui_font, sizeof cfg.ui_font, &cfg.ui_size, false);
 		monoFont = fontButton(cfg.mono_font, sizeof cfg.mono_font, &cfg.mono_size, true);
-		g->addWidget(new QLabel("Interface"), 0, 0, Qt::AlignRight);
-		g->addWidget(uiFont, 0, 1);
-		g->addWidget(new QLabel("Terminal"), 1, 0, Qt::AlignRight);
-		g->addWidget(monoFont, 1, 1);
+		for (int mono = 0; mono < 2; mono++) {
+			QSpinBox *sz = new QSpinBox;
+			sz->setRange(4, 72);
+			sz->setValue(mono ? cfg.mono_size : cfg.ui_size);
+			sz->setToolTip("Size in points");
+			sz->setKeyboardTracking(false);
+			QObject::connect(sz, QOverload<int>::of(&QSpinBox::valueChanged), [mono](int v) {
+				if (updating)
+					return;
+				if (front_set_font(&cfg, mono, mono ? cfg.mono_font : cfg.ui_font, v) == 0)
+					changed();
+			});
+			(mono ? monoSize : uiSize) = sz;
+			g->addWidget(new QLabel(mono ? "Terminal" : "Interface"), mono, 0, Qt::AlignRight);
+			g->addWidget(mono ? monoFont : uiFont, mono, 1);
+			g->addWidget(sz, mono, 2);
+		}
+		{
+			static char names[1024][NAME_LEN];
+			int n = front_tty_fonts(names, 1024);
+			ttyBox = new QComboBox;
+			ttyBox->setEditable(true);
+			for (int i = 0; i < n; i++)
+				ttyBox->addItem(utf8(names[i]));
+			ttyBox->setCurrentText(utf8(cfg.tty_font));
+			ttyBox->setToolTip("the Linux console's font (vconsole.conf)");
+			QObject::connect(ttyBox, &QComboBox::currentTextChanged, [](const QString &t) {
+				if (updating || t == utf8(cfg.tty_font))
+					return;
+				if (front_set_tty_font(&cfg, t.toUtf8().constData()) == 0)
+					changed();
+				else if (!t.isEmpty())
+					status->setText("a console font name is letters, digits, - and _");
+			});
+			g->addWidget(new QLabel("Console"), 2, 0, Qt::AlignRight);
+			g->addWidget(ttyBox, 2, 1, 1, 2);
+		}
+		g->setColumnStretch(1, 1);
 		v->addLayout(g);
 		v->addWidget(caption("The interface font goes to GTK, Qt, the window manager, and the "
 		                     "browsers; the terminal font to the terminals, editors, and Qt's "
-		                     "fixed font."));
+		                     "fixed font; the console font to the Linux console."));
 
 		v->addWidget(heading("Rendering"));
 		g = new QGridLayout;
@@ -835,29 +1185,35 @@ private:
 			delete it->widget();
 			delete it;
 		}
-		QIcon::setThemeName(utf8(cfg.icons));
+		Scheme s;
+		gui_scheme(&cfg, &s);
 		for (int i = 0; gui_preview_icons[i][0]; i++) {
 			QWidget *cell = new QWidget;
 			QVBoxLayout *cv = new QVBoxLayout(cell);
 			cv->setContentsMargins(0, 0, 0, 0);
 			cv->setSpacing(2);
 			QLabel *img = new QLabel, *l = new QLabel(utf8(gui_preview_icons[i][1]));
-			QIcon ic = QIcon::fromTheme(utf8(gui_preview_icons[i][0]));
-			QPixmap pm = ic.pixmap(ICON_PX, ICON_PX);
-			if (pm.isNull()) {
-				/* newer themes keep many icons only in symbolic form; those are
-				 * single-color and get the text color, as GTK would paint them */
-				ic = QIcon::fromTheme(utf8(gui_preview_icons[i][0]) + "-symbolic");
-				pm = ic.pixmap(ICON_PX, ICON_PX);
-				if (!pm.isNull()) {
-					Scheme s;
-					QPainter pr(&pm);
-					gui_scheme(&cfg, &s);
-					pr.setCompositionMode(QPainter::CompositionMode_SourceIn);
-					pr.fillRect(pm.rect(), hex(s.hex[C_FG]));
-				}
+			/* the same lookup the web and GTK previews use: the theme's own file */
+			const char *mime;
+			size_t len;
+			char *data = gui_icon_load(cfg.icons, gui_preview_icons[i][0], ICON_PX, s.hex[C_FG], &len, &mime);
+			QPixmap pm;
+			if (data) {
+				QByteArray bytes(data, (int)len);
+				QBuffer buf(&bytes);
+				QImageReader rd(&buf);
+				QSize sz;
+				free(data);
+				if (rd.canRead() && (sz = rd.size()).isValid())
+					rd.setScaledSize(sz.scaled(ICON_PX, ICON_PX, Qt::KeepAspectRatio));
+				pm = QPixmap::fromImage(rd.read());
 			}
-			img->setPixmap(pm);
+			if (pm.isNull()) {
+				img->setText("none");
+				img->setEnabled(false);
+			} else {
+				img->setPixmap(pm);
+			}
 			img->setAlignment(Qt::AlignCenter);
 			img->setFixedHeight(ICON_PX + 8);
 			l->setAlignment(Qt::AlignCenter);
@@ -937,50 +1293,243 @@ private:
 		return w;
 	}
 
+	/* ---- the Server page: themer-web, started and stopped by hand ---- */
+
+	QVBoxLayout *serverBox = nullptr;
+
+	void serverFill()
+	{
+		while (QLayoutItem *it = serverBox->takeAt(0)) {
+			if (it->widget())
+				it->widget()->deleteLater();
+			if (it->layout()) {
+				while (QLayoutItem *k = it->layout()->takeAt(0)) {
+					if (k->widget())
+						k->widget()->deleteLater();
+					delete k;
+				}
+			}
+			delete it;
+		}
+		int port = front_web_port(&cfg);
+		bool up = front_web_running(port);
+		QHBoxLayout *row = new QHBoxLayout;
+		row->addWidget(new QLabel(up ? "themer-web is running" : "themer-web is stopped"), 1);
+		if (up) {
+			QLabel *open = new QLabel(QString("<a href=\"http://localhost:%1/\">Open in the browser</a>").arg(port));
+			open->setOpenExternalLinks(true);
+			row->addWidget(open);
+		}
+		QPushButton *b = new QPushButton(up ? "Stop" : "Start");
+		QObject::connect(b, &QPushButton::clicked, [this]() {
+			int port = front_web_port(&cfg);
+			bool up = front_web_running(port);
+			if ((up ? front_web_stop(port) : front_web_start(port)) < 0)
+				status->setText(up ? "could not stop themer-web" : "could not start themer-web (is a browser module on?)");
+			else
+				status->setText(up ? "themer-web stopped" : "themer-web started");
+			QTimer::singleShot(0, [this]() { serverFill(); });
+		});
+		row->addWidget(b);
+		serverBox->addLayout(row);
+		QHBoxLayout *prow = new QHBoxLayout;
+		QSpinBox *spin = new QSpinBox;
+		spin->setRange(1024, 65535);
+		spin->setValue(port);
+		spin->setKeyboardTracking(false);
+		QObject::connect(spin, QOverload<int>::of(&QSpinBox::valueChanged), [this](int v) {
+			if (front_set_web_port(&cfg, v) < 0)
+				status->setText("could not move themer-web to that port");
+			else
+				status->setText("port saved");
+			QTimer::singleShot(0, [this]() { serverFill(); });
+		});
+		prow->addWidget(new QLabel("Port"));
+		prow->addWidget(spin);
+		prow->addStretch();
+		serverBox->addLayout(prow);
+		serverBox->addWidget(caption("On localhost. A running server moves to a new port. It stops by "
+		                             "itself when no browser module (firefox, stylus) is on."));
+		serverBox->addWidget(caption("Stylus installs the userstyles from it and keeps them current while "
+		                             "it runs: each site, with its Install button, is under Modules, stylus."));
+	}
+
+	/* empties a layout, the layouts inside it included */
+	static void clearLayout(QLayout *l)
+	{
+		while (QLayoutItem *it = l->takeAt(0)) {
+			if (it->widget())
+				it->widget()->deleteLater();
+			if (it->layout())
+				clearLayout(it->layout());
+			delete it;
+		}
+	}
+
+	/* one row per role: the color (yours or the scheme's), its hex, and Scheme to drop yours */
+	void colorsFill()
+	{
+		Scheme s;
+
+		clearLayout(colorsGrid);
+		gui_scheme(&cfg, &s);
+		for (int r = 0; r < C_N; r++) {
+			QPushButton *b = new QPushButton;
+			b->setFixedSize(48, 22);
+			b->setStyleSheet(QString("QPushButton { background: #%1; border: 1px solid palette(dark); }").arg(s.hex[r]));
+			b->setToolTip(cfg.color[r][0] ? "your color" : "the scheme's color: pick one to use your own");
+			QObject::connect(b, &QPushButton::clicked, [this, r]() {
+				Scheme s;
+				gui_scheme(&cfg, &s);
+				QColor c = QColorDialog::getColor(hex(s.hex[r]), this, QString("Color: %1").arg(color_names[r]));
+				if (!c.isValid())
+					return;
+				if (front_set_color(&cfg, r, c.name().toUtf8().constData()) == 0)
+					changed();
+			});
+			colorsGrid->addWidget(new QLabel(color_names[r]), r, 0, Qt::AlignRight);
+			colorsGrid->addWidget(b, r, 1);
+			colorsGrid->addWidget(new QLabel(s.hex[r]), r, 2);
+			if (cfg.color[r][0]) {
+				QPushButton *x = new QPushButton("Scheme");
+				x->setToolTip("back to the scheme's color");
+				QObject::connect(x, &QPushButton::clicked, [r]() {
+					front_set_color(&cfg, r, nullptr);
+					changed();
+				});
+				colorsGrid->addWidget(x, r, 3);
+			} else {
+				colorsGrid->addWidget(caption("the scheme's"), r, 3);
+			}
+		}
+	}
+
+	/* the session environment: one row per variable, the value editable */
+	void envPut(const char *name, const char *value)
+	{
+		char msg[160];
+
+		if (front_env_set(&cfg, name, value, msg, sizeof msg) < 0) {
+			status->setText(utf8(msg));
+			return;
+		}
+		changed();
+		QTimer::singleShot(0, [this]() { envFill(); });
+	}
+
+	void envFill()
+	{
+		clearLayout(envBox);
+		QGridLayout *g = new QGridLayout;
+		for (int i = 0; i < cfg.nenv; i++) {
+			QString name = utf8(cfg.env[i].name);
+			QLineEdit *e = new QLineEdit(utf8(cfg.env[i].value));
+			QPushButton *x = new QPushButton("Remove");
+			QObject::connect(e, &QLineEdit::editingFinished, [this, e, name]() {
+				QByteArray n = name.toUtf8(), v = e->text().toUtf8();
+				for (int k = 0; k < cfg.nenv; k++)
+					if (!strcmp(cfg.env[k].name, n.constData()) && strcmp(cfg.env[k].value, v.constData()))
+						envPut(n.constData(), v.constData());
+			});
+			QObject::connect(x, &QPushButton::clicked, [this, name]() { envPut(name.toUtf8().constData(), ""); });
+			g->addWidget(new QLabel(name), i, 0, Qt::AlignRight);
+			g->addWidget(e, i, 1);
+			g->addWidget(x, i, 2);
+		}
+		if (!cfg.nenv)
+			g->addWidget(caption("No variables."), 0, 0, 1, 2);
+		g->setColumnStretch(1, 1);
+		envBox->addLayout(g);
+	}
+
+	QWidget *pageEnv()
+	{
+		QVBoxLayout *v;
+		QWidget *w = page(v);
+
+		v->addWidget(heading("Environment"));
+		v->addWidget(caption("Variables for the whole session, written to environment.d on apply, "
+		                     "where login sessions and systemd user services read them."));
+		envBox = new QVBoxLayout;
+		v->addLayout(envBox);
+		envFill();
+		QHBoxLayout *add = new QHBoxLayout;
+		envName = new QLineEdit;
+		envName->setPlaceholderText("NAME");
+		envValue = new QLineEdit;
+		envValue->setPlaceholderText("value");
+		QPushButton *b = new QPushButton("Add");
+		auto doAdd = [this]() {
+			QByteArray n = envName->text().trimmed().toUtf8(), val = envValue->text().toUtf8();
+			if (n.isEmpty() || val.isEmpty()) {
+				status->setText("a variable needs a name and a value");
+				return;
+			}
+			envPut(n.constData(), val.constData());
+			envName->clear();
+			envValue->clear();
+		};
+		QObject::connect(b, &QPushButton::clicked, doAdd);
+		QObject::connect(envValue, &QLineEdit::returnPressed, doAdd);
+		add->addWidget(envName);
+		add->addWidget(envValue, 1);
+		add->addWidget(b);
+		v->addLayout(add);
+		v->addStretch();
+		return w;
+	}
+
+	QWidget *pageServer()
+	{
+		QVBoxLayout *v;
+		QWidget *w = page(v);
+
+		v->addWidget(heading("Server"));
+		v->addWidget(caption("themer-web: this window's settings in the browser, and the userstyles "
+		                     "of the stylus module. Started and stopped here."));
+		serverBox = new QVBoxLayout;
+		v->addLayout(serverBox);
+		serverFill();
+		v->addStretch();
+		return w;
+	}
+
 	QWidget *pageModules()
 	{
 		QVBoxLayout *v;
 		QWidget *w = page(v);
 
 		v->addWidget(heading("Modules"));
-		v->addWidget(caption("Each module writes one program's settings on Apply and removes "
-		                     "them when turned off. Select a module for its options, which take "
-		                     "effect at once; \"template\" pins it to a set of its own (the global "
-		                     "set otherwise)."));
-		mods = new QListWidget;
-		mods->setWordWrap(true);
+		v->addWidget(caption("Each module themes one program: turned on it writes that program's "
+		                     "settings, turned off it removes them. Switches and options take "
+		                     "effect at once."));
+		QHBoxLayout *h = new QHBoxLayout;
+		mods = new QTreeWidget;
+		mods->setColumnCount(2);
+		mods->setHeaderHidden(true);
+		mods->setRootIsDecorated(false);
+		mods->setFixedWidth(205);
 		nmodules = front_module_order(moduleOrder, MAX_MODULES);
 		for (int k = 0; k < nmodules; k++) {
 			int i = moduleOrder[k];
-			bool here = themer_module_present(&cfg, i);
-			QListWidgetItem *it = new QListWidgetItem(utf8(themer_module_name(i)) +
-			                                          (here ? "" : "  (not installed)") + "\n" +
-			                                          utf8(themer_module_desc(i)), mods);
-			if (!here)
-				it->setForeground(qApp->palette().color(QPalette::Disabled, QPalette::Text));
-			it->setFlags(it->flags() | Qt::ItemIsUserCheckable);
-			it->setCheckState(themer_module_on(&cfg, i) ? Qt::Checked : Qt::Unchecked);
-			it->setData(Qt::UserRole, i);
+			QTreeWidgetItem *it = new QTreeWidgetItem(mods, QStringList() << utf8(themer_module_name(i)) << stateText(i));
+			it->setData(0, Qt::UserRole, i);
+			it->setForeground(1, qApp->palette().color(QPalette::Disabled, QPalette::Text));
 		}
-		QObject::connect(mods, &QListWidget::itemChanged, [](QListWidgetItem *it) {
-			if (updating)
-				return;
-			int i = it->data(Qt::UserRole).toInt();
-			config_set_module(&cfg, themer_module_name(i), it->checkState() == Qt::Checked);
-			markDirty();
-		});
-		v->addWidget(mods, 1);
-		optionsPane = new QGroupBox;
-		QVBoxLayout *ov = new QVBoxLayout(optionsPane);
-		optionsTitle = new QLabel("select a module for its options");
-		ov->addWidget(optionsTitle);
-		optionsForm = new QFormLayout;
-		ov->addLayout(optionsForm);
-		v->addWidget(optionsPane);
-		QObject::connect(mods, &QListWidget::currentItemChanged, [this](QListWidgetItem *it, QListWidgetItem *) {
+		mods->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+		mods->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+		h->addWidget(mods);
+		detail = new QScrollArea;
+		detail->setWidgetResizable(true);
+		detail->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);   /* the text wraps instead */
+		h->addWidget(detail, 1);
+		v->addLayout(h, 1);
+		QObject::connect(mods, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem *it, QTreeWidgetItem *) {
 			if (it)
-				showOptions(it->data(Qt::UserRole).toInt());
+				showModule(it->data(0, Qt::UserRole).toInt());
 		});
+		if (nmodules)
+			mods->setCurrentItem(mods->topLevelItem(0));
 		return w;
 	}
 
@@ -1081,6 +1630,7 @@ int main(int argc, char *argv[])
 	if (themer_startup(&cfg) < 0)
 		return 1;
 	applied = cfg;
+	front_track(&cfg, &applied);
 	app.setStyle("Fusion");
 	{
 		/* icon themes from everywhere GTK looks, ~/.icons included */
@@ -1092,10 +1642,13 @@ int main(int argc, char *argv[])
 	}
 	updating = true;
 	Window w;
+	QTimer sync;
+	QObject::connect(&sync, &QTimer::timeout, [&w]() { w.syncTick(); });
+	sync.start(1000);
 	updating = false;
 	restyle();
 	if (argc > 1)
-		w.openPage(argv[1]);
+		w.openPage(argv[1], argc > 2 ? argv[2] : nullptr);
 	w.show();
 	return app.exec();
 }

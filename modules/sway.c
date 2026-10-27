@@ -31,7 +31,7 @@ TM_VARS(vars)
 
 static const TmModule mod = {
 	.name = "sway",
-	.desc = "sway: window and bar colors, the font, $menu, the seat cursor",
+	.desc = "sway: window and bar colors, the font, the launcher, the cursor",
 	.templates = WM_TEMPLATES,
 	.default_on = 1,
 	.present = present,
@@ -39,5 +39,6 @@ static const TmModule mod = {
 	.reload = reload,
 	.options = wm_options,
 	.noptions = TM_COUNT(wm_options),
+	.watches_modules = 1,
 };
 TM_EXPORT(mod)

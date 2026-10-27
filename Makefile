@@ -52,7 +52,7 @@ QTPKG :=
 endif
 GTKBIN := $(if $(GTKPKG),themer-gtk)
 QTBIN  := $(if $(and $(QTPKG),$(HAVE_CXX)),themer-qt)
-GUIS    = $(GTKBIN) $(QTBIN)
+GUIS    = $(GTKBIN) $(QTBIN) themer-web   # themer-web needs no toolkit: always built
 
 # themer's Qt platform theme plugin (gui/qpa), what Qt programs take the theme
 # through without qt5ct/qt6ct: one build per Qt major found. It needs the QPA
@@ -84,6 +84,16 @@ themer: $(OBJ)
 themer-gtk: gui/themer-gtk.o gui/common.o $(HOST)
 	$(CC) $(LDFLAGS) -rdynamic -o $@ gui/themer-gtk.o gui/common.o $(HOST) $(LDLIBS) $(shell $(PKGCONF) --libs gtk+-3.0)
 
+# the web front end: the page is built into the binary as a C string
+gui/web_page.h: gui/web/index.html
+	{ printf 'static const unsigned char web_page_bytes[] = {\n'; \
+	  od -An -tx1 -v $< | sed 's/ *\([0-9a-f][0-9a-f]\)/0x\1,/g'; \
+	  printf '0 };\nstatic const char *const web_page = (const char *)web_page_bytes;\n'; } > $@
+gui/themer-web.o: gui/themer-web.c gui/web_page.h gui/common.h $(HDR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Igui -Isrc -c -o $@ gui/themer-web.c
+themer-web: gui/themer-web.o gui/common.o $(HOST)
+	$(CC) $(LDFLAGS) -rdynamic -o $@ gui/themer-web.o gui/common.o $(HOST) $(LDLIBS)
+
 themer-qt: gui/themer-qt.o gui/common.o $(HOST)
 	$(CXX) $(LDFLAGS) -rdynamic -o $@ gui/themer-qt.o gui/common.o $(HOST) $(LDLIBS) $(shell $(PKGCONF) --libs $(QTPKG))
 
@@ -100,6 +110,7 @@ gui:
 	@echo "pkg-config: $(if $(PKGCONF),$(PKGCONF),not found: no graphical front end is built)"
 	@echo "themer-gtk: $(if $(GTKBIN),built (gtk+-3.0),skipped: gtk+-3.0 development files not found)"
 	@echo "themer-qt:  $(if $(QTBIN),built ($(QTPKG)),skipped: $(if $(QTPKG),no C++ compiler ($(CXX)),Qt6Widgets or Qt5Widgets development files not found))"
+	@echo "themer-web: built (serves on localhost while a browser module is on)"
 	@echo "Qt platform theme plugin: $(if $(QPA5),Qt 5,)$(if $(and $(QPA5),$(QPA6)), and ,)$(if $(QPA6),Qt 6,)$(if $(QPAS),, none: Qt development files not found; Qt programs then need qt5ct/qt6ct)"
 
 $(OBJ) gui/common.o gui/themer-gtk.o gui/themer-qt.o: $(HDR) gui/common.h
@@ -148,14 +159,14 @@ install: all uninstall
 	done
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/themer $(DESTDIR)$(PREFIX)/bin/themer-gtk $(DESTDIR)$(PREFIX)/bin/themer-qt
+	rm -f $(DESTDIR)$(PREFIX)/bin/themer $(DESTDIR)$(PREFIX)/bin/themer-gtk $(DESTDIR)$(PREFIX)/bin/themer-qt $(DESTDIR)$(PREFIX)/bin/themer-web
 	rm -rf $(DESTDIR)$(PREFIX)/share/themer $(DESTDIR)$(PREFIX)/lib/themer $(DESTDIR)$(PREFIX)/include/themer
 
 dist: clean
 	git archive --prefix=themer-$(VERSION)/ -o themer-$(VERSION).tar.gz HEAD
 
 clean:
-	rm -f themer themer-gtk themer-qt $(OBJ) $(MODS) gui/*.o
+	rm -f themer themer-gtk themer-qt themer-web $(OBJ) $(MODS) gui/*.o gui/web_page.h
 	rm -rf gui/qpa/qt5 gui/qpa/qt6
 
 .PHONY: all gui check install uninstall dist clean

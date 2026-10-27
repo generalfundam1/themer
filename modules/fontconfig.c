@@ -37,8 +37,9 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "fontconfig",
-	.desc = "font rendering (antialiasing, hinting, subpixel order) for everything",
+	.desc = "font rendering: antialiasing, hinting and subpixel order, for every program",
 	.default_on = 1,
 	.load = load,
+	.colorless = 1,
 };
 TM_EXPORT(mod)

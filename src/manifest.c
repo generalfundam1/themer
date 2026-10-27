@@ -1,6 +1,17 @@
 /* manifest.c: the tm_* helpers modules write files with, and the manifest that
- * makes every write undoable. A manifest lives in ~/.local/state/themer/<name>.manifest,
- * one record per line, fields separated by tabs:
+ * makes every write undoable. Everything of themer's own lives under
+ * ~/.config/themer: the manifest is undo/<name>.manifest there, and a user file a
+ * module edits in place is first copied to originals/<name>/<its path> (record O,
+ * with a hash of the file as the module left it). Unload puts that copy back byte
+ * for byte when the file still has that hash, so a module never leaves a trace;
+ * when the user has changed the file since, the records are undone one by one
+ * instead, which takes out only themer's lines and keeps the user's edits.
+ * Manifests and .themer-orig backups of earlier builds (~/.local/state/themer,
+ * next to the file) are still read. The manifest is
+ * a "#themer-manifest 2" line, then one record per line, fields separated by tabs;
+ * tabs, newlines and backslashes inside a field are written \t, \n and \\ (a
+ * replaced line can hold tabs). A manifest without the first line is from an
+ * earlier build and is read as it is. Records have no size limit:
  *   F path                       file written whole by tm_writef (has the marker)
  *   C path                       file created by a block or ini edit; removed
  *                                on undo only if it ends up empty
@@ -15,10 +26,17 @@
  *   A path                       a file copied by tm_copy (an asset: an image, a
  *                                font); removed on undo
  *   S path                       a symbolic link made by tm_symlink; removed on undo
+ *   M path                       blocks switched off by tm_disable_block: lines
+ *                                starting with OFF_PREFIX get it taken away
+ *   O path hash                  a user file edited in place: its original is in
+ *                                originals/, hash is the file as the module left it
  */
 #include <dirent.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,27 +44,69 @@
 #include <unistd.h>
 #include "themer.h"
 
-#define MAX_RECS    512
+#define MANIFEST_V  "#themer-manifest 2"
 #define MAX_BODY    (2 * 1024 * 1024)   /* a block: the userChrome stylesheet with its icons */
 #define NEW_SECTION       "<new>"       /* section was created */
 #define NEW_SECTION_BLANK "<new+blank>" /* ...and a blank line was added before it */
 
-enum { R_FILE = 'F', R_CREATED = 'C', R_DIR = 'D', R_BLOCK = 'B', R_KEY = 'K', R_REPLACE = 'X', R_LINE = 'L', R_ASSET = 'A', R_LINK = 'S' };
+enum { R_FILE = 'F', R_CREATED = 'C', R_DIR = 'D', R_BLOCK = 'B', R_KEY = 'K', R_REPLACE = 'X', R_LINE = 'L', R_ASSET = 'A', R_LINK = 'S', R_ORIG = 'O', R_OFF = 'M' };
 
 #define BACKUP_SUFFIX ".themer-orig"
+#define OFF_PREFIX    "#themer-off: "
 
 typedef struct {
 	char kind;
-	char path[PATH_MAX];
-	char s[3][256];
+	char *path;
+	char *s[3];
 } Rec;
 
 typedef struct { char **v; int n, cap; } Lines;
 
 static int find_setline(const Lines *L, const char *prefix);
 
-static Rec recs[MAX_RECS];
-static int nrecs, recording;
+static Rec *recs;
+static int nrecs, caprecs, recording;
+static char cur_mod[NAME_LEN];       /* the module being loaded or undone */
+
+static char *
+xstrdup(const char *s)
+{
+	char *d = strdup(s ? s : "");
+
+	if (!d) {
+		perror("themer");
+		exit(1);
+	}
+	return d;
+}
+
+static void
+recs_clear(void)
+{
+	for (int i = 0; i < nrecs; i++) {
+		free(recs[i].path);
+		for (int k = 0; k < 3; k++)
+			free(recs[i].s[k]);
+	}
+	nrecs = 0;
+}
+
+static Rec *
+rec_new(void)
+{
+	if (nrecs == caprecs) {
+		int cap = caprecs ? 2 * caprecs : 256;
+		Rec *r = realloc(recs, (size_t)cap * sizeof *r);
+
+		if (!r) {
+			perror("themer");
+			exit(1);
+		}
+		recs = r;
+		caprecs = cap;
+	}
+	return &recs[nrecs++];
+}
 
 static const char *
 home(void)
@@ -94,30 +154,144 @@ rec_add(char kind, const char *path, const char *a, const char *b, const char *c
 	Rec *r;
 	int i;
 
-	if (!recording || nrecs >= MAX_RECS)
+	if (!recording)
 		return;
 	for (i = 0; i < nrecs; i++)
 		if (recs[i].kind == kind && !strcmp(recs[i].path, path) &&
 		    !strcmp(recs[i].s[0], a) && !strcmp(recs[i].s[1], b))
 			return;
-	r = &recs[nrecs++];
+	r = rec_new();
 	r->kind = kind;
-	snprintf(r->path, sizeof r->path, "%s", path);
-	snprintf(r->s[0], sizeof r->s[0], "%s", a);
-	snprintf(r->s[1], sizeof r->s[1], "%s", b);
-	snprintf(r->s[2], sizeof r->s[2], "%s", c);
+	r->path = xstrdup(path);
+	r->s[0] = xstrdup(a);
+	r->s[1] = xstrdup(b);
+	r->s[2] = xstrdup(c);
 }
 
 static int
 manifest_path(char *p, size_t n, const char *mod)
 {
+	return snprintf(p, n, "%s/.config/themer/undo/%s.manifest", home(), mod) < (int)n ? 0 : -1;
+}
+
+/* where earlier builds kept it */
+static int
+legacy_manifest_path(char *p, size_t n, const char *mod)
+{
 	return snprintf(p, n, "%s/.local/state/themer/%s.manifest", home(), mod) < (int)n ? 0 : -1;
+}
+
+/* the copy of a user file kept before the module first edited it */
+static int
+original_path(char *p, size_t n, const char *mod, const char *path)
+{
+	return snprintf(p, n, "%s/.config/themer/originals/%s%s%s", home(), mod,
+	                path[0] == '/' ? "" : "/", path) < (int)n ? 0 : -1;
+}
+
+/* FNV-1a over a file's bytes, as text; "" when it cannot be read */
+static void
+file_hash(const char *path, char *out, size_t n)
+{
+	unsigned long long h = 1469598103934665603ULL;
+	unsigned char buf[8192];
+	size_t k;
+	FILE *f = fopen(path, "rb");
+
+	out[0] = '\0';
+	if (!f)
+		return;
+	while ((k = fread(buf, 1, sizeof buf, f)) > 0)
+		for (size_t i = 0; i < k; i++)
+			h = (h ^ buf[i]) * 1099511628211ULL;
+	fclose(f);
+	snprintf(out, n, "%016llx", h);
+}
+
+static int
+copy_file(const char *src, const char *dst)
+{
+	unsigned char buf[65536];
+	FILE *in = fopen(src, "rb"), *out;
+	AFile a;
+	size_t k;
+
+	if (!in)
+		return -1;
+	if (!(out = afile_open(&a, dst, 1))) {
+		fclose(in);
+		return -1;
+	}
+	while ((k = fread(buf, 1, sizeof buf, in)) > 0)
+		if (fwrite(buf, 1, k, out) != k)
+			break;
+	if (ferror(in) || k) {
+		fclose(in);
+		afile_abort(&a);
+		return -1;
+	}
+	fclose(in);
+	a.sync = 1;              /* a user's original, or a user file put back */
+	return afile_commit(&a);
+}
+
+/* Before a module edits a user file in place: a copy of it as it is now, once per
+ * load. The hash is filled in when the manifest is written. */
+static void
+snapshot(const char *path)
+{
+	char o[PATH_MAX];
+
+	if (!recording || access(path, F_OK))
+		return;
+	/* only the file as it was before this load touched it: once the module has
+	 * created or changed it, a copy would hold themer's own lines */
+	for (int i = 0; i < nrecs; i++)
+		if (!strcmp(recs[i].path, path))
+			return;
+	if (original_path(o, sizeof o, cur_mod, path) < 0 || copy_file(path, o) < 0) {
+		fprintf(stderr, "themer: could not keep a copy of %s; unload will undo it line by line\n", path);
+		return;
+	}
+	rec_add(R_ORIG, path, "", "", "");
+}
+
+/* one field, its tabs, newlines and backslashes escaped */
+static void
+put_field(FILE *f, const char *s)
+{
+	for (; *s; s++)
+		switch (*s) {
+		case '\t': fputs("\\t", f); break;
+		case '\n': fputs("\\n", f); break;
+		case '\r': fputs("\\r", f); break;
+		case '\\': fputs("\\\\", f); break;
+		default: fputc(*s, f);
+		}
+}
+
+/* undoes put_field in place */
+static void
+unescape(char *s)
+{
+	char *o = s;
+
+	for (; *s; s++) {
+		if (*s == '\\' && s[1]) {
+			s++;
+			*o++ = *s == 't' ? '\t' : *s == 'n' ? '\n' : *s == 'r' ? '\r' : *s;
+		} else {
+			*o++ = *s;
+		}
+	}
+	*o = '\0';
 }
 
 static int
 manifest_write(const char *mod)
 {
 	char p[PATH_MAX];
+	AFile a;
 	FILE *f;
 	int i;
 
@@ -127,18 +301,29 @@ manifest_write(const char *mod)
 		unlink(p);
 		return 0;
 	}
-	{
-		char dir[PATH_MAX];
-
-		snprintf(dir, sizeof dir, "%s/.local/state/themer", home());
-		tm_mkdirs(dir);
-	}
-	if (!(f = fopen(p, "w")))
-		return -1;
+	/* the hash of each snapshotted file as the module left it */
 	for (i = 0; i < nrecs; i++)
-		fprintf(f, "%c\t%s\t%s\t%s\t%s\n", recs[i].kind, recs[i].path,
-		        recs[i].s[0], recs[i].s[1], recs[i].s[2]);
-	return fclose(f) == 0 ? 0 : -1;
+		if (recs[i].kind == R_ORIG) {
+			char h[32];
+
+			file_hash(recs[i].path, h, sizeof h);
+			free(recs[i].s[0]);
+			recs[i].s[0] = xstrdup(h);
+		}
+	if (!(f = afile_open(&a, p, 0)))
+		return -1;
+	fprintf(f, "%s\n", MANIFEST_V);
+	for (i = 0; i < nrecs; i++) {
+		fprintf(f, "%c\t", recs[i].kind);
+		put_field(f, recs[i].path);
+		for (int k = 0; k < 3; k++) {
+			fputc('\t', f);
+			put_field(f, recs[i].s[k]);
+		}
+		fputc('\n', f);
+	}
+	a.sync = 1;              /* unload depends on it */
+	return afile_commit(&a);
 }
 
 /* splits s in place on tabs; empty fields are kept */
@@ -164,29 +349,42 @@ manifest_read(const char *mod)
 	char p[PATH_MAX], *line = NULL;
 	size_t cap = 0;
 	FILE *f;
+	int escaped = 0, first = 1;
 
-	if (manifest_path(p, sizeof p, mod) < 0 || !(f = fopen(p, "r")))
+	if (manifest_path(p, sizeof p, mod) < 0)
 		return -1;
-	nrecs = 0;
-	while (nrecs < MAX_RECS && getline(&line, &cap, f) > 0) {
+	if (!(f = fopen(p, "r")) &&
+	    (legacy_manifest_path(p, sizeof p, mod) < 0 || !(f = fopen(p, "r"))))
+		return -1;
+	recs_clear();
+	while (getline(&line, &cap, f) > 0) {
 		char *fld[5] = { 0 };
 		int k, i;
 		Rec *r;
 
 		line[strcspn(line, "\r\n")] = '\0';
-		if (!line[0])
+		if (first) {
+			first = 0;
+			if (!strcmp(line, MANIFEST_V)) {
+				escaped = 1;
+				continue;
+			}
+		}
+		if (!line[0] || line[0] == '#')
 			continue;
 		k = split_tabs(line, fld, 5);
 		for (i = k; i < 5; i++)
 			fld[i] = (char *)empty;
+		if (escaped)
+			for (i = 1; i < k; i++)
+				unescape(fld[i]);
 		if (!fld[1][0])
 			continue;
-		r = &recs[nrecs++];
+		r = rec_new();
 		r->kind = fld[0][0];
-		snprintf(r->path, sizeof r->path, "%s", fld[1]);
-		snprintf(r->s[0], sizeof r->s[0], "%s", fld[2]);
-		snprintf(r->s[1], sizeof r->s[1], "%s", fld[3]);
-		snprintf(r->s[2], sizeof r->s[2], "%s", fld[4]);
+		r->path = xstrdup(fld[1]);
+		for (i = 0; i < 3; i++)
+			r->s[i] = xstrdup(fld[i + 2]);
 	}
 	free(line);
 	fclose(f);
@@ -250,18 +448,16 @@ lines_free(Lines *L)
 static int
 lines_write(const char *path, const Lines *L)
 {
-	char tmp[PATH_MAX];
+	AFile a;
 	FILE *f;
 	int i;
 
-	snprintf(tmp, sizeof tmp, "%s.themer", path);
-	if (!(f = fopen(tmp, "w")))
+	if (!(f = afile_open(&a, path, 0)))
 		return -1;
 	for (i = 0; i < L->n; i++)
 		fprintf(f, "%s\n", L->v[i]);
-	if (fclose(f) != 0)
-		return -1;
-	return rename(tmp, path);
+	a.sync = 1;              /* a user's file, edited in place */
+	return afile_commit(&a);
 }
 
 /* ---- directories ---- */
@@ -317,6 +513,35 @@ tm_path(char *buf, size_t n, const TmTheme *t, const char *rel)
 }
 
 int
+tm_run(const char *const argv[])
+{
+	pid_t pid;
+	int st;
+
+	if (!argv || !argv[0])
+		return -1;
+	if ((pid = fork()) < 0)
+		return -1;
+	if (pid == 0) {
+		int null = open("/dev/null", O_RDWR);
+
+		if (null >= 0) {
+			dup2(null, STDIN_FILENO);
+			dup2(null, STDOUT_FILENO);
+			dup2(null, STDERR_FILENO);
+			if (null > STDERR_FILENO)
+				close(null);
+		}
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	while (waitpid(pid, &st, 0) < 0)
+		if (errno != EINTR)
+			return -1;
+	return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+
+int
 tm_have(const char *prog)
 {
 	const char *env = getenv("PATH");
@@ -366,18 +591,19 @@ int
 tm_writef(const char *path, const char *fmt, ...)
 {
 	va_list ap;
+	AFile a;
 	FILE *f;
 
 	if (!access(path, F_OK) && !is_ours(path)) {
 		fprintf(stderr, "themer: not overwriting %s (not generated by themer)\n", path);
 		return -1;
 	}
-	if (mkdirs_parent(path) < 0 || !(f = fopen(path, "w")))
+	if (mkdirs_parent(path) < 0 || !(f = afile_open(&a, path, 0)))
 		return -1;
 	va_start(ap, fmt);
 	vfprintf(f, fmt, ap);
 	va_end(ap);
-	if (fclose(f) != 0)
+	if (afile_commit(&a) < 0)
 		return -1;
 	rec_add(R_FILE, path, "", "", "");
 	return 0;
@@ -390,6 +616,7 @@ tm_copy(const char *src, const char *dst)
 {
 	static unsigned char buf[65536];
 	FILE *in, *out;
+	AFile a;
 	size_t n;
 
 	if (!access(dst, F_OK) && !is_ours(dst) && !was_asset(dst)) {
@@ -398,18 +625,23 @@ tm_copy(const char *src, const char *dst)
 	}
 	if (!(in = fopen(src, "rb")))
 		return -1;
-	if (mkdirs_parent(dst) < 0 || !(out = fopen(dst, "wb"))) {
+	if (mkdirs_parent(dst) < 0 || !(out = afile_open(&a, dst, 1))) {
 		fclose(in);
 		return -1;
 	}
 	while ((n = fread(buf, 1, sizeof buf, in)) > 0)
 		if (fwrite(buf, 1, n, out) != n) {
 			fclose(in);
-			fclose(out);
+			afile_abort(&a);
 			return -1;
 		}
+	if (ferror(in)) {
+		fclose(in);
+		afile_abort(&a);
+		return -1;
+	}
 	fclose(in);
-	if (fclose(out) != 0)
+	if (afile_commit(&a) < 0)
 		return -1;
 	rec_add(R_ASSET, dst, "", "", "");
 	return 0;
@@ -436,19 +668,20 @@ tm_symlink(const char *target, const char *path)
 int
 tm_write_asset(const char *path, const void *data, size_t len)
 {
+	AFile a;
 	FILE *f;
 
 	if (!access(path, F_OK) && !is_ours(path) && !was_asset(path)) {
 		fprintf(stderr, "themer: not overwriting %s (not placed by themer)\n", path);
 		return -1;
 	}
-	if (mkdirs_parent(path) < 0 || !(f = fopen(path, "wb")))
+	if (mkdirs_parent(path) < 0 || !(f = afile_open(&a, path, 1)))
 		return -1;
 	if (fwrite(data, 1, len, f) != len) {
-		fclose(f);
+		afile_abort(&a);
 		return -1;
 	}
-	if (fclose(f) != 0)
+	if (afile_commit(&a) < 0)
 		return -1;
 	rec_add(R_ASSET, path, "", "", "");
 	return 0;
@@ -507,29 +740,38 @@ tm_replacef(const char *path, const char *fmt, ...)
 	char bak[PATH_MAX];
 	int exists, ours = 0, moved = 0;
 	va_list ap;
+	AFile a;
 	FILE *f;
 
-	snprintf(bak, sizeof bak, "%s%s", path, BACKUP_SUFFIX);
 	exists = !access(path, F_OK);
 	ours = exists && is_ours(path);
 
 	if (exists && !ours) {
-		/* a user file: keep it aside, once; refuse to lose an earlier backup */
+		/* a user file: kept in ~/.config/themer/originals, once; an earlier copy
+		 * there is the user's real original and is not overwritten */
+		if (original_path(bak, sizeof bak, cur_mod, path) < 0)
+			return -1;
 		if (!access(bak, F_OK)) {
 			fprintf(stderr, "themer: %s exists; not replacing %s\n", bak, path);
 			return -1;
 		}
-		if (mkdirs_parent(path) < 0 || rename(path, bak) < 0)
+		if (mkdirs_parent(bak) < 0 || copy_file(path, bak) < 0)
 			return -1;
 		moved = 1;
 	}
-	if (mkdirs_parent(path) < 0 || !(f = fopen(path, "w")))
+	if (mkdirs_parent(path) < 0 || !(f = afile_open(&a, path, 0))) {
+		if (moved)
+			unlink(bak);            /* the user's file was not touched */
 		return -1;
+	}
 	va_start(ap, fmt);
 	vfprintf(f, fmt, ap);
 	va_end(ap);
-	if (fclose(f) != 0)
+	if (afile_commit(&a) < 0) {
+		if (moved)
+			unlink(bak);
 		return -1;
+	}
 	if (moved)
 		rec_add(R_REPLACE, path, "", "", "");
 	else if (!exists)
@@ -544,7 +786,7 @@ int
 tm_setline(const char *path, const char *prefix, const char *text)
 {
 	Lines L;
-	char old[256];
+	char *old;
 	int at, r;
 
 	if (lines_read(path, &L) < 0)
@@ -554,15 +796,16 @@ tm_setline(const char *path, const char *prefix, const char *text)
 		lines_free(&L);
 		return 1;
 	}
-	snprintf(old, sizeof old, "%s", L.v[at]);
+	snapshot(path);
+	old = xstrdup(L.v[at]);         /* the whole line, whatever its length */
 	lines_del(&L, at);
 	lines_ins(&L, at, text);
 	r = lines_write(path, &L);
 	lines_free(&L);
-	if (r < 0)
-		return -1;
-	rec_add(R_LINE, path, prefix, "", old);
-	return 0;
+	if (r == 0)
+		rec_add(R_LINE, path, prefix, "", old);
+	free(old);
+	return r < 0 ? -1 : 0;
 }
 
 /* marker lines: "<prefix> themer:<id> begin<suffix>" and the matching end */
@@ -618,6 +861,7 @@ tm_blockf(const char *path, const char *id, const char *prefix, const char *suff
 	va_end(ap);
 
 	block_marks(b, e, sizeof b, id, prefix, suffix);
+	snapshot(path);
 	existed = lines_read(path, &L) == 0;
 	if (!existed && mkdirs_parent(path) < 0)
 		return -1;
@@ -691,6 +935,7 @@ tm_ini(const char *path, const char *section, const char *key, const char *value
 	int existed, start, end, k, at;
 	Lines L;
 
+	snapshot(path);
 	existed = lines_read(path, &L) == 0;
 	if (!existed && mkdirs_parent(path) < 0)
 		return -1;
@@ -729,6 +974,80 @@ tm_ini(const char *path, const char *section, const char *key, const char *value
 		rec_add(R_CREATED, path, "", "", "");
 	rec_add(R_KEY, path, section, key, old);
 	return 0;
+}
+
+/* the keyword at the start of a line, followed by space, tab or { */
+static int
+starts_block(const char *line, const char *kw)
+{
+	const char *p = skip_ws(line);
+	size_t n = strlen(kw);
+
+	return !strncmp(p, kw, n) && (p[n] == ' ' || p[n] == '\t' || p[n] == '{');
+}
+
+int
+tm_disable_block(const char *path, const char *keyword)
+{
+	Lines L;
+	int n = 0, r;
+
+	if (lines_read(path, &L) < 0)
+		return 0;
+	for (int i = 0; i < L.n; i++) {
+		int depth = 0, opened = 0;
+
+		if (!starts_block(L.v[i], keyword))
+			continue;
+		snapshot(path);
+		/* the block runs to the brace that closes its first { */
+		for (int k = i; k < L.n; k++) {
+			char *line = malloc(strlen(L.v[k]) + sizeof OFF_PREFIX);
+
+			if (!line) {
+				lines_free(&L);
+				return -1;
+			}
+			/* a comment is a whole line (sway, i3); # inside a line is a color */
+			for (const char *c = *skip_ws(L.v[k]) == '#' ? "" : L.v[k]; *c; c++)
+				if (*c == '{')
+					depth++, opened = 1;
+				else if (*c == '}')
+					depth--;
+			sprintf(line, "%s%s", OFF_PREFIX, L.v[k]);
+			free(L.v[k]);
+			L.v[k] = line;
+			i = k;
+			if (opened && depth <= 0)
+				break;
+		}
+		n++;
+	}
+	if (!n) {
+		lines_free(&L);
+		return 0;
+	}
+	r = lines_write(path, &L);
+	lines_free(&L);
+	if (r < 0)
+		return -1;
+	rec_add(R_OFF, path, keyword, "", "");
+	return n;
+}
+
+static void
+undo_off(const Rec *r)
+{
+	Lines L;
+	size_t n = strlen(OFF_PREFIX);
+
+	if (lines_read(r->path, &L) < 0)
+		return;
+	for (int i = 0; i < L.n; i++)
+		if (!strncmp(L.v[i], OFF_PREFIX, n))
+			memmove(L.v[i], L.v[i] + n, strlen(L.v[i] + n) + 1);
+	lines_write(r->path, &L);
+	lines_free(&L);
 }
 
 /* ---- undo ---- */
@@ -830,12 +1149,58 @@ undo_line(const Rec *r)
 	lines_free(&L);
 }
 
+/* removes the directories a copy in originals/ leaves empty, up to originals/ */
+static void
+prune_originals(const char *copy)
+{
+	char d[PATH_MAX], root[PATH_MAX];
+	char *slash;
+
+	snprintf(root, sizeof root, "%s/.config/themer/originals", home());
+	snprintf(d, sizeof d, "%s", copy);
+	while ((slash = strrchr(d, '/')) && slash > d) {
+		*slash = '\0';
+		if (strlen(d) <= strlen(root) || rmdir(d) < 0)
+			break;
+	}
+	rmdir(root);
+}
+
+/* true if an O record put this file back whole, so its other records are done */
+static int
+restored(const char *path)
+{
+	for (int i = 0; i < nrecs; i++)
+		if (recs[i].kind == R_ORIG && !strcmp(recs[i].path, path) && !strcmp(recs[i].s[1], "restored"))
+			return 1;
+	return 0;
+}
+
 static void
 undo_all(void)
 {
+	/* first, every edited file the user has not touched since: its original back,
+	 * byte for byte */
+	for (int i = 0; i < nrecs; i++) {
+		Rec *r = &recs[i];
+		char o[PATH_MAX], h[32];
+
+		if (r->kind != R_ORIG || original_path(o, sizeof o, cur_mod, r->path) < 0 || access(o, R_OK))
+			continue;
+		file_hash(r->path, h, sizeof h);
+		if (r->s[0][0] && !strcmp(h, r->s[0]) && copy_file(o, r->path) == 0) {
+			free(r->s[1]);
+			r->s[1] = xstrdup("restored");
+		}
+		unlink(o);
+		prune_originals(o);
+	}
 	for (int i = nrecs - 1; i >= 0; i--) {
 		const Rec *r = &recs[i];
 
+		if (r->kind != R_FILE && r->kind != R_ASSET && r->kind != R_DIR && r->kind != R_LINK &&
+		    restored(r->path))
+			continue;
 		switch (r->kind) {
 		case R_FILE:
 			/* only remove it if it is still ours: the user may have replaced it */
@@ -849,13 +1214,22 @@ undo_all(void)
 		case R_REPLACE: {
 			char bak[PATH_MAX];
 
-			snprintf(bak, sizeof bak, "%s%s", r->path, BACKUP_SUFFIX);
+			if (original_path(bak, sizeof bak, cur_mod, r->path) == 0 && !access(bak, F_OK)) {
+				if (copy_file(bak, r->path) == 0) {
+					unlink(bak);
+					prune_originals(bak);
+				}
+				break;
+			}
+			snprintf(bak, sizeof bak, "%s%s", r->path, BACKUP_SUFFIX);   /* earlier builds */
 			if (!access(bak, F_OK)) {
 				unlink(r->path);
 				rename(bak, r->path);
 			}
 			break;
 		}
+		case R_ORIG:
+			break;              /* handled first, in undo_all */
 		case R_ASSET: unlink(r->path); break;
 		case R_LINK: {
 			struct stat st;
@@ -868,6 +1242,7 @@ undo_all(void)
 		case R_BLOCK: undo_block(r); break;
 		case R_KEY:   undo_key(r); break;
 		case R_LINE:  undo_line(r); break;
+		case R_OFF:   undo_off(r); break;
 		}
 	}
 }
@@ -879,12 +1254,15 @@ cleanup(const TmModule *m)
 	char p[PATH_MAX];
 
 	recording = 0;
+	snprintf(cur_mod, sizeof cur_mod, "%s", m->name);
 	if (manifest_read(m->name) == 0) {
 		undo_all();
 		if (manifest_path(p, sizeof p, m->name) == 0)
 			unlink(p);
+		if (legacy_manifest_path(p, sizeof p, m->name) == 0)
+			unlink(p);
 	}
-	nrecs = 0;
+	recs_clear();
 	if (m->unload)
 		m->unload();
 }
@@ -902,13 +1280,14 @@ mod_load(const TmModule *m, const TmTheme *t)
 	int r;
 
 	cleanup(m);
+	snprintf(cur_mod, sizeof cur_mod, "%s", m->name);
 	recording = 1;
-	nrecs = 0;
+	recs_clear();
 	r = m->load(t);
 	recording = 0;
 	if (manifest_write(m->name) < 0)
 		fprintf(stderr, "themer: could not write manifest for %s\n", m->name);
-	nrecs = 0;
+	recs_clear();
 	return r ? -1 : 0;
 }
 

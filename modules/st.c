@@ -34,7 +34,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "st",
-	.desc = "st colors header (needs one edit to st's config.h, see st.c)",
+	.desc = "st: a colors header (st's config.h needs one edit, see modules/st.c)",
 	.templates = "st",
 	.default_on = 0,
 	.load = load,

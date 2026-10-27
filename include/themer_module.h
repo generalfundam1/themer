@@ -41,12 +41,25 @@ extern "C" {
 /* Number of elements in a static array. */
 #define TM_COUNT(a) (sizeof(a) / sizeof((a)[0]))
 
+/* The most variables a module may add with TM_VARS (the host sizes its arrays by it). */
+#define TM_MAX_VARS 512
+
 /* Room for a color string: six hex digits and the terminating NUL. */
 #define TM_COLOR_LEN 8
 
-/* An option a module offers. Users change it in the TUI (module menu, then
- * 'o') or with 'themer module option NAME KEY VALUE'. The value reaches the
- * module as tm_opt(t, "module.name"). */
+/* An option a module offers. Users change it on the Modules page of any front end
+ * (the TUI, themer-gtk, themer-qt, themer-web) or with
+ * 'themer module option MODULE NAME VALUE'. The value reaches the module as
+ * tm_opt(t, "module.name").
+ *
+ * How the front ends draw it, from the fields alone:
+ *   choices "on|off"          a switch, under "What it themes" (a piece of the program
+ *                             the module themes, such as stylus's sites)
+ *   up to 4 short choices     a row of buttons, under Look ("dark|light")
+ *   more or longer choices    a drop-down list, under Look (over 4, or the
+ *                             choices string over 32 characters)
+ *   max > min                 a slider from min to max, under Look
+ *   choices NULL, max <= min  a text field, under Look */
 typedef struct {
 	const char *name;         /* e.g. "font" */
 	const char *desc;         /* one line shown under the option */
@@ -92,6 +105,7 @@ typedef struct {
 	const char *icons;        /* icon theme name */
 	const char *cursor;       /* cursor theme name */
 	int cursor_size;          /* cursor size in pixels, e.g. 24 */
+	int web_port;             /* where themer-web serves on localhost (stylus's @updateURL) */
 	const char *hinting;      /* font hinting: none, slight, medium, or full */
 	int antialias;            /* 1 = antialiased text */
 	const char *rgba;         /* subpixel order: none, rgb, bgr, vrgb, or vbgr */
@@ -117,12 +131,28 @@ typedef struct {
 	                             nothing when the program is not running. */
 	const TmOption *options;  /* may be NULL */
 	int noptions;
+	int colorless;            /* 1 for a module that draws no colors (the cursor, font
+	                             rendering): it gets no "mode" option. Every other
+	                             module gets one from the host, ahead of its own:
+	                             auto | dark | light, the side of the theme it is
+	                             rendered from (see TM_OPT_MODE). */
+	int (*more_options)(TmOption *o, int max);
+	                          /* optional: options only known at run time (stylus: one
+	                             per site), written into o, at most max; returns how
+	                             many. Called once, when the module is found; the
+	                             strings must stay valid while the module is loaded.
+	                             They are listed after the static options, before
+	                             "template". */
+	int watches_modules;      /* 1 when its output depends on which other modules are
+	                             on (tm_loaded: sway and i3 pick their launcher and
+	                             bar from them): it is reloaded whenever another
+	                             module is switched on or off */
 } TmModule;
 
 /* The layout version of TmModule and TmTheme. A module built against another
  * version is refused, since its structs would not match. Bump it when either
  * struct changes. */
-#define TM_ABI 5
+#define TM_ABI 6
 
 /* Export a TmModule from a module file. */
 #define TM_EXPORT(m) \
@@ -132,10 +162,21 @@ typedef struct {
 /* The template set used when a module's "template" option is unset. */
 #define TM_DEFAULT_SET "themer_chicago"
 
-/* The "template" option every module that renders templates offers. Its value is
- * read with tm_opt(t, "<module>.template") and passed to tm_render as the set. */
+/* The "mode" option the host gives every module that draws colors (not declared by
+ * the module): which side of the theme it is rendered from. auto follows the
+ * global mode; dark or light pins the program to that side whatever the global
+ * mode is. The module sees the result in t->dark and the colors, so it needs no
+ * code of its own for it. */
+#define TM_OPT_MODE \
+	{ "mode", "the side of the theme this program uses: auto follows the global mode", \
+	  "auto|dark|light", "auto", 0, 0 }
+
+/* The "template" option every module that renders templates offers: put it last in
+ * the module's options. Its value is read with tm_opt(t, "<module>.template") and
+ * passed to tm_render as the set. */
 #define TM_OPT_TEMPLATE \
-	{ "template", "template set (see themer template list)", NULL, TM_DEFAULT_SET, 0, 0 }
+	{ "template", "the template set it is drawn from: unset, it follows the global set (Themer Chicago by default)", \
+	  NULL, TM_DEFAULT_SET, 0, 0 }
 
 /* A template variable: {{name}} in a template is replaced by value. */
 typedef struct {
@@ -212,6 +253,10 @@ int tm_copy_tree(const char *srcdir, const char *dstdir, const char *const *skip
  * it; a NULL or empty set means the default set), for a module that copies assets
  * from it with tm_copy_tree. Returns 0, or -1 if the set has no such directory. */
 int tm_template_dir(const char *dir, const char *set, char *out, size_t n);
+/* every file name the template directory dir holds in any template set, sorted
+ * and without duplicates; returns how many (at most max) */
+#define TM_NAME_LEN 64
+int tm_template_names(const char *dir, char (*names)[TM_NAME_LEN], int max);
 
 /* A field of a set's set.conf (name, description, author, url): "name" is the
  * set's label, "Themer Chicago" for themer_chicago. Returns 0 with the value in
@@ -221,8 +266,18 @@ int tm_set_info(const char *set, const char *key, char *out, size_t n);
 /* Creates a directory and any missing parents. Created dirs are removed on unload when empty. */
 int tm_mkdirs(const char *path);
 
+/* Switches off every top-level block "keyword { ... }" in a config (sway's bar)
+ * by prefixing its lines with "#themer-off: "; unload takes the prefix away
+ * again. Returns how many blocks were switched off, or -1 on error. */
+int tm_disable_block(const char *path, const char *keyword);
+
 /* Returns 1 if prog is an executable on PATH. */
 int tm_have(const char *prog);
+
+/* Runs argv[0] (found on PATH) with the NULL-terminated argv, without a shell, so
+ * names and paths with quotes or spaces are passed as they are; its output goes to
+ * /dev/null. Waits for it and returns its exit status, or -1 if it could not run. */
+int tm_run(const char *const argv[]);
 
 /* Option values and the loaded-module list. tm_opt returns NULL for an unknown
  * key. tm_loaded is 1 if that module is on. */
@@ -233,12 +288,22 @@ int tm_loaded(const TmTheme *t, const char *module);
  * size. Any other value, or no value, gives the UI font. */
 void tm_font_for(const TmTheme *t, const char *key, char *fam, size_t n, int *size);
 
-/* Color helpers. Colors are 6 hex digits, no '#'. Contrast is the WCAG 2
- * ratio: 4.5 for text, 3.0 for UI boundaries and large text. */
+/* Color helpers. Colors are 6 hex digits, no '#'; out needs TM_COLOR_LEN bytes.
+ * Contrast is the WCAG 2 ratio: 4.5 for text, 3.0 for UI boundaries and large text. */
+
+/* The contrast ratio of a and b, from 1 (the same) to 21 (black on white). */
 double tm_contrast(const char *a, const char *b);
+
+/* a mixed with b: t10 tenths of b (0 gives a, 5 the midpoint, 10 gives b). */
 void tm_mix(char *out, size_t n, const char *a, const char *b, int t10);
+
+/* c when it reads at ratio min on bg; otherwise c moved toward target in tenths
+ * until it does (at worst target itself). Returns 1 if c was changed, 0 if not. */
 int  tm_ensure_contrast(char *out, size_t n, const char *c, const char *bg,
                         const char *target, double min);
+
+/* Text for bg: preferred when it reads at 4.5 on bg, else black, else white when
+ * that does, else whichever of the three reads best. */
 void tm_text_on(char *out, size_t n, const char *bg, const char *preferred);
 
 /* Looks up a shared template name for the theme, such as bar_text or hover_bg, and

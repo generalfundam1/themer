@@ -1,5 +1,7 @@
 /* registry.c: the modules found on disk, their options, the TmTheme view they are
- * handed, and apply. Modules are shared objects loaded with dlopen from
+ * handed, and apply. A module's options as every front end lists them are the
+ * host's "mode" (unless the module is colorless), the module's own, the ones its
+ * more_options hook adds, then "template": the same order everywhere. Modules are shared objects loaded with dlopen from
  * $THEMER_MODULES, ~/.config/themer/modules, and SYS_MODULES_DIR, in that order;
  * the first module with a given name wins. */
 #include <dirent.h>
@@ -14,7 +16,43 @@ typedef struct {
 	const TmModule *m;
 	void *h;
 	int (*vars)(const TmTheme *, TmVar *, int);  /* optional: template variables */
+	TmOption opts[MAX_OPTS];                     /* the options, in the listed order */
+	int nopts;
 } Reg;
+
+static const TmOption mode_option = TM_OPT_MODE;
+
+/* the option list of a module: mode, its own, the run-time ones, template last */
+static void
+build_options(Reg *r)
+{
+	const TmModule *m = r->m;
+	const TmOption *tmpl = NULL;
+	TmOption more[MAX_OPTS];
+	int nmore = 0;
+
+	r->nopts = 0;
+	if (!m->colorless)
+		r->opts[r->nopts++] = mode_option;
+	for (int j = 0; j < m->noptions && r->nopts < MAX_OPTS; j++) {
+		if (!strcmp(m->options[j].name, "template"))
+			tmpl = &m->options[j];
+		else if (strcmp(m->options[j].name, "mode"))   /* the host's mode wins */
+			r->opts[r->nopts++] = m->options[j];
+	}
+	if (m->more_options)
+		nmore = m->more_options(more, MAX_OPTS);
+	for (int j = 0; j < nmore && r->nopts < MAX_OPTS - 1; j++) {
+		int dup = 0;
+
+		for (int k = 0; k < r->nopts && !dup; k++)
+			dup = !strcmp(r->opts[k].name, more[j].name);
+		if (!dup && more[j].name && strcmp(more[j].name, "template"))
+			r->opts[r->nopts++] = more[j];
+	}
+	if (tmpl && r->nopts < MAX_OPTS)
+		r->opts[r->nopts++] = *tmpl;
+}
 
 static Reg reg[MAX_MODULES];
 static int nreg;
@@ -69,6 +107,7 @@ load_dir(const char *dir)
 		reg[nreg].m = m;
 		reg[nreg].h = h;
 		reg[nreg].vars = vars;
+		build_options(&reg[nreg]);
 		nreg++;
 	}
 	closedir(d);
@@ -93,8 +132,8 @@ int themer_module_count(void)              { return nreg; }
 const char *themer_module_name(int i)      { return reg[i].m->name; }
 const char *themer_module_desc(int i)      { return reg[i].m->desc; }
 const char *themer_module_templates(int i) { return reg[i].m->templates; }
-int themer_option_count(int i)             { return reg[i].m->noptions; }
-const TmOption *themer_option(int i, int j) { return &reg[i].m->options[j]; }
+int themer_option_count(int i)             { return reg[i].nopts; }
+const TmOption *themer_option(int i, int j) { return &reg[i].opts[j]; }
 
 int
 themer_module_find(const char *name)
@@ -108,8 +147,8 @@ themer_module_find(const char *name)
 int
 themer_option_find(int i, const char *name)
 {
-	for (int j = 0; j < reg[i].m->noptions; j++)
-		if (!strcmp(reg[i].m->options[j].name, name))
+	for (int j = 0; j < reg[i].nopts; j++)
+		if (!strcmp(reg[i].opts[j].name, name))
 			return j;
 	return -1;
 }
@@ -129,8 +168,7 @@ themer_module_present(const Config *c, int i)
 
 	if (!reg[i].m->present)
 		return 1;
-	theme_scheme(c, &s);
-	themer_view(c, &s, &t);
+	themer_module_view(c, i, &s, &t);
 	return reg[i].m->present(&t) != 0;
 }
 
@@ -143,10 +181,12 @@ themer_module_vars(int i, const TmTheme *t, TmVar *v, int max)
 
 /* ---- options ---- */
 
+static int option_valid(const TmOption *o, const char *value);
+
 static void
 option_key(char *key, size_t n, int i, int j)
 {
-	snprintf(key, n, "%s.%s", reg[i].m->name, reg[i].m->options[j].name);
+	snprintf(key, n, "%s.%s", reg[i].m->name, reg[i].opts[j].name);
 }
 
 /* The stored value, or the module's default. A module's "template" option that the
@@ -155,13 +195,15 @@ option_key(char *key, size_t n, int i, int j)
 const char *
 themer_option_value(const Config *c, int i, int j)
 {
-	const TmOption *o = &reg[i].m->options[j];
+	const TmOption *o = &reg[i].opts[j];
 	char key[2 * NAME_LEN];
 	const char *v;
 
 	option_key(key, sizeof key, i, j);
 	v = config_option(c, key);
-	if (v)
+	/* a hand-edited state file may hold anything: a value the option would refuse
+	 * is read as unset */
+	if (v && option_valid(o, v))
 		return v;
 	if (!strcmp(o->name, "template") && !strcmp(o->def, TM_DEFAULT_SET))
 		return c->set;
@@ -175,6 +217,11 @@ option_valid(const TmOption *o, const char *value)
 	const char *p;
 	size_t len = strlen(value);
 
+	if (!valid_text(value, NAME_LEN))
+		return 0;
+	/* a set name is used as a directory and theme name: no paths */
+	if (!strcmp(o->name, "template"))
+		return valid_name(value);
 	if (!o->choices && o->max > o->min) {
 		char *end;
 		long v;
@@ -229,6 +276,7 @@ themer_view(const Config *c, const Scheme *s, TmTheme *t)
 	t->icons = c->icons;
 	t->cursor = c->cursor;
 	t->cursor_size = c->cursor_size;
+	t->web_port = c->web_port;
 	t->hinting = c->hinting;
 	t->antialias = c->antialias;
 	t->rgba = c->rgba;
@@ -239,7 +287,7 @@ themer_view(const Config *c, const Scheme *s, TmTheme *t)
 	for (int i = 0; i < nreg; i++) {
 		const TmModule *m = reg[i].m;
 
-		for (int j = 0; j < m->noptions && n < MAX_MODOPTS; j++) {
+		for (int j = 0; j < reg[i].nopts && n < MAX_MODOPTS; j++) {
 			option_key(view_keys[n], sizeof view_keys[n], i, j);
 			snprintf(view_vals[n], sizeof view_vals[n], "%s", themer_option_value(c, i, j));
 			view_opts[n].key = view_keys[n];
@@ -255,11 +303,41 @@ themer_view(const Config *c, const Scheme *s, TmTheme *t)
 	t->nloaded = nl;
 }
 
-static void
-view_of(const Config *c, Scheme *s, TmTheme *t)
+/* the mode one module is rendered in: its "mode" option, or the global mode */
+int
+themer_module_mode(const Config *c, int i)
 {
-	theme_scheme(c, s);
+	int j = themer_option_find(i, "mode");
+	const char *v = j >= 0 ? themer_option_value(c, i, j) : "auto";
+
+	return !strcmp(v, "dark") ? MODE_DARK : !strcmp(v, "light") ? MODE_LIGHT : c->mode;
+}
+
+/* the view one module is handed: the configuration, in the module's own mode */
+void
+themer_module_view(const Config *c, int i, Scheme *s, TmTheme *t)
+{
+	int mode = themer_module_mode(c, i);
+
+	if (mode == c->mode) {
+		theme_scheme(c, s);
+	} else {
+		/* only the colors and t->dark depend on the mode: the scheme is taken
+		 * from a copy in that mode, the rest of the view from c itself, so the
+		 * view points into nothing that outlives this call */
+		Config *tmp = malloc(sizeof *tmp);
+
+		if (!tmp) {
+			theme_scheme(c, s);
+		} else {
+			*tmp = *c;
+			tmp->mode = mode;
+			theme_scheme(tmp, s);
+			free(tmp);
+		}
+	}
 	themer_view(c, s, t);
+	t->dark = mode == MODE_DARK;
 }
 
 /* ---- loading, unloading, and reloading ---- */
@@ -283,36 +361,70 @@ themer_module_set(Config *c, int i, int on)
 	int r;
 
 	config_set_module(c, reg[i].m->name, on);
-	view_of(c, &s, &t);
+	themer_module_view(c, i, &s, &t);
 	if (on && reg[i].m->present && !reg[i].m->present(&t))
 		on = 0;                /* recorded as on; loads once the program appears */
 	r = on ? mod_load(reg[i].m, &t) : mod_unload(reg[i].m);
+	/* the modules that follow the others (sway's bar is waybar while waybar is on) */
+	for (int k = 0; k < nreg; k++)
+		if (k != i && reg[k].m->watches_modules && themer_module_on(c, k)) {
+			themer_module_view(c, k, &s, &t);
+			if (!reg[k].m->present || reg[k].m->present(&t))
+				mod_load(reg[k].m, &t);
+		}
 	reload_all();
 	return r;
 }
 
-/* Sets a module option. Returns -1 if the value is not valid for the option, and
- * -2 if the module does not load with it: then the previous value is put back and
- * loaded again, so a bad value never leaves the module's files removed. */
+int
+themer_option_is_set(const Config *c, int i, int j)
+{
+	char key[2 * NAME_LEN];
+
+	option_key(key, sizeof key, i, j);
+	return config_option(c, key) != NULL;
+}
+
+/* puts a stored value back, or forgets the option when there was none */
+static void
+option_restore(Config *c, const char *key, int had, const char *prev)
+{
+	if (had)
+		config_set_option(c, key, prev);
+	else
+		config_unset_option(c, key);
+}
+
+/* Sets a module option, or with value NULL forgets it so it follows its default.
+ * Returns -1 if the value is not valid for the option, and -2 if the module does
+ * not load with it: then the previous value is put back and loaded again, so a bad
+ * value never leaves the module's files removed. */
 int
 themer_option_set(Config *c, int i, int j, const char *value)
 {
 	const TmModule *m = reg[i].m;
 	char key[2 * NAME_LEN], prev[NAME_LEN];
+	const char *stored;
+	int had;
 
-	if (!option_valid(&m->options[j], value))
+	if (value && !option_valid(&reg[i].opts[j], value))
 		return -1;
 	option_key(key, sizeof key, i, j);
-	snprintf(prev, sizeof prev, "%s", themer_option_value(c, i, j));
-	config_set_option(c, key, value);
+	stored = config_option(c, key);
+	had = stored != NULL;
+	snprintf(prev, sizeof prev, "%s", stored ? stored : "");
+	if (value)
+		config_set_option(c, key, value);
+	else
+		config_unset_option(c, key);
 	if (themer_module_on(c, i)) {
 		Scheme s;
 		TmTheme t;
 
-		view_of(c, &s, &t);
+		themer_module_view(c, i, &s, &t);
 		if (mod_load(m, &t) < 0) {
-			config_set_option(c, key, prev);
-			view_of(c, &s, &t);
+			option_restore(c, key, had, prev);
+			themer_module_view(c, i, &s, &t);
 			mod_load(m, &t);
 			return -2;
 		}
@@ -334,7 +446,7 @@ themer_apply(const Config *c)
 	TmTheme t;
 	int fails = 0;
 
-	view_of(c, &s, &t);
+	theme_scheme(c, &s);
 	for (size_t i = 0; i < TM_COUNT(targets); i++)
 		if (targets[i].fn(c, &s) < 0) {
 			fprintf(stderr, "themer: %s failed\n", targets[i].name);
@@ -342,6 +454,7 @@ themer_apply(const Config *c)
 		}
 	for (int i = 0; i < nreg; i++) {
 		if (themer_module_on(c, i)) {
+			themer_module_view(c, i, &s, &t);
 			/* an absent program: nothing to write, and nothing left from before */
 			if (reg[i].m->present && !reg[i].m->present(&t)) {
 				mod_unload(reg[i].m);

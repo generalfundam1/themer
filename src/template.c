@@ -297,6 +297,30 @@ template_files(const char *dir, const char *set, char names[][NAME_LEN], int max
 	return collect(set, dir, DT_REG, valid_file, names, max);
 }
 
+int
+tm_template_names(const char *dir, char (*names)[TM_NAME_LEN], int max)
+{
+	char sets[MAX_NAMES][NAME_LEN], files[MAX_NAMES][NAME_LEN];
+	int ns = template_all_sets(sets, MAX_NAMES), n = 0;
+
+	if (!valid_name(dir))
+		return 0;
+	for (int i = 0; i < ns; i++) {
+		int nf = template_files(dir, sets[i], files, MAX_NAMES);
+
+		for (int k = 0; k < nf && n < max; k++) {
+			int dup = 0;
+
+			for (int j = 0; j < n && !dup; j++)
+				dup = !strcmp(names[j], files[k]);
+			if (!dup)
+				snprintf(names[n++], TM_NAME_LEN, "%s", files[k]);
+		}
+	}
+	qsort(names, n, TM_NAME_LEN, cmp_str);
+	return n;
+}
+
 /* the template directories (one per module, or shared: wm, launcher) of every set */
 int
 template_dirs(char names[][NAME_LEN], int max)

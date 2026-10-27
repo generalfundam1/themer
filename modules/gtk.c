@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "themer_module.h"
 
 static const TmOption opts[] = {
@@ -86,15 +87,44 @@ settings_ini(const TmTheme *t, const char *rel, const char *font, int theme_key)
 	tm_ini(p, "Settings", "gtk-xft-rgba", t->rgba);
 }
 
-/* one gsettings key; output is dropped since there may be no session bus */
-static void
-gset(const char *key, const char *fmt, const char *value)
+/* One gsettings key, run without a shell; output is dropped since there may be no
+ * session bus. A string value is passed as a GVariant string literal, its quotes
+ * and backslashes escaped, so a font or theme name cannot break out of it. */
+static int
+gset(const char *key, int is_string, const char *value)
 {
-	char cmd[1024];
+	char lit[512];
+	size_t o = 0;
+	const char *argv[] = { "gsettings", "set", "org.gnome.desktop.interface", key, lit, NULL };
 
-	if (snprintf(cmd, sizeof cmd, fmt, key, value) < (int)sizeof cmd)
-		if (system(cmd) != 0)
-			return;
+	if (is_string) {
+		lit[o++] = '\'';
+		for (const char *p = value; *p && o + 3 < sizeof lit; p++) {
+			if (*p == '\'' || *p == '\\')
+				lit[o++] = '\\';
+			lit[o++] = *p;
+		}
+		lit[o++] = '\'';
+		lit[o] = '\0';
+	} else {
+		snprintf(lit, sizeof lit, "%s", value);
+	}
+	return tm_run(argv);
+}
+
+/* whether there is a session bus: the address in the environment, or the
+ * systemd user bus at $XDG_RUNTIME_DIR/bus, which D-Bus uses when the variable is
+ * unset (a sway started from a console, for one) */
+static int
+session_bus(void)
+{
+	const char *rt = getenv("XDG_RUNTIME_DIR");
+	char p[PATH_MAX];
+	struct stat st;
+
+	if (getenv("DBUS_SESSION_BUS_ADDRESS"))
+		return 1;
+	return rt && snprintf(p, sizeof p, "%s/bus", rt) < (int)sizeof p && stat(p, &st) == 0 && S_ISSOCK(st.st_mode);
 }
 
 static void
@@ -102,8 +132,7 @@ gsettings(const TmTheme *t, const char *font)
 {
 	char mono[160], num[16];
 	const char *aa = !t->antialias ? "none" : strcmp(t->rgba, "none") ? "rgba" : "grayscale";
-	const char *str = "gsettings set org.gnome.desktop.interface %s \"'%s'\" >/dev/null 2>&1";
-	const char *raw = "gsettings set org.gnome.desktop.interface %s %s >/dev/null 2>&1";
+	const int str = 1, raw = 0;
 
 	snprintf(mono, sizeof mono, "%s %d", t->mono_font, t->mono_size);
 	snprintf(num, sizeof num, "%d", t->cursor_size);
@@ -113,7 +142,13 @@ gsettings(const TmTheme *t, const char *font)
 	gset("cursor-size", raw, num);
 	gset("font-name", str, font);
 	gset("monospace-font-name", str, mono);
-	gset("color-scheme", str, t->dark ? "prefer-dark" : "default");
+	/* the light side says so outright: "default" means no preference, and a
+	 * program (Firefox, through the portal) is then free to pick dark. Schemas
+	 * before GNOME 47 have no prefer-light; there "default" is the closest. */
+	if (t->dark)
+		gset("color-scheme", str, "prefer-dark");
+	else if (gset("color-scheme", str, "prefer-light") != 0)
+		gset("color-scheme", str, "default");
 	gset("font-antialiasing", str, aa);
 	gset("font-hinting", str, t->hinting);
 	gset("font-rgba-order", str, t->rgba);
@@ -289,7 +324,9 @@ load(const TmTheme *t)
 			return -1;
 	}
 
-	if ((!gs || strcmp(gs, "off")) && tm_have("gsettings"))
+	/* without a session bus gsettings keeps its writes in memory and drops them:
+	 * nothing to do, and ten programs not started */
+	if ((!gs || strcmp(gs, "off")) && tm_have("gsettings") && session_bus())
 		gsettings(t, font);
 
 	/* No GTK_THEME: the variable overrides settings.ini, and a session that still
@@ -305,17 +342,19 @@ load(const TmTheme *t)
 static void
 reload(void)
 {
+	static const char *const hup[] = { "pkill", "-HUP", "-x", "xsettingsd", NULL };
+	static const char *const portal[] = { "systemctl", "--user", "try-restart",
+	                                      "xdg-desktop-portal-gtk.service", NULL };
+
 	if (tm_have("pkill"))
-		if (system("pkill -HUP -x xsettingsd >/dev/null 2>&1") != 0)
-			return;
-	if (tm_have("systemctl") && getenv("DBUS_SESSION_BUS_ADDRESS"))
-		if (system("systemctl --user try-restart xdg-desktop-portal-gtk.service >/dev/null 2>&1") != 0)
-			return;
+		tm_run(hup);
+	if (tm_have("systemctl") && session_bus())
+		tm_run(portal);
 }
 
 static const TmModule mod = {
 	.name = "gtk",
-	.desc = "GTK 2/3/4: theme, icons, cursor, font, rendering; settings.ini, xsettingsd, gsettings",
+	.desc = "GTK 2, 3 and 4: theme, icons, cursor, font and rendering",
 	.templates = "gtk",
 	.default_on = 1,
 	.load = load,

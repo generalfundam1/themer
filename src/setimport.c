@@ -483,9 +483,10 @@ int
 set_check(const Config *c, const char *set, FILE *report)
 {
 	static char out[2 * 1024 * 1024];
-	char names[MAX_NAMES][NAME_LEN], dirs[MAX_NAMES][NAME_LEN], files[MAX_NAMES][NAME_LEN];
+	static char names[MAX_THEMES][NAME_LEN];
+	char dirs[MAX_NAMES][NAME_LEN], files[MAX_NAMES][NAME_LEN];
 	char conf[PATH_MAX], user[PATH_MAX];
-	int nt = theme_list(names, MAX_NAMES), nd, bad = 0, rendered = 0, covered = 0;
+	int nt = theme_list(names, MAX_THEMES), nd, bad = 0, rendered = 0, covered = 0;
 	Config cc = *c;
 
 	snprintf(cc.set, sizeof cc.set, "%s", set);

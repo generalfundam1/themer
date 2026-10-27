@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>themer</title>
+<link rel="stylesheet" href="/theme.css" id="themecss">
+<style>
+/* The page is the preview: every color here is a variable from /theme.css, the
+ * same shared names every template gets (bg, fg, surf, acc, face, light, shade,
+ * field, hover_bg, hover_fg, line, disabled, pad_control, pad_field). Chicago:
+ * square, flat, 1px outlines, raised controls with a bevel. */
+* { box-sizing: border-box; border-radius: 0; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  /* calc: a unit cannot be glued to a var(), and an invalid size drops the whole rule */
+  font: calc(var(--ui_size, 11) * 1pt)/1.4 var(--ui_font, sans-serif), sans-serif; }
+body { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 180px 1fr; height: 100vh; }
+.menu { grid-column: 1 / -1; border-bottom: 1px solid var(--line); padding: 2px 6px; display: flex; gap: 4px; align-items: center; }
+.menu .title { margin-left: auto; color: var(--disabled); font-family: var(--mono_font, monospace), monospace; }
+nav { border-right: 1px solid var(--line); padding: 4px 0; }
+nav a { display: block; padding: 2px 8px; color: var(--fg); text-decoration: none; cursor: default; }
+nav a.sel { background: var(--acc); color: var(--accfg); }
+nav a:hover:not(.sel) { background: var(--hover_bg); color: var(--hover_fg); }
+main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; overflow: auto; }
+.page { display: none; min-width: 0; }
+.page.sel { display: block; }
+h2 { font-size: inherit; margin: 0 0 8px; font-weight: bold; }
+.bar { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 4px 8px; display: flex; align-items: center; gap: 8px; }
+.bar .status { color: var(--disabled); }
+.bar .spacer { flex: 1; }
+button, .btn { font: inherit; color: var(--fg); background: var(--face); border: 1px solid var(--line);
+  box-shadow: inset 1px 1px var(--light), inset -1px -1px var(--shade); padding: var(--pad_control, 4px 12px); cursor: default; }
+button:hover { background: var(--hover_bg); color: var(--hover_fg); }
+button:active, button.on { box-shadow: inset 1px 1px var(--shade), inset -1px -1px var(--light); background: var(--pressed); }
+button.primary { background: var(--acc); color: var(--accfg); }
+button:disabled { color: var(--disabled); background: var(--face); }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line);
+  box-shadow: inset 1px 1px var(--shade), inset -1px -1px var(--light); padding: var(--pad_field, 4px 6px); }
+input:focus, select:focus, textarea:focus { outline: 1px solid var(--acc); outline-offset: -1px; }
+.list { border: 1px solid var(--line); background: var(--field); max-height: 360px; overflow: auto; }
+.row { display: flex; align-items: center; gap: 8px; padding: var(--pad_cell, 3px 6px); cursor: default; }
+.row:hover { background: var(--hover_bg); color: var(--hover_fg); }
+.row.sel { background: var(--acc); color: var(--accfg); }
+.sw { width: 28px; height: 14px; border: 1px solid var(--line); display: inline-flex; flex: none; }
+.sw i { flex: 1; }
+.form { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; align-items: center; max-width: 520px; }
+.form label { color: var(--fg); }
+.note { color: var(--disabled); margin: 8px 0; max-width: 520px; }
+.preview { border: 1px solid var(--line); padding: 10px; background: var(--bg); align-self: start; position: sticky; top: 0; }
+.preview .head { color: var(--disabled); margin-bottom: 6px; }
+.tabs { display: flex; }
+.tabs span { padding: var(--pad_control, 4px 12px); background: var(--face); border: 1px solid var(--line);
+  box-shadow: inset 1px 1px var(--light), inset -1px -1px var(--shade); margin-right: -1px; }
+.tabs span.sel { background: var(--acc); color: var(--accfg); box-shadow: inset 1px 1px var(--shade), inset -1px -1px var(--light); }
+.panel { border: 1px solid var(--line); padding: 8px; display: grid; gap: 8px; }
+.menubar { display: flex; gap: 12px; border: 1px solid var(--line); padding: 2px 6px; }
+.ctrls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.slider { height: 6px; background: var(--field); border: 1px solid var(--line); position: relative; }
+.slider i { position: absolute; left: 0; top: 0; bottom: 0; width: 40%; background: var(--acc); }
+.textview { background: var(--field); border: 1px solid var(--line); padding: 6px; min-height: 60px; }
+.term { background: var(--bg); color: var(--fg); font: calc(var(--mono_size, 10) * 1pt)/1.3 var(--mono_font, monospace), monospace; border: 1px solid var(--line); padding: 6px; }
+.ansi { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; margin-top: 6px; }
+.ansi i { height: 14px; border: 1px solid var(--line); }
+.roles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.roles i { height: 22px; border: 1px solid var(--line); font: 8pt var(--mono_font, monospace), monospace; padding: 1px 3px; overflow: hidden; }
+/* the modules page: the list on the left, the selected module on the right */
+.mods { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: start; }
+.modlist { max-height: none; }
+.modlist .row { justify-content: space-between; }
+.modlist .row small { color: var(--disabled); }
+.modlist .row.sel small { color: var(--accfg); }
+.moddetail { border: 1px solid var(--line); padding: 10px; min-width: 0; }
+.moddetail .top { display: flex; align-items: center; gap: 10px; }
+.moddetail .top h3 { margin: 0; font-size: inherit; flex: 1; }
+.moddetail .desc { margin: 4px 0 0; }
+.section { margin-top: 12px; }
+.section > h4 { margin: 0 0 6px; font-size: inherit; font-weight: bold; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.opt { display: grid; grid-template-columns: 110px minmax(0, 260px) auto; gap: 2px 10px; align-items: center; padding: 3px 0; }
+.opt .what { grid-column: 2 / -1; color: var(--disabled); }
+.opt .reset { font-size: smaller; padding: 1px 6px; justify-self: start; }
+.opt select, .opt input:not([type=checkbox]):not([type=range]) { width: 14em; max-width: 100%; }
+.opt > span { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.seg { flex-wrap: wrap; }
+/* narrower windows: the preview goes under the page, then the module list over its
+ * detail, then each option's control under its name, so nothing is squeezed or cut */
+@media (max-width: 1100px) { main { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 820px) {
+  .mods { grid-template-columns: minmax(0, 1fr); }
+  .modlist { max-height: 200px; }
+}
+@media (max-width: 560px) {
+  body { grid-template-columns: 120px minmax(0, 1fr); }
+  .menu .title { display: none; }
+  .menu button { white-space: nowrap; }
+  .opt { grid-template-columns: minmax(0, 1fr) auto; }
+  .opt > label { grid-column: 1 / -1; font-weight: bold; }
+  .opt .what { grid-column: 1 / -1; }
+}
+.seg { display: inline-flex; }
+.slide { display: inline-flex; align-items: center; gap: 8px; }
+.slide input { width: 12em; accent-color: var(--acc); }
+.slide output { min-width: 2em; font-family: var(--mono_font, monospace), monospace; }
+.seg button { margin-right: -1px; }
+.seg button.on { background: var(--acc); color: var(--accfg); }
+.server { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.dot { width: 9px; height: 9px; border: 1px solid var(--line); display: inline-block; }
+.dot.up { background: var(--acc); }
+.icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 520px; }
+.icons div { text-align: center; padding: 6px; border: 1px solid var(--line); background: var(--field); }
+.icons div img { display: inline-block; }
+.icons div .missing { display: inline-block; height: 48px; line-height: 48px; color: var(--disabled); }
+pre.report { background: var(--field); border: 1px solid var(--line); padding: 6px; white-space: pre-wrap; max-height: 300px; overflow: auto; }
+.colors { display: grid; grid-template-columns: 4em 3.5em 6em auto; gap: 4px 8px; align-items: center; max-width: 520px; }
+.colors input[type=color] { padding: 1px; width: 3.5em; height: 1.8em; }
+.colors .what { color: var(--disabled); }
+.colors button { justify-self: start; }
+.envrow { display: grid; grid-template-columns: max-content minmax(10em, 24em) auto; gap: 4px 10px; align-items: center; justify-content: start; }
+.envrow button { justify-self: start; }
+a.btn { text-decoration: none; display: inline-block; }
+.inline { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+code { font-family: var(--mono_font, monospace), monospace; }
+</style>
+</head>
+<body>
+<div class="menu">
+  <button onclick="apply()" title="Ctrl+S">Apply</button>
+  <button onclick="revert()">Revert to applied</button>
+  <button onclick="location.reload()">Reload</button>
+  <span class="title">themer-web · this page is the preview</span>
+</div>
+<nav>
+  <a data-page="theme" class="sel">Theme</a>
+  <a data-page="fonts">Fonts</a>
+  <a data-page="icons">Icons</a>
+  <a data-page="cursor">Cursor</a>
+  <a data-page="modules">Modules</a>
+  <a data-page="env">Environment</a>
+  <a data-page="server">Server</a>
+</nav>
+<main>
+  <div>
+    <section class="page sel" id="page-theme">
+      <h2>Color scheme</h2>
+      <div class="inline"><input id="themefind" type="search" placeholder="Find a scheme" style="flex:1"></div>
+      <div class="list" id="themes"></div>
+      <div class="inline" style="margin-top:6px">
+        <button id="schemeimport" title="A .theme file, Xresources, kitty, foot or alacritty colors, or Gogh lines">Import…</button>
+        <button id="schemeremove" title="Delete the selected scheme if it is yours, or hide it if it is built in">Remove</button>
+        <button id="schemerestore" title="Bring back every built-in scheme that was removed">Restore hidden</button>
+        <input id="schemefile" type="file" hidden>
+      </div>
+      <div class="inline" style="margin-top:8px">
+        Mode <span class="seg" id="modeseg"><button data-mode="dark">dark</button><button data-mode="light">light</button></span>
+      </div>
+      <div class="inline">Template set <select id="set" onchange="set({set:this.value})"></select>
+        <button onclick="newSet()">New set…</button>
+        <button onclick="importSet()">Import theme…</button>
+        <button onclick="checkSet()">Check</button>
+      </div>
+      <p class="note">A template set is the look: the widgets, bars, and chrome every module draws. What a set lacks comes from Themer Chicago.</p>
+      <pre class="report" id="setreport" style="display:none"></pre>
+      <h2 style="margin-top:12px">Colors</h2>
+      <div class="colors" id="colors"></div>
+      <p class="note">A color of your own over the scheme's, in both modes: pick one, or Scheme to go back to the scheme's.</p>
+    </section>
+    <section class="page" id="page-fonts">
+      <h2>Fonts</h2>
+      <div class="form">
+        <label>Interface</label><div class="inline"><select id="ui_font" onchange="set({ui_font:this.value})"></select><input type="number" id="ui_size" min="6" max="32" style="width:5em" onchange="set({ui_size:+this.value})"></div>
+        <label>Terminal</label><div class="inline"><select id="mono_font" onchange="set({mono_font:this.value})"></select><input type="number" id="mono_size" min="6" max="32" style="width:5em" onchange="set({mono_size:+this.value})"></div>
+        <label>Console</label><div class="inline" id="ttybox"></div>
+      </div>
+      <p class="note">The interface font goes to GTK, Qt, the window manager, and the browsers; the terminal font to the terminals, editors, and Qt's fixed font; the console font to the Linux console (vconsole.conf).</p>
+      <h2>Rendering</h2>
+      <div class="form">
+        <label>Hinting</label><select id="hinting" onchange="set({hinting:this.value})"></select>
+        <label></label><label><input type="checkbox" id="antialias" onchange="set({antialias:this.checked})"> Antialiasing</label>
+        <label>Subpixel order</label><select id="rgba" onchange="set({rgba:this.value})"></select>
+      </div>
+      <p class="note">Written to the GTK settings, xsettingsd, gsettings, and fontconfig, so every toolkit draws text the same way.</p>
+    </section>
+    <section class="page" id="page-icons">
+      <h2>Icon theme</h2>
+      <div class="inline"><select id="icons" onchange="set({icons:this.value})"></select></div>
+      <p class="note">Set for GTK, Qt, xsettingsd, and gsettings; Firefox's toolbar takes its icons from it too. Below, the theme's own icons, found as GTK and Qt find them (the theme, the themes it inherits, hicolor).</p>
+      <div class="icons" id="iconprev"></div>
+    </section>
+    <section class="page" id="page-cursor">
+      <h2>Mouse cursor</h2>
+      <div class="form">
+        <label>Theme</label><select id="cursor" onchange="set({cursor:this.value})"></select>
+        <label>Size</label><input type="number" id="cursor_size" min="8" max="96" style="width:5em" onchange="set({cursor_size:+this.value})">
+      </div>
+      <p class="note">Applied through the cursor module (the Xcursor default theme, XCURSOR_THEME and XCURSOR_SIZE, Xresources), the GTK settings, gsettings, and sway's seat.</p>
+    </section>
+    <section class="page" id="page-modules">
+      <h2>Modules</h2>
+      <p class="note">Each module themes one program: turned on it writes that program's settings, turned off it removes them. Switches and options take effect at once.</p>
+      <div class="mods"><div class="list modlist" id="modlist"></div><div class="moddetail" id="moddetail"></div></div>
+    </section>
+    <section class="page" id="page-env">
+      <h2>Environment</h2>
+      <p class="note">Variables for the whole session, written to environment.d on apply, where login sessions and systemd user services read them.</p>
+      <div id="envlist"></div>
+      <div class="inline" style="margin-top:8px"><input id="envname" placeholder="NAME" style="width:14em"><input id="envvalue" placeholder="value" style="width:20em"><button id="envadd">Add</button></div>
+    </section>
+    <section class="page" id="page-server">
+      <h2>Server</h2>
+      <div class="server"><span class="dot up"></span> themer-web is running at <code id="srvurl"></code> (this page)
+        <button id="srvstop">Stop</button></div>
+      <div class="opt"><label for="webport">Port</label><input id="webport" type="number" min="1024" max="65535"><span></span>
+        <small class="what">on localhost; the server moves to a new port, and this page with it</small></div>
+      <p class="note">themer-web is started and stopped by hand (here, in any front end's main menu, or <code>themer server start</code>), and stops by itself when no browser module (firefox, stylus) is on.</p>
+      <p class="note">Stylus installs the userstyles from here and keeps them current through their <code>@updateURL</code> while the server runs. Each site, with its Install link, is under <a href="#modules/stylus">Modules, stylus</a>.</p>
+    </section>
+  </div>
+  <aside class="preview">
+    <div class="head" id="prevhead"></div>
+    <div class="tabs"><span class="sel">Widgets</span><span>List</span><span>Terminal</span></div>
+    <div class="panel" style="border-top:none">
+      <div class="menubar"><span>File</span><span>Edit</span><span>View</span><span>Help</span></div>
+      <div class="ctrls"><button>Button</button><button class="on">Toggled</button><button disabled>Disabled</button></div>
+      <div class="ctrls"><input value="a text field" style="flex:1"><input type="number" value="42" style="width:5em"></div>
+      <div class="ctrls"><label><input type="checkbox" checked> checked</label><label><input type="checkbox"> unchecked</label><label><input type="radio" checked> radio</label><label><input type="radio"> other</label></div>
+      <div class="slider"><i></i></div>
+      <div class="ctrls"><select style="flex:1"><option>a combo box</option></select></div>
+      <div class="textview">A text view. The quick brown fox jumps over the lazy dog.<br>0123456789 — how the interface font renders.</div>
+      <div class="term" id="term"></div>
+    </div>
+    <div class="roles" id="roles"></div>
+    <div class="ansi" id="ansi"></div>
+  </aside>
+</main>
+<div class="bar"><span class="status" id="status">loading…</span><span class="spacer"></span><button class="primary" id="applybtn" onclick="apply()">Apply</button></div>
+<script>
+let S = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(path, body) {
+  // X-Themer: the server takes a POST only with it, which other sites cannot send
+  const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'X-Themer': '1', 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) { status(await r.text()); throw new Error('request failed'); }
+  return r.json();
+}
+function status(t) { $('status').textContent = t; }
+function restyle() {
+  // re-fetch /theme.css so the page redraws in the browsed theme
+  const l = $('themecss'); l.href = '/theme.css?' + Date.now();
+}
+function fill(sel, items, cur) {
+  const e = $(sel); e.innerHTML = '';
+  const seen = new Set(items);
+  if (cur && !seen.has(cur)) items = [cur, ...items];
+  for (const it of items) { const o = document.createElement('option'); o.value = o.textContent = it; if (it === cur) o.selected = true; e.appendChild(o); }
+}
+function render() {
+  const s = S;
+  const q = $('themefind').value.trim();
+  $('themes').innerHTML = s.themes.filter(t => !q || t.name.includes(q)).map(t =>
+    `<div class="row${t.name === s.theme ? ' sel' : ''}" data-theme="${esc(t.name)}"><span class="sw"><i style="background:#${t.bg}"></i><i style="background:#${t.fg}"></i><i style="background:#${t.acc}"></i></span>${esc(t.name)}</div>`).join('');
+  $('themes').querySelectorAll('[data-theme]').forEach(r => r.onclick = () => set({theme: r.dataset.theme}));
+  document.querySelectorAll('#modeseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === s.mode));
+  $('set').innerHTML = s.sets.map(t => `<option value="${esc(t.id)}"${t.id === s.set ? ' selected' : ''}>${esc(t.title)}</option>`).join('');
+  fill('ui_font', s.fonts, s.ui_font); $('ui_size').value = s.ui_size;
+  fill('mono_font', s.mono_fonts, s.mono_font); $('mono_size').value = s.mono_size;
+  fill('hinting', s.hinting_values, s.hinting); $('antialias').checked = s.antialias;
+  fill('rgba', s.rgba_values, s.rgba);
+  fill('icons', s.icon_themes, s.icons);
+  fill('cursor', s.cursor_themes, s.cursor); $('cursor_size').value = s.cursor_size;
+  // the icon theme's own files, served by themer-web (the same icons as themer-gtk's)
+  $('iconprev').innerHTML = s.preview_icons.map(([icon, label]) =>
+    `<div><img src="/icon/${esc(icon)}?t=${encodeURIComponent(s.icons)}" alt="" width="48" height="48"
+      onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'missing', textContent: 'none'}))"><br>${esc(label)}</div>`).join('');
+  renderModules();
+  renderExtras();
+  $('srvurl').textContent = location.origin + '/';
+  $('webport').value = s.web_port;
+  $('prevhead').textContent = `${s.theme} · ${s.mode} · ${(s.sets.find(t => t.id === s.set) || {title: s.set}).title}`;
+  const c = s.colors;
+  $('roles').innerHTML = ['bg','fg','surf','acc','accfg','urg','warn'].map(k => `<i style="background:#${c[k]};color:#${k === 'bg' ? c.fg : k === 'fg' ? c.bg : c[k === 'acc' ? 'accfg' : k === 'urg' ? 'on_urg' : k === 'warn' ? 'on_warn' : 'fg']}">${k}</i>`).join('');
+  $('ansi').innerHTML = c.ansi.map(h => `<i style="background:#${h}"></i>`).join('');
+  $('term').innerHTML = `<span style="color:#${c.ansi[2]}">user@host</span>:<span style="color:#${c.ansi[4]}">~/src</span>$ make check<br>ok<br>` +
+    c.ansi.slice(0, 8).map((h, i) => `<span style="color:#${h}">■ ansi${i}</span>`).join(' ');
+  $('applybtn').disabled = !s.dirty;
+  status(s.dirty ? 'changes not applied' : 'up to date');
+  restyle();
+}
+// the colors of your own, the console font, and the environment
+function renderExtras() {
+  const s = S;
+  $('colors').innerHTML = Object.keys(s.overrides).map(r => {
+    const mine = s.overrides[r], hex = mine || s.colors[r];
+    return `<label>${esc(r)}</label><input type="color" data-role="${esc(r)}" value="#${esc(hex)}"><code>${esc(hex)}</code>` +
+      (mine ? `<button data-scheme="${esc(r)}" title="back to the scheme's color">Scheme</button>` : '<small class="what">the scheme\'s</small>');
+  }).join('');
+  $('colors').querySelectorAll('[data-role]').forEach(e => e.onchange = () => set({color: e.dataset.role, value: e.value.slice(1)}));
+  $('colors').querySelectorAll('[data-scheme]').forEach(e => e.onclick = () => set({color: e.dataset.scheme, value: ''}));
+  $('ttybox').innerHTML = s.tty_fonts.length
+    ? `<select id="tty_font">${[...new Set([s.tty_font, ...s.tty_fonts])].map(f => `<option${f === s.tty_font ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>`
+    : `<input id="tty_font" value="${esc(s.tty_font)}" title="no console fonts found here: type the name, as in ter-v16n">`;
+  $('tty_font').onchange = e => set({tty_font: e.target.value});
+  $('envlist').innerHTML = s.env.length ? '<div class="envrow">' + s.env.map(([n, v]) =>
+    `<label>${esc(n)}</label><input data-env="${esc(n)}" value="${esc(v)}"><button data-envdel="${esc(n)}">Remove</button>`).join('') + '</div>'
+    : '<p class="note">No variables.</p>';
+  $('envlist').querySelectorAll('[data-env]').forEach(e => e.onchange = () => set({env: e.dataset.env, value: e.value}));
+  $('envlist').querySelectorAll('[data-envdel]').forEach(e => e.onclick = () => set({env: e.dataset.envdel, value: ''}));
+}
+$('envadd').onclick = async () => {
+  const name = $('envname').value.trim(), value = $('envvalue').value;
+  if (!name || !value) { status('a variable needs a name and a value'); return; }
+  await set({env: name, value});
+  $('envname').value = $('envvalue').value = '';
+};
+let selMod = null;
+function modState(m) { return !m.present ? 'not installed' : m.on ? 'on' : 'off'; }
+function renderModules() {
+  const s = S;
+  if (!selMod || !s.modules.find(m => m.name === selMod)) selMod = s.modules.length ? s.modules[0].name : null;
+  $('modlist').innerHTML = s.modules.map(m =>
+    `<div class="row${m.name === selMod ? ' sel' : ''}" data-mod="${esc(m.name)}"><span>${esc(m.name)}</span><small>${modState(m)}</small></div>`).join('');
+  $('modlist').querySelectorAll('.row').forEach(r => r.onclick = () => { location.hash = 'modules/' + r.dataset.mod; });
+  const m = s.modules.find(m => m.name === selMod);
+  if (!m) { $('moddetail').innerHTML = ''; return; }
+  let h = `<div class="top"><h3>${esc(m.name)}</h3><label><input type="checkbox" id="modon" ${m.on ? 'checked' : ''}> On</label></div>
+    <p class="desc">${esc(m.desc)}</p>`;
+  if (!m.present) h += `<p class="note">Its program is not installed here. The module stays ${m.on ? 'on and takes effect once the program appears' : 'off'}.</p>`;
+  for (let g = 0; g < s.groups.length; g++) {
+    const opts = m.options.filter(o => o.group === g);
+    if (!opts.length) continue;
+    h += `<div class="section"><h4>${esc(s.groups[g])}</h4>`;
+    h += opts.map(o => optionRow(m.name, o)).join('') + '</div>';
+  }
+  if (!m.options.length) h += '<p class="note">This module has no options.</p>';
+  $('moddetail').innerHTML = h;
+  $('modon').onchange = e => module(m.name, e.target.checked);
+  $('moddetail').querySelectorAll('[data-opt]').forEach(el => {
+    const [mod, opt] = el.dataset.opt.split('/');
+    const ev = el.tagName === 'BUTTON' ? 'click' : 'change';
+    el.addEventListener(ev, () => {
+      if (el.dataset.reset) return resetOption(mod, opt);
+      const v = el.type === 'checkbox' ? (el.checked ? 'on' : 'off') : el.dataset.value || el.value;
+      option(mod, opt, v);
+    });
+  });
+}
+function optionRow(mod, o) {
+  const key = `${esc(mod)}/${esc(o.name)}`, id = `opt-${esc(mod)}-${esc(o.name)}`;
+  // the same control as in themer-gtk and themer-qt (front_option_control)
+  let field;
+  if (o.control === 'switch') field = `<label><input type="checkbox" id="${id}" data-opt="${key}" ${o.value === 'on' ? 'checked' : ''}> ${o.value === 'on' ? 'on' : 'off'}</label>`;
+  else if (o.control === 'buttons') field = '<span class="seg">' + o.choices.split('|').map(v =>
+      `<button data-opt="${key}" data-value="${esc(v)}" class="${v === o.value ? 'on' : ''}">${esc(v)}</button>`).join('') + '</span>';
+  else if (o.name === 'template') field = `<select id="${id}" data-opt="${key}">${S.sets.map(t => `<option value="${esc(t.id)}"${t.id === o.value ? ' selected' : ''}>${esc(t.title)}</option>`).join('')}</select>`;
+  else if (o.control === 'list') field = `<select id="${id}" data-opt="${key}">${o.choices.split('|').map(v => `<option${v === o.value ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  else if (o.control === 'slider') field = `<span class="slide"><input id="${id}" data-opt="${key}" type="range" min="${o.min}" max="${o.max}" value="${esc(o.value)}" oninput="this.nextElementSibling.textContent = this.value"><output>${esc(o.value)}</output></span>`;
+  else field = `<input id="${id}" data-opt="${key}" value="${esc(o.value)}" placeholder="${esc(o.default)}">`;
+  const setTitle = id => (S.sets.find(t => t.id === id) || {title: id}).title;
+  const dflt = o.name === 'template' ? `the global set (${esc(setTitle(S.set))})` : esc(o.default);
+  const reset = o.set ? `<button class="reset" data-opt="${key}" data-reset="1" title="back to the default: ${dflt}">Reset</button>` : '<span></span>';
+  // an action beside it (front_option_action): Install for a stylus site, as a link
+  const action = o.action && o.link ? ` <a class="btn" href="${esc(o.link)}" target="_blank" title="Stylus offers to install it">${esc(o.action)}</a>` : '';
+  return `<div class="opt"><label for="${id}">${esc(o.name)}</label><span>${field}${action}</span>${reset}
+    <small class="what">${esc(o.desc)}${o.set ? ` · default: ${dflt}` : ''}</small></div>`;
+}
+$('themefind').oninput = () => render();
+document.querySelectorAll('#modeseg button').forEach(b => b.onclick = () => set({mode: b.dataset.mode}));
+$('schemeimport').onclick = () => $('schemefile').click();
+$('schemefile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text(), name = f.name.replace(/\.[^.]*$/, '');
+  report(await api('/api/scheme/import', {name, text})); e.target.value = ''; await load();
+};
+$('schemeremove').onclick = async () => {
+  if (!confirm(`Remove ${S.theme}? Yours are deleted; built-in ones are hidden and can be restored.`)) return;
+  report(await api('/api/scheme/remove', {name: S.theme})); await load();
+};
+$('schemerestore').onclick = async () => { report(await api('/api/scheme/restore', {})); await load(); };
+$('srvstop').onclick = async () => {
+  if (!confirm('Stop themer-web? This page stops working until the server is started again (Server in any front end, or themer server start).')) return;
+  try { await api('/api/quit', {}); } catch (e) {}
+  status('themer-web stopped');
+};
+$('webport').onchange = async e => {
+  const r = await api('/api/set', {web_port: +e.target.value});
+  if (r.moved) { status(`themer-web moved to port ${r.moved}`); setTimeout(() => { location.port = r.moved; }, 600); return; }
+  S = r; render();
+};
+async function load() { S = await api('/api/state'); render(); }
+async function set(kv) { S = await api('/api/set', kv); render(); }
+async function apply() { status('applying…'); const r = await api('/api/apply', {}); await load(); status(r.failures ? `applied with ${r.failures} failure(s), see the server's output` : 'applied'); }
+async function revert() { S = await api('/api/revert', {}); render(); }
+async function module(name, on) { const r = await api('/api/module', {name, on}); status(r.msg); await load(); }
+async function option(module, option, value) {
+  const r = await api('/api/option', {module, option, value});
+  status(r.msg || 'option set');
+  if (r.moved) { status(`themer-web moved to port ${r.moved}`); setTimeout(() => { location.port = r.moved; }, 600); return; }
+  if (r.stopping) { status('themer-web stopped (server is off); start it again with: themer server start'); return; }
+  await load();
+}
+async function resetOption(module, option) { const r = await api('/api/option/reset', {module, option}); status(r.msg); await load(); }
+function report(r) { const p = $('setreport'); p.style.display = 'block'; p.textContent = (r.ok ? '' : 'failed\n') + r.report; }
+async function newSet() { const to = prompt('Name of the new set (a copy of ' + S.set + '):'); if (to) report(await api('/api/set/copy', {from: S.set, to})); await load(); }
+async function importSet() {
+  const set = prompt('Set to import into:', S.set); if (!set) return;
+  const module = prompt('Module (gtk, qt, firefox, waybar, …):'); if (!module) return;
+  const path = prompt('Path of the theme file or directory:'); if (!path) return;
+  report(await api('/api/set/import', {set, module, path})); await load();
+}
+async function checkSet() { report(await api('/api/set/check', {name: S.set})); }
+// the page in the address (#theme, #modules/foot), so Back and links work
+function showPage(name) {
+  const a = document.querySelector(`nav a[data-page="${name}"]`);
+  if (!a) return;
+  document.querySelectorAll('nav a, .page').forEach(e => e.classList.remove('sel'));
+  a.classList.add('sel'); $('page-' + name).classList.add('sel');
+}
+function openHash() {
+  const [page, mod] = location.hash.slice(1).split('/');
+  if (mod) { selMod = mod; if (S) renderModules(); }
+  if (/^[a-z]+$/.test(page || '')) showPage(page);
+}
+document.querySelectorAll('nav a').forEach(a => a.onclick = () => { location.hash = a.dataset.page; });
+window.addEventListener('hashchange', openHash);
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); apply(); } });
+openHash();
+load().catch(e => status('could not reach themer-web: ' + e));
+</script>
+</body>
+</html>

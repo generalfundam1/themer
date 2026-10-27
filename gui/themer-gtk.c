@@ -28,11 +28,11 @@ static int dirty;
 
 static GtkWidget *window, *theme_box, *mode_dark, *mode_light, *set_combo, *ui_font, *mono_font;
 static GtkWidget *icon_combo, *cursor_combo, *cursor_size, *hint_combo, *aa_check, *rgba_combo;
-static GtkWidget *modules_box, *status, *swatches, *sample, *apply_button, *icon_grid, *cursor_area;
-static GtkWidget *title_label, *module_switch[MAX_MODULES];
+static GtkWidget *status, *swatches, *sample, *apply_button, *icon_grid, *cursor_area;
+static GtkWidget *title_label;
 static GtkCssProvider *provider;
-static char theme_names[MAX_LIST][NAME_LEN];
-static Theme themes[MAX_LIST];
+static char theme_names[MAX_THEMES][NAME_LEN];
+static Theme themes[MAX_THEMES];
 static int ntheme_names, updating;
 static int module_order[MAX_MODULES], nmodule_order;
 
@@ -53,8 +53,17 @@ restyle(void)
 	GtkSettings *settings = gtk_settings_get_default();
 	char font[160];
 
-	if (front_render(&cfg, "gtk", "gtk", "gtk.css", css, sizeof css) == 0)
+	if (front_render(&cfg, "gtk", "gtk", "gtk.css", css, sizeof css) == 0) {
+		/* the window's own rule: the chosen side of a mode switch in the accent */
+		Scheme sc;
+		size_t len = strlen(css);
+
+		gui_scheme(&cfg, &sc);
+		snprintf(css + len, sizeof css - len,
+		         "\nbutton.themer-on, button.themer-on:hover { background: #%s; color: #%s; }\n",
+		         sc.hex[C_ACC], sc.hex[C_ACCFG]);
 		gtk_css_provider_load_from_data(provider, css, -1, NULL);
+	}
 	g_object_set(settings, "gtk-application-prefer-dark-theme", cfg.mode == MODE_DARK, NULL);
 	snprintf(font, sizeof font, "%s %d", cfg.ui_font, cfg.ui_size);
 	g_object_set(settings, "gtk-font-name", font, NULL);
@@ -68,8 +77,12 @@ restyle(void)
 		snprintf(hs, sizeof hs, "hint%s", cfg.hinting);
 		g_object_set(settings, "gtk-xft-hintstyle", hs, NULL);
 	}
-	snprintf(font, sizeof font, "%s  \xc2\xb7  %s  \xc2\xb7  %s", cfg.th.name,
-	         cfg.mode == MODE_DARK ? "dark" : "light", cfg.set);
+	{
+		char title[NAME_LEN];
+
+		snprintf(font, sizeof font, "%s  \xc2\xb7  %s  \xc2\xb7  %s", cfg.th.name,
+		         cfg.mode == MODE_DARK ? "dark" : "light", front_set_title(cfg.set, title, sizeof title));
+	}
 	gtk_label_set_text(GTK_LABEL(title_label), font);
 	gtk_widget_queue_draw(swatches);
 	gtk_widget_queue_draw(sample);
@@ -82,6 +95,9 @@ set_status(const char *text)
 	gtk_label_set_text(GTK_LABEL(status), text);
 }
 
+static gboolean colors_refill(gpointer data);
+static GtkWidget *colors_grid;
+
 static void
 changed(void)
 {
@@ -91,6 +107,8 @@ changed(void)
 	set_status("unapplied changes");
 	gtk_widget_set_sensitive(apply_button, TRUE);
 	restyle();
+	if (colors_grid)
+		g_idle_add(colors_refill, NULL);   /* a new scheme: the colors shown follow */
 }
 
 /* ---- drawing helpers ---- */
@@ -213,40 +231,60 @@ draw_sample(GtkWidget *w, cairo_t *cr, gpointer data)
 
 /* ---- the icon preview: the selected icon theme's own icons ---- */
 
+/* the icon's own file at px, by the lookup the web and Qt previews use; found
+ * is set when the theme has the file, even if GTK cannot draw it */
+static GdkPixbuf *
+icon_pixbuf(const char *name, const char *fg, int px, int *found)
+{
+	const char *mime;
+	size_t len;
+	char *data = gui_icon_load(cfg.icons, name, px, fg, &len, &mime);
+	GdkPixbufLoader *ld;
+	GdkPixbuf *pb = NULL;
+
+	if (!data)
+		return NULL;
+	*found = 1;
+	ld = gdk_pixbuf_loader_new_with_mime_type(mime, NULL);
+	if (!ld)
+		ld = gdk_pixbuf_loader_new();
+	gdk_pixbuf_loader_set_size(ld, px, px);
+	if (gdk_pixbuf_loader_write(ld, (const guchar *)data, len, NULL) && gdk_pixbuf_loader_close(ld, NULL)) {
+		if ((pb = gdk_pixbuf_loader_get_pixbuf(ld)))
+			g_object_ref(pb);
+	} else {
+		gdk_pixbuf_loader_close(ld, NULL);
+	}
+	g_object_unref(ld);
+	free(data);
+	return pb;
+}
+
 static void
 fill_icon_grid(void)
 {
-	GtkIconTheme *theme = gtk_icon_theme_new();
 	GList *kids = gtk_container_get_children(GTK_CONTAINER(icon_grid)), *k;
-	GdkRGBA fg;
 	Scheme s;
-	char hexcol[TM_COLOR_LEN + 1];
 	int i;
 
 	for (k = kids; k; k = k->next)
 		gtk_widget_destroy(GTK_WIDGET(k->data));
 	g_list_free(kids);
-	gtk_icon_theme_set_custom_theme(theme, cfg.icons);
 	gui_scheme(&cfg, &s);
-	snprintf(hexcol, sizeof hexcol, "#%s", s.hex[C_FG]);
-	gdk_rgba_parse(&fg, hexcol);
 	for (i = 0; gui_preview_icons[i][0]; i++) {
-		GtkIconInfo *info = gtk_icon_theme_lookup_icon(theme, gui_preview_icons[i][0], ICON_PX,
-		                                               GTK_ICON_LOOKUP_FORCE_SIZE);
-		GdkPixbuf *pb = NULL;
+		int found = 0;
+		GdkPixbuf *pb = icon_pixbuf(gui_preview_icons[i][0], s.hex[C_FG], ICON_PX, &found);
 		GtkWidget *cell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2), *img, *l;
 
-		/* symbolic icons are single-color: painted in the text color, as apps see them */
-		if (info) {
-			pb = gtk_icon_info_is_symbolic(info)
-			     ? gtk_icon_info_load_symbolic(info, &fg, NULL, NULL, NULL, NULL, NULL)
-			     : gtk_icon_info_load_icon(info, NULL);
-			g_object_unref(info);
-		}
-
-		img = pb ? gtk_image_new_from_pixbuf(pb) : gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_DND);
-		if (pb)
+		/* a theme without the icon says so, rather than showing another theme's */
+		if (pb) {
+			img = gtk_image_new_from_pixbuf(pb);
 			g_object_unref(pb);
+		} else {
+			/* found but undrawable: GTK lacks the image loader (for SVG, librsvg's) */
+			img = gtk_label_new(found ? "can't draw" : "none");
+			gtk_style_context_add_class(gtk_widget_get_style_context(img), "dim-label");
+		}
 		gtk_widget_set_size_request(img, ICON_PX + 8, ICON_PX + 8);
 		l = gtk_label_new(gui_preview_icons[i][1]);
 		gtk_label_set_ellipsize(GTK_LABEL(l), PANGO_ELLIPSIZE_END);
@@ -255,7 +293,6 @@ fill_icon_grid(void)
 		gtk_box_pack_start(GTK_BOX(cell), l, FALSE, FALSE, 0);
 		gtk_grid_attach(GTK_GRID(icon_grid), cell, i % 5, i / 5, 1, 1);
 	}
-	g_object_unref(theme);
 	gtk_widget_show_all(icon_grid);
 }
 
@@ -358,12 +395,32 @@ on_theme_selected(GtkListBox *box, GtkListBoxRow *row, gpointer data)
 	changed();
 }
 
+/* the chosen side of the mode switch in the accent */
+static void
+mark_mode(void)
+{
+	GtkStyleContext *d = gtk_widget_get_style_context(mode_dark), *l = gtk_widget_get_style_context(mode_light);
+
+	if (cfg.mode == MODE_DARK) {
+		gtk_style_context_add_class(d, "themer-on");
+		gtk_style_context_remove_class(l, "themer-on");
+	} else {
+		gtk_style_context_add_class(l, "themer-on");
+		gtk_style_context_remove_class(d, "themer-on");
+	}
+}
+
 static void
 on_mode(GtkToggleButton *b, gpointer data)
 {
-	if (updating || !gtk_toggle_button_get_active(b))
+	if (!gtk_toggle_button_get_active(b))
 		return;
+	if (updating) {
+		mark_mode();
+		return;
+	}
 	cfg.mode = GPOINTER_TO_INT(data);
+	mark_mode();
 	changed();
 }
 
@@ -448,10 +505,21 @@ monospace_only(const PangoFontFamily *family, const PangoFontFace *face, gpointe
 static void
 font_button_label(GtkWidget *b, const char *fam, int size)
 {
-	char text[160];
+	(void)size;              /* the size has its own field */
+	gtk_button_set_label(GTK_BUTTON(b), fam);
+}
 
-	snprintf(text, sizeof text, "%s  %d", fam, size);
-	gtk_button_set_label(GTK_BUTTON(b), text);
+static GtkWidget *ui_size_spin, *mono_size_spin;
+
+static void
+on_font_size(GtkSpinButton *b, gpointer data)
+{
+	int mono = GPOINTER_TO_INT(data);
+
+	if (updating)
+		return;
+	if (front_set_font(&cfg, mono, mono ? cfg.mono_font : cfg.ui_font, gtk_spin_button_get_value_as_int(b)) == 0)
+		changed();
 }
 
 static void
@@ -471,10 +539,8 @@ on_font_button(GtkButton *b, gpointer data)
 		PangoFontDescription *desc = gtk_font_chooser_get_font_desc(GTK_FONT_CHOOSER(d));
 
 		if (desc) {
-			int sz = pango_font_description_get_size(desc) > 0
-			         ? pango_font_description_get_size(desc) / PANGO_SCALE : 0;
-
-			if (front_set_font(&cfg, mono, pango_font_description_get_family(desc), sz) == 0) {
+			/* the family only: the size is the field beside the button */
+			if (front_set_font(&cfg, mono, pango_font_description_get_family(desc), 0) == 0) {
 				font_button_label(GTK_WIDGET(b), fam, *size);
 				changed();
 			}
@@ -482,20 +548,6 @@ on_font_button(GtkButton *b, gpointer data)
 		}
 	}
 	gtk_widget_destroy(d);
-}
-
-static void
-on_module(GtkSwitch *sw, GParamSpec *ps, gpointer data)
-{
-	int i = GPOINTER_TO_INT(data);
-
-	(void)ps;
-	if (updating)
-		return;
-	config_set_module(&cfg, themer_module_name(i), gtk_switch_get_active(sw));
-	dirty = 1;
-	set_status("unapplied changes");
-	gtk_widget_set_sensitive(apply_button, TRUE);
 }
 
 static void
@@ -521,6 +573,25 @@ on_apply(GtkButton *b, gpointer data)
 /* back to what was last applied */
 static void
 set_controls_from_cfg(void);
+
+/* another front end saved: its changes are merged in (front_sync) and shown */
+static gboolean
+sync_tick(gpointer data)
+{
+	(void)data;
+	if (!front_sync())
+		return G_SOURCE_CONTINUE;
+	updating = 1;
+	set_controls_from_cfg();
+	updating = 0;
+	dirty = !config_same(&cfg, &applied);
+	gtk_widget_set_sensitive(apply_button, dirty);
+	set_status("updated with changes made in another front end");
+	fill_icon_grid();
+	gtk_widget_queue_draw(cursor_area);
+	restyle();
+	return G_SOURCE_CONTINUE;
+}
 
 static void
 on_revert(GtkWidget *w, gpointer data)
@@ -672,21 +743,39 @@ pick_into(GtkEntry *entry, GtkFileChooserAction action, const char *title)
 static void on_pick_path(GtkButton *b, gpointer e)   { (void)b; pick_into(e, GTK_FILE_CHOOSER_ACTION_OPEN, "The theme file"); }
 static void on_pick_folder(GtkButton *b, gpointer e) { (void)b; pick_into(e, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER, "The theme directory"); }
 
+/* a combo of the template sets: each shown by its title, its id the directory
+ * name; current is selected */
+static void
+fill_set_combo(GtkWidget *combo, const char *current)
+{
+	char names[MAX_LIST][NAME_LEN], title[NAME_LEN];
+	int n = template_all_sets(names, MAX_LIST);
+
+	updating++;
+	gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(combo));
+	for (int i = 0; i < n; i++)
+		gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), names[i],
+		                          front_set_title(names[i], title, sizeof title));
+	gtk_combo_box_set_active_id(GTK_COMBO_BOX(combo), current);
+	updating--;
+}
+
 /* refills the set combo after a set was added, selecting cfg.set */
 static void
 refill_sets(void)
 {
-	char names[MAX_LIST][NAME_LEN];
-	int n = template_all_sets(names, MAX_LIST);
+	fill_set_combo(set_combo, cfg.set);
+}
 
-	updating++;
-	gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(set_combo));
-	for (int i = 0; i < n; i++) {
-		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(set_combo), names[i]);
-		if (!strcmp(names[i], cfg.set))
-			gtk_combo_box_set_active(GTK_COMBO_BOX(set_combo), i);
-	}
-	updating--;
+static void
+on_set_combo(GtkComboBox *combo, gpointer data)
+{
+	const char *id = gtk_combo_box_get_active_id(combo);
+
+	(void)data;
+	if (updating || !id || front_set_set(&cfg, id) < 0)
+		return;
+	changed();
 }
 
 /* a report (the output of set check, import, or copy) in a dialog */
@@ -850,18 +939,21 @@ on_set_check(GtkButton *b, gpointer data)
 	with_report("Set check", do_check, cfg.set);
 }
 
-static GtkWidget *
-page_theme(void)
-{
-	GtkWidget *box = page_box(), *scroll, *hbox, *grid;
-	char names[MAX_LIST][NAME_LEN];
-	int n, i;
+/* ---- the scheme list: filled from theme_list, filtered by the find entry ---- */
 
-	gtk_box_pack_start(GTK_BOX(box), heading("Color theme"), FALSE, FALSE, 0);
-	theme_box = gtk_list_box_new();
-	gtk_list_box_set_selection_mode(GTK_LIST_BOX(theme_box), GTK_SELECTION_BROWSE);
-	ntheme_names = theme_list(theme_names, MAX_LIST);
-	for (i = 0; i < ntheme_names; i++) {
+static GtkWidget *theme_find;
+
+static void
+fill_theme_list(void)
+{
+	GList *old = gtk_container_get_children(GTK_CONTAINER(theme_box));
+
+	updating++;
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	ntheme_names = theme_list(theme_names, MAX_THEMES);
+	for (int i = 0; i < ntheme_names; i++) {
 		GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8), *l, *sw;
 
 		theme_read(theme_names[i], &themes[i]);
@@ -879,6 +971,307 @@ page_theme(void)
 			gtk_list_box_select_row(GTK_LIST_BOX(theme_box),
 			                        gtk_list_box_get_row_at_index(GTK_LIST_BOX(theme_box), i));
 	}
+	gtk_widget_show_all(theme_box);
+	updating--;
+}
+
+static gboolean
+theme_filter(GtkListBoxRow *row, gpointer data)
+{
+	const char *q = theme_find ? gtk_entry_get_text(GTK_ENTRY(theme_find)) : "";
+	int i = gtk_list_box_row_get_index(row);
+
+	(void)data;
+	return !q[0] || (i >= 0 && i < ntheme_names && strstr(theme_names[i], q));
+}
+
+static void
+on_theme_find(GtkSearchEntry *e, gpointer data)
+{
+	(void)e;
+	(void)data;
+	gtk_list_box_invalidate_filter(GTK_LIST_BOX(theme_box));
+}
+
+static void
+on_scheme_import(GtkButton *b, gpointer data)
+{
+	GtkWidget *d = gtk_file_chooser_dialog_new("Import a colour scheme", GTK_WINDOW(window),
+	                                           GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL,
+	                                           "_Import", GTK_RESPONSE_ACCEPT, NULL);
+
+	(void)b;
+	(void)data;
+	if (gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_ACCEPT) {
+		char *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));
+		char *text = NULL;
+		size_t len = 0;
+		FILE *f = open_memstream(&text, &len);
+		int n = f ? scheme_import(path, NULL, f) : -1;
+
+		if (f)
+			fclose(f);
+		set_status(n > 0 ? "imported; it is in the list" : "nothing imported");
+		if (text && text[0])
+			show_report("Import", text);
+		free(text);
+		g_free(path);
+		fill_theme_list();
+	}
+	gtk_widget_destroy(d);
+}
+
+static void
+on_scheme_remove(GtkButton *b, gpointer data)
+{
+	GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(theme_box));
+	int i = row ? gtk_list_box_row_get_index(row) : -1;
+	char msg[256], name[NAME_LEN];
+
+	(void)b;
+	(void)data;
+	if (i < 0 || i >= ntheme_names)
+		return;
+	snprintf(name, sizeof name, "%s", theme_names[i]);
+	if (!strcmp(name, applied.th.name)) {
+		set_status("that is the scheme in use: apply another first");
+		return;
+	}
+	/* the selection is only browsed: compare with what is applied, not cfg */
+	if (scheme_remove(name) < 0) {
+		set_status("could not remove it");
+		return;
+	}
+	snprintf(msg, sizeof msg, "%s removed", name);
+	set_status(msg);
+	if (!strcmp(cfg.th.name, name))
+		front_set_theme(&cfg, applied.th.name), changed();
+	fill_theme_list();
+}
+
+static void
+on_scheme_restore(GtkButton *b, gpointer data)
+{
+	(void)b;
+	(void)data;
+	set_status(scheme_restore(NULL) == 0 ? "every hidden built-in scheme is back" : "could not restore");
+	fill_theme_list();
+}
+
+/* ---- colors of your own over the scheme's ---- */
+
+static void colors_fill(void);
+
+static gboolean
+colors_refill(gpointer data)
+{
+	(void)data;
+	colors_fill();
+	return G_SOURCE_REMOVE;
+}
+
+static void
+on_color_set(GtkColorButton *b, gpointer data)
+{
+	GdkRGBA c;
+	char hex[8];
+
+	gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(b), &c);
+	snprintf(hex, sizeof hex, "%02x%02x%02x", (int)(c.red * 255 + .5), (int)(c.green * 255 + .5),
+	         (int)(c.blue * 255 + .5));
+	if (front_set_color(&cfg, GPOINTER_TO_INT(data), hex) == 0)
+		changed();
+}
+
+static void
+on_color_scheme(GtkButton *b, gpointer data)
+{
+	(void)b;
+	front_set_color(&cfg, GPOINTER_TO_INT(data), NULL);
+	changed();
+}
+
+/* one row per role: the color (yours or the scheme's), its hex, and Scheme to drop yours */
+static void
+colors_fill(void)
+{
+	GList *old = gtk_container_get_children(GTK_CONTAINER(colors_grid));
+	Scheme s;
+
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	gui_scheme(&cfg, &s);
+	for (int r = 0; r < C_N; r++) {
+		GtkWidget *l = gtk_label_new(color_names[r]), *b, *h;
+		GdkRGBA c;
+		char hex[8];
+
+		snprintf(hex, sizeof hex, "#%s", s.hex[r]);
+		gdk_rgba_parse(&c, hex);
+		b = gtk_color_button_new_with_rgba(&c);
+		gtk_widget_set_tooltip_text(b, cfg.color[r][0] ? "your color" : "the scheme's color: pick one to use your own");
+		g_signal_connect(b, "color-set", G_CALLBACK(on_color_set), GINT_TO_POINTER(r));
+		h = gtk_label_new(s.hex[r]);
+		gtk_widget_set_halign(l, GTK_ALIGN_END);
+		gtk_grid_attach(GTK_GRID(colors_grid), l, 0, r, 1, 1);
+		gtk_grid_attach(GTK_GRID(colors_grid), b, 1, r, 1, 1);
+		gtk_grid_attach(GTK_GRID(colors_grid), h, 2, r, 1, 1);
+		if (cfg.color[r][0]) {
+			GtkWidget *x = gtk_button_new_with_label("Scheme");
+
+			gtk_widget_set_tooltip_text(x, "back to the scheme's color");
+			g_signal_connect(x, "clicked", G_CALLBACK(on_color_scheme), GINT_TO_POINTER(r));
+			gtk_grid_attach(GTK_GRID(colors_grid), x, 3, r, 1, 1);
+		} else {
+			gtk_grid_attach(GTK_GRID(colors_grid), caption("the scheme's"), 3, r, 1, 1);
+		}
+	}
+	gtk_widget_show_all(colors_grid);
+}
+
+/* ---- the environment: variables for the session (environment.d) ---- */
+
+static GtkWidget *env_box, *env_name, *env_value;
+static void env_fill(void);
+
+static gboolean
+env_refill(gpointer data)
+{
+	(void)data;
+	env_fill();
+	return G_SOURCE_REMOVE;
+}
+
+static void
+env_put(const char *name, const char *value)
+{
+	char msg[160];
+
+	if (front_env_set(&cfg, name, value, msg, sizeof msg) < 0) {
+		set_status(msg);
+		return;
+	}
+	changed();
+	g_idle_add(env_refill, NULL);
+}
+
+static void
+on_env_value(GtkEntry *e, gpointer data)
+{
+	(void)data;
+	env_put(g_object_get_data(G_OBJECT(e), "name"), gtk_entry_get_text(e));
+}
+
+static gboolean
+on_env_value_out(GtkWidget *w, GdkEvent *ev, gpointer data)
+{
+	const char *name = g_object_get_data(G_OBJECT(w), "name");
+
+	(void)ev;
+	(void)data;
+	for (int i = 0; i < cfg.nenv; i++)
+		if (!strcmp(cfg.env[i].name, name) && strcmp(cfg.env[i].value, gtk_entry_get_text(GTK_ENTRY(w))))
+			env_put(name, gtk_entry_get_text(GTK_ENTRY(w)));
+	return FALSE;
+}
+
+static void
+on_env_remove(GtkButton *b, gpointer data)
+{
+	(void)data;
+	env_put(g_object_get_data(G_OBJECT(b), "name"), "");
+}
+
+static void
+on_env_add(GtkWidget *w, gpointer data)
+{
+	const char *name = gtk_entry_get_text(GTK_ENTRY(env_name)), *value = gtk_entry_get_text(GTK_ENTRY(env_value));
+
+	(void)w;
+	(void)data;
+	if (!*name || !*value) {
+		set_status("a variable needs a name and a value");
+		return;
+	}
+	env_put(name, value);
+	gtk_entry_set_text(GTK_ENTRY(env_name), "");
+	gtk_entry_set_text(GTK_ENTRY(env_value), "");
+}
+
+static void
+env_fill(void)
+{
+	GList *old = gtk_container_get_children(GTK_CONTAINER(env_box));
+	GtkWidget *grid = grid_new();
+
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	for (int i = 0; i < cfg.nenv; i++) {
+		GtkWidget *l = gtk_label_new(cfg.env[i].name), *e = gtk_entry_new(), *x = gtk_button_new_with_label("Remove");
+		char *name = g_strdup(cfg.env[i].name);
+
+		gtk_widget_set_halign(l, GTK_ALIGN_END);
+		gtk_entry_set_text(GTK_ENTRY(e), cfg.env[i].value);
+		gtk_widget_set_hexpand(e, TRUE);
+		g_object_set_data_full(G_OBJECT(e), "name", name, g_free);
+		g_object_set_data_full(G_OBJECT(x), "name", g_strdup(name), g_free);
+		g_signal_connect(e, "activate", G_CALLBACK(on_env_value), NULL);
+		g_signal_connect(e, "focus-out-event", G_CALLBACK(on_env_value_out), NULL);
+		g_signal_connect(x, "clicked", G_CALLBACK(on_env_remove), NULL);
+		gtk_grid_attach(GTK_GRID(grid), l, 0, i, 1, 1);
+		gtk_grid_attach(GTK_GRID(grid), e, 1, i, 1, 1);
+		gtk_grid_attach(GTK_GRID(grid), x, 2, i, 1, 1);
+	}
+	if (!cfg.nenv)
+		gtk_grid_attach(GTK_GRID(grid), caption("No variables."), 0, 0, 2, 1);
+	gtk_box_pack_start(GTK_BOX(env_box), grid, FALSE, FALSE, 0);
+	gtk_widget_show_all(env_box);
+}
+
+static GtkWidget *
+page_env(void)
+{
+	GtkWidget *box = page_box(), *row, *b;
+
+	gtk_box_pack_start(GTK_BOX(box), heading("Environment"), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), caption("Variables for the whole session, written to environment.d "
+	                                        "on apply, where login sessions and systemd user services "
+	                                        "read them."), FALSE, FALSE, 0);
+	env_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+	gtk_box_pack_start(GTK_BOX(box), env_box, FALSE, FALSE, 4);
+	row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+	env_name = gtk_entry_new();
+	gtk_entry_set_placeholder_text(GTK_ENTRY(env_name), "NAME");
+	env_value = gtk_entry_new();
+	gtk_entry_set_placeholder_text(GTK_ENTRY(env_value), "value");
+	gtk_widget_set_hexpand(env_value, TRUE);
+	b = gtk_button_new_with_label("Add");
+	g_signal_connect(b, "clicked", G_CALLBACK(on_env_add), NULL);
+	g_signal_connect(env_value, "activate", G_CALLBACK(on_env_add), NULL);
+	gtk_box_pack_start(GTK_BOX(row), env_name, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(row), env_value, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(row), b, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), row, FALSE, FALSE, 0);
+	env_fill();
+	return box;
+}
+
+static GtkWidget *
+page_theme(void)
+{
+	GtkWidget *box = page_box(), *scroll, *hbox, *grid;
+
+	gtk_box_pack_start(GTK_BOX(box), heading("Color scheme"), FALSE, FALSE, 0);
+	theme_find = gtk_search_entry_new();
+	gtk_entry_set_placeholder_text(GTK_ENTRY(theme_find), "Find a scheme");
+	g_signal_connect(theme_find, "search-changed", G_CALLBACK(on_theme_find), NULL);
+	gtk_box_pack_start(GTK_BOX(box), theme_find, FALSE, FALSE, 0);
+	theme_box = gtk_list_box_new();
+	gtk_list_box_set_selection_mode(GTK_LIST_BOX(theme_box), GTK_SELECTION_BROWSE);
+	gtk_list_box_set_filter_func(GTK_LIST_BOX(theme_box), theme_filter, NULL, NULL);
+	fill_theme_list();
 	g_signal_connect(theme_box, "row-selected", G_CALLBACK(on_theme_selected), NULL);
 	scroll = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
@@ -886,26 +1279,47 @@ page_theme(void)
 	gtk_widget_set_size_request(scroll, -1, 200);
 	gtk_container_add(GTK_CONTAINER(scroll), theme_box);
 	gtk_box_pack_start(GTK_BOX(box), scroll, TRUE, TRUE, 0);
+	{
+		/* add your own (any .theme, Xresources, kitty, foot or alacritty colors),
+		 * remove one, bring back the built-in ones removed */
+		GtkWidget *bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6), *b;
+
+		b = gtk_button_new_with_label("Import…");
+		gtk_widget_set_tooltip_text(b, "A colour scheme file: a .theme, Xresources, kitty, foot or alacritty colors, or Gogh lines");
+		g_signal_connect(b, "clicked", G_CALLBACK(on_scheme_import), NULL);
+		gtk_box_pack_start(GTK_BOX(bar), b, FALSE, FALSE, 0);
+		b = gtk_button_new_with_label("Remove");
+		gtk_widget_set_tooltip_text(b, "Delete the selected scheme if it is yours, or hide it if it is built in");
+		g_signal_connect(b, "clicked", G_CALLBACK(on_scheme_remove), NULL);
+		gtk_box_pack_start(GTK_BOX(bar), b, FALSE, FALSE, 0);
+		b = gtk_button_new_with_label("Restore hidden");
+		gtk_widget_set_tooltip_text(b, "Bring back every built-in scheme that was removed");
+		g_signal_connect(b, "clicked", G_CALLBACK(on_scheme_restore), NULL);
+		gtk_box_pack_start(GTK_BOX(bar), b, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(box), bar, FALSE, FALSE, 0);
+	}
 
 	grid = grid_new();
-	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
-	mode_dark = gtk_radio_button_new_with_label(NULL, "Dark");
-	mode_light = gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(mode_dark), "Light");
+	/* dark and light side by side, the chosen one in the accent, as every
+	 * module's mode option */
+	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+	gtk_style_context_add_class(gtk_widget_get_style_context(hbox), "linked");
+	gtk_widget_set_halign(hbox, GTK_ALIGN_START);
+	mode_dark = gtk_radio_button_new_with_label(NULL, "dark");
+	mode_light = gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(mode_dark), "light");
+	gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(mode_dark), FALSE);
+	gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(mode_light), FALSE);
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(cfg.mode == MODE_DARK ? mode_dark : mode_light), TRUE);
 	g_signal_connect(mode_dark, "toggled", G_CALLBACK(on_mode), GINT_TO_POINTER(MODE_DARK));
 	g_signal_connect(mode_light, "toggled", G_CALLBACK(on_mode), GINT_TO_POINTER(MODE_LIGHT));
+	mark_mode();
 	gtk_box_pack_start(GTK_BOX(hbox), mode_dark, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(hbox), mode_light, FALSE, FALSE, 0);
 	grid_row(grid, 0, "Mode", hbox);
 
 	set_combo = gtk_combo_box_text_new();
-	n = template_all_sets(names, MAX_LIST);
-	for (i = 0; i < n; i++) {
-		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(set_combo), names[i]);
-		if (!strcmp(names[i], cfg.set))
-			gtk_combo_box_set_active(GTK_COMBO_BOX(set_combo), i);
-	}
-	g_signal_connect(set_combo, "changed", G_CALLBACK(on_combo_text), cfg.set);
+	fill_set_combo(set_combo, cfg.set);
+	g_signal_connect(set_combo, "changed", G_CALLBACK(on_set_combo), NULL);
 	grid_row(grid, 1, "Template set", set_combo);
 	{
 		/* new (a copy to edit), import (an existing theme), check (render it all) */
@@ -928,8 +1342,31 @@ page_theme(void)
 	gtk_box_pack_start(GTK_BOX(box), grid, FALSE, FALSE, 4);
 	gtk_box_pack_start(GTK_BOX(box), caption("A template set is the look: the widgets, bars, and "
 	                                        "chrome every module draws. What a set lacks comes "
-	                                        "from themer_chicago."), FALSE, FALSE, 0);
+	                                        "from Themer Chicago."), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), heading("Colors"), FALSE, FALSE, 0);
+	colors_grid = grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(colors_grid), 2);
+	gtk_box_pack_start(GTK_BOX(box), colors_grid, FALSE, FALSE, 0);
+	colors_fill();
+	gtk_box_pack_start(GTK_BOX(box), caption("A color of your own over the scheme's, in both modes: "
+	                                        "pick one, or Scheme to go back to the scheme's."), FALSE, FALSE, 0);
 	return box;
+}
+
+static GtkWidget *tty_combo;
+
+static void
+on_tty_font(GtkComboBox *combo, gpointer data)
+{
+	const char *v = gtk_entry_get_text(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(combo))));
+
+	(void)data;
+	if (updating || !strcmp(v, cfg.tty_font))
+		return;
+	if (front_set_tty_font(&cfg, v) == 0)
+		changed();
+	else if (*v)
+		set_status("a console font name is letters, digits, - and _");
 }
 
 static GtkWidget *
@@ -940,18 +1377,36 @@ page_fonts(void)
 
 	gtk_box_pack_start(GTK_BOX(box), heading("Fonts"), FALSE, FALSE, 0);
 	grid = grid_new();
-	ui_font = gtk_button_new();
-	font_button_label(ui_font, cfg.ui_font, cfg.ui_size);
-	g_signal_connect(ui_font, "clicked", G_CALLBACK(on_font_button), GINT_TO_POINTER(0));
-	grid_row(grid, 0, "Interface", ui_font);
-	mono_font = gtk_button_new();
-	font_button_label(mono_font, cfg.mono_font, cfg.mono_size);
-	g_signal_connect(mono_font, "clicked", G_CALLBACK(on_font_button), GINT_TO_POINTER(1));
-	grid_row(grid, 1, "Terminal", mono_font);
+	for (int mono = 0; mono < 2; mono++) {
+		GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6), *b, *spin;
+
+		b = gtk_button_new();
+		font_button_label(b, mono ? cfg.mono_font : cfg.ui_font, 0);
+		gtk_widget_set_tooltip_text(b, "Choose the family");
+		g_signal_connect(b, "clicked", G_CALLBACK(on_font_button), GINT_TO_POINTER(mono));
+		spin = gtk_spin_button_new_with_range(4, 72, 1);
+		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin), mono ? cfg.mono_size : cfg.ui_size);
+		gtk_widget_set_tooltip_text(spin, "Size in points");
+		g_signal_connect(spin, "value-changed", G_CALLBACK(on_font_size), GINT_TO_POINTER(mono));
+		gtk_box_pack_start(GTK_BOX(row), b, TRUE, TRUE, 0);
+		gtk_box_pack_start(GTK_BOX(row), spin, FALSE, FALSE, 0);
+		*(mono ? &mono_font : &ui_font) = b;
+		*(mono ? &mono_size_spin : &ui_size_spin) = spin;
+		grid_row(grid, mono, mono ? "Terminal" : "Interface", row);
+	}
+	{
+		static char names[1024][NAME_LEN];
+		int n = front_tty_fonts(names, 1024);
+
+		tty_combo = name_combo(names, n, cfg.tty_font);
+		gtk_widget_set_tooltip_text(tty_combo, "the Linux console's font (vconsole.conf)");
+		g_signal_connect(tty_combo, "changed", G_CALLBACK(on_tty_font), NULL);
+		grid_row(grid, 2, "Console", tty_combo);
+	}
 	gtk_box_pack_start(GTK_BOX(box), grid, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(box), caption("The interface font goes to GTK, Qt, the window "
 	                                        "manager, and the browsers; the terminal font to "
-	                                        "the terminals, editors, and Qt's fixed font."), FALSE, FALSE, 0);
+	                                        "the terminals, editors, and Qt's fixed font; the console font to the Linux console."), FALSE, FALSE, 0);
 
 	gtk_box_pack_start(GTK_BOX(box), heading("Rendering"), FALSE, FALSE, 0);
 	grid = grid_new();
@@ -1038,189 +1493,510 @@ page_cursor(void)
 	return box;
 }
 
-/* ---- module options ---- */
+/* ---- the modules page: the list on the left, the selected module on the right,
+ * its options in the sections every front end uses (front_option_group). A switch
+ * loads or unloads at once and an option takes effect at once, as in the TUI and
+ * themer-web; Apply is for the theme, fonts, icons and cursor. ---- */
 
-typedef struct { int module, option; GtkWidget *control; } OptRef;
+typedef struct { int module, option; } OptRef;
 
-/* the value a control holds, as text */
-static const char *
-option_control_value(const OptRef *o, char *buf, size_t n)
-{
-	if (GTK_IS_COMBO_BOX_TEXT(o->control))
-		snprintf(buf, n, "%s", gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(o->control))
-		                       ? gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(o->control)) : "");
-	else if (GTK_IS_SPIN_BUTTON(o->control))
-		snprintf(buf, n, "%d", gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(o->control)));
-	else
-		snprintf(buf, n, "%s", gtk_entry_get_text(GTK_ENTRY(o->control)));
-	return buf;
-}
+static GtkWidget *mod_list, *mod_detail, *mod_state[MAX_MODULES];
+static int mod_sel = -1;
+static OptRef optrefs[MAX_OPTS];
+static void on_opt_action(GtkButton *b, gpointer data);
 
-static void on_option_changed(GtkWidget *w, gpointer data);
+static void module_detail(void);
 
 static gboolean
-on_option_focus_out(GtkWidget *w, GdkEvent *e, gpointer data)
+rebuild_detail(gpointer data)
+{
+	(void)data;
+	module_detail();
+	return G_SOURCE_REMOVE;
+}
+
+/* the detail is rebuilt after the signal that changed it has returned */
+static void
+later_rebuild(void)
+{
+	g_idle_add(rebuild_detail, NULL);
+}
+
+static const char *
+module_state_text(int i)
+{
+	return !themer_module_present(&cfg, i) ? "not installed" : themer_module_on(&cfg, i) ? "on" : "off";
+}
+
+static void
+refresh_module_states(void)
+{
+	for (int k = 0; k < nmodule_order; k++)
+		if (mod_state[module_order[k]])
+			gtk_label_set_text(GTK_LABEL(mod_state[module_order[k]]), module_state_text(module_order[k]));
+}
+
+/* sets an option; it takes effect at once */
+static void
+set_opt(const OptRef *o, const char *value)
+{
+	char msg[256];
+
+	if (updating || !strcmp(value, themer_option_value(&cfg, o->module, o->option)))
+		return;
+	front_option_set(&cfg, o->module, o->option, value, msg, sizeof msg);
+	set_status(msg);
+	restyle();
+	later_rebuild();
+}
+
+static void
+on_opt_combo(GtkComboBox *c, gpointer data)
+{
+	const char *id = gtk_combo_box_get_active_id(c);   /* a set: its directory name */
+	gchar *t = id ? NULL : gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(c));
+
+	if (id || t)
+		set_opt(data, id ? id : t);
+	g_free(t);
+}
+
+/* a slider takes effect once it rests, not at every step of a drag (each step
+ * would reload the module and rebuild the page under the pointer) */
+static guint scale_timer;
+static char scale_value[16];
+static const OptRef *scale_ref;
+
+static gboolean
+scale_commit(gpointer data)
+{
+	(void)data;
+	scale_timer = 0;
+	if (scale_ref)
+		set_opt(scale_ref, scale_value);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+on_opt_scale(GtkRange *r, gpointer data)
+{
+	if (updating)
+		return;
+	snprintf(scale_value, sizeof scale_value, "%d", (int)gtk_range_get_value(r));
+	scale_ref = data;
+	if (scale_timer)
+		g_source_remove(scale_timer);
+	scale_timer = g_timeout_add(400, scale_commit, NULL);
+}
+
+static void
+on_opt_entry(GtkEntry *e, gpointer data)
+{
+	set_opt(data, gtk_entry_get_text(e));
+}
+
+static gboolean
+on_opt_entry_out(GtkWidget *w, GdkEvent *e, gpointer data)
 {
 	(void)e;
-	on_option_changed(w, data);
+	set_opt(data, gtk_entry_get_text(GTK_ENTRY(w)));
 	return FALSE;
 }
 
 static void
-on_option_changed(GtkWidget *w, gpointer data)
+on_opt_switch(GtkSwitch *sw, GParamSpec *ps, gpointer data)
 {
-	OptRef *o = data;
-	char value[NAME_LEN], msg[256];
-
-	(void)w;
-	if (updating)
-		return;
-	option_control_value(o, value, sizeof value);
-	if (!strcmp(value, themer_option_value(&cfg, o->module, o->option)))
-		return;
-	if (front_option_set(&cfg, o->module, o->option, value, msg, sizeof msg) < 0)
-		set_status(msg);
-	else
-		set_status(msg);
-	restyle();
+	(void)ps;
+	set_opt(data, gtk_switch_get_active(sw) ? "on" : "off");
 }
 
-/* a control for one option: a combo for choices, a spin button for a range, an entry
- * otherwise; the template option lists the sets */
-static GtkWidget *
-option_control(int module, int option)
+static void
+on_opt_seg(GtkToggleButton *b, gpointer data)
 {
-	const TmOption *o = themer_option(module, option);
-	const char *cur = themer_option_value(&cfg, module, option);
+	if (gtk_toggle_button_get_active(b))
+		set_opt(data, g_object_get_data(G_OBJECT(b), "value"));
+}
+
+static void
+on_opt_reset(GtkButton *b, gpointer data)
+{
+	const OptRef *o = data;
+	char msg[256];
+
+	(void)b;
+	front_option_reset(&cfg, o->module, o->option, msg, sizeof msg);
+	set_status(msg);
+	restyle();
+	later_rebuild();
+}
+
+static void
+on_module_switch(GtkSwitch *sw, GParamSpec *ps, gpointer data)
+{
+	int i = GPOINTER_TO_INT(data), on = gtk_switch_get_active(sw);
+
+	(void)ps;
+	if (updating || on == themer_module_on(&cfg, i))
+		return;
+	if (front_module_set(&cfg, i, on) < 0)
+		set_status(on ? "the module did not load; see the terminal" : "unload had errors");
+	else
+		set_status(on ? "module loaded" : "module unloaded");
+	refresh_module_states();
+	later_rebuild();
+}
+
+static void
+on_server(GtkButton *b, gpointer data)
+{
+	int port = front_web_port(&cfg), up = front_web_running(port);
+
+	(void)b;
+	(void)data;
+	if ((up ? front_web_stop(port) : front_web_start(port)) < 0)
+		set_status(up ? "could not stop themer-web" : "could not start themer-web (is a browser module on?)");
+	else
+		set_status(up ? "themer-web stopped" : "themer-web started");
+	later_rebuild();
+}
+
+/* a control for one option: a switch for on|off, linked buttons for mode, a combo
+ * for other choices and for the template set, a spin button for a range, an entry
+ * otherwise */
+static GtkWidget *
+option_control(OptRef *ref)
+{
+	const TmOption *o = themer_option(ref->module, ref->option);
+	const char *cur = themer_option_value(&cfg, ref->module, ref->option);
 	GtkWidget *w;
-	OptRef *ref = g_new0(OptRef, 1);
 
-	ref->module = module;
-	ref->option = option;
-	if (o->choices) {
+	switch (front_option_control(ref->module, ref->option)) {
+	case OC_SWITCH:
+		w = gtk_switch_new();
+		gtk_switch_set_active(GTK_SWITCH(w), !strcmp(cur, "on"));
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+		g_signal_connect(w, "notify::active", G_CALLBACK(on_opt_switch), ref);
+		break;
+	case OC_BUTTONS: {
+		/* the choices side by side, the chosen one in the accent */
+		GSList *group = NULL;
 		const char *p = o->choices;
-		int i = 0;
 
-		w = gtk_combo_box_text_new();
+		w = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+		gtk_style_context_add_class(gtk_widget_get_style_context(w), "linked");
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
 		while (*p) {
-			const char *bar = strchr(p, '|');
-			size_t len = bar ? (size_t)(bar - p) : strlen(p);
-			char *item = g_strndup(p, len);
+			size_t len = strcspn(p, "|");
+			char *v = g_strndup(p, len);
+			GtkWidget *b = gtk_radio_button_new_with_label(group, v);
 
-			gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(w), item);
-			if (!strcmp(item, cur))
-				gtk_combo_box_set_active(GTK_COMBO_BOX(w), i);
-			g_free(item);
-			i++;
-			if (!bar)
-				break;
-			p = bar + 1;
+			group = gtk_radio_button_get_group(GTK_RADIO_BUTTON(b));
+			gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(b), FALSE);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(b), !strcmp(v, cur));
+			if (!strcmp(v, cur))
+				gtk_style_context_add_class(gtk_widget_get_style_context(b), "themer-on");
+			g_object_set_data_full(G_OBJECT(b), "value", v, g_free);
+			g_signal_connect(b, "toggled", G_CALLBACK(on_opt_seg), ref);
+			gtk_box_pack_start(GTK_BOX(w), b, FALSE, FALSE, 0);
+			p += len;
+			if (*p)
+				p++;
 		}
-		g_signal_connect(w, "changed", G_CALLBACK(on_option_changed), ref);
-	} else if (o->max > o->min) {
-		w = gtk_spin_button_new_with_range(o->min, o->max, 1);
-		gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), atoi(cur));
-		g_signal_connect(w, "value-changed", G_CALLBACK(on_option_changed), ref);
-	} else if (!strcmp(o->name, "template")) {
-		char names[MAX_LIST][NAME_LEN];
-		int n = template_all_sets(names, MAX_LIST);
-
+		break;
+	}
+	case OC_LIST:
 		w = gtk_combo_box_text_new();
-		for (int i = 0; i < n; i++) {
-			gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(w), names[i]);
-			if (!strcmp(names[i], cur))
-				gtk_combo_box_set_active(GTK_COMBO_BOX(w), i);
+		if (!strcmp(o->name, "template")) {
+			fill_set_combo(w, cur);
+		} else {
+			int i = 0;
+
+			for (const char *p = o->choices; *p; i++) {
+				size_t len = strcspn(p, "|");
+				char *v = g_strndup(p, len);
+
+				gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(w), v);
+				if (!strcmp(v, cur))
+					gtk_combo_box_set_active(GTK_COMBO_BOX(w), i);
+				g_free(v);
+				p += len;
+				if (*p)
+					p++;
+			}
 		}
-		g_signal_connect(w, "changed", G_CALLBACK(on_option_changed), ref);
-	} else {
+		g_signal_connect(w, "changed", G_CALLBACK(on_opt_combo), ref);
+		break;
+	case OC_SLIDER:
+		/* a bar to drag, its value beside it */
+		w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, o->min, o->max, 1);
+		gtk_scale_set_digits(GTK_SCALE(w), 0);
+		gtk_scale_set_value_pos(GTK_SCALE(w), GTK_POS_RIGHT);
+		gtk_range_set_value(GTK_RANGE(w), atoi(cur));
+		gtk_widget_set_size_request(w, 200, -1);
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+		g_signal_connect(w, "value-changed", G_CALLBACK(on_opt_scale), ref);
+		break;
+	default:
 		w = gtk_entry_new();
 		gtk_entry_set_text(GTK_ENTRY(w), cur);
-		g_signal_connect(w, "activate", G_CALLBACK(on_option_changed), ref);
-		g_signal_connect(w, "focus-out-event", G_CALLBACK(on_option_focus_out), ref);
+		gtk_entry_set_placeholder_text(GTK_ENTRY(w), o->def);
+		g_signal_connect(w, "activate", G_CALLBACK(on_opt_entry), ref);
+		g_signal_connect(w, "focus-out-event", G_CALLBACK(on_opt_entry_out), ref);
 	}
-	ref->control = w;
 	gtk_widget_set_tooltip_text(w, o->desc);
 	return w;
 }
 
-/* the options of one module as a grid: name, control, description */
-static GtkWidget *
-options_grid(int module)
+/* rebuilds the right side for the selected module */
+static void
+module_detail(void)
 {
-	GtkWidget *grid = grid_new();
-	int n = themer_option_count(module);
+	GtkWidget *box, *top, *name, *sw, *grid = NULL;
+	GList *old = gtk_container_get_children(GTK_CONTAINER(mod_detail));
+	int i = mod_sel, no, row = 0, last = -1;
+	char *m;
 
-	gtk_widget_set_margin_start(grid, 12);
-	gtk_widget_set_margin_top(grid, 4);
-	gtk_widget_set_margin_bottom(grid, 6);
-	for (int j = 0; j < n; j++) {
-		GtkWidget *l = gtk_label_new(themer_option(module, j)->name), *d = caption(themer_option(module, j)->desc);
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	if (i < 0)
+		return;
+	updating++;
+	box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+	gtk_container_set_border_width(GTK_CONTAINER(box), 10);
 
-		gtk_widget_set_halign(l, GTK_ALIGN_END);
-		gtk_grid_attach(GTK_GRID(grid), l, 0, j, 1, 1);
-		gtk_grid_attach(GTK_GRID(grid), option_control(module, j), 1, j, 1, 1);
-		gtk_widget_set_margin_start(d, 6);
-		gtk_grid_attach(GTK_GRID(grid), d, 2, j, 1, 1);
-	}
-	return grid;
+	top = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+	name = gtk_label_new(NULL);
+	m = g_markup_printf_escaped("<b><big>%s</big></b>", themer_module_name(i));
+	gtk_label_set_markup(GTK_LABEL(name), m);
+	g_free(m);
+	gtk_widget_set_halign(name, GTK_ALIGN_START);
+	sw = gtk_switch_new();
+	gtk_switch_set_active(GTK_SWITCH(sw), themer_module_on(&cfg, i));
+	gtk_widget_set_valign(sw, GTK_ALIGN_CENTER);
+	gtk_widget_set_tooltip_text(sw, "on: Apply writes this program's settings; off: they are removed");
+	g_signal_connect(sw, "notify::active", G_CALLBACK(on_module_switch), GINT_TO_POINTER(i));
+	gtk_box_pack_start(GTK_BOX(top), name, TRUE, TRUE, 0);
+	gtk_box_pack_end(GTK_BOX(top), sw, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), top, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), caption(themer_module_desc(i)), FALSE, FALSE, 0);
+	if (!themer_module_present(&cfg, i))
+		gtk_box_pack_start(GTK_BOX(box), caption(themer_module_on(&cfg, i)
+		                   ? "Its program is not installed here; the module stays on and takes effect once it appears."
+		                   : "Its program is not installed here."), FALSE, FALSE, 0);
+
+	no = themer_option_count(i);
+	for (int g = 0; g < OG_N; g++)
+		for (int j = 0; j < no; j++) {
+			const TmOption *o = themer_option(i, j);
+			GtkWidget *l, *d, *r;
+			char note[512];
+
+			if (front_option_group(i, j) != g)
+				continue;
+			if (g != last) {
+				last = g;
+				gtk_box_pack_start(GTK_BOX(box), heading(front_option_groups[g]), FALSE, FALSE, 0);
+				gtk_box_pack_start(GTK_BOX(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 0);
+				grid = grid_new();
+				gtk_grid_set_row_spacing(GTK_GRID(grid), 2);
+				gtk_widget_set_margin_start(grid, 6);
+				gtk_box_pack_start(GTK_BOX(box), grid, FALSE, FALSE, 0);
+				row = 0;
+			}
+			optrefs[j] = (OptRef){ i, j };
+			l = gtk_label_new(o->name);
+			gtk_widget_set_halign(l, GTK_ALIGN_END);
+			gtk_widget_set_size_request(l, 100, -1);
+			gtk_grid_attach(GTK_GRID(grid), l, 0, row, 1, 1);
+			if (front_option_action(&cfg, i, j)) {
+				/* the control, then its action (Install for a stylus site) */
+				GtkWidget *hb = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+				GtkWidget *ab = gtk_button_new_with_label(front_option_action(&cfg, i, j));
+
+				gtk_widget_set_tooltip_text(ab, "opens the style in your browser, where Stylus offers to install it");
+				g_signal_connect(ab, "clicked", G_CALLBACK(on_opt_action), &optrefs[j]);
+				gtk_box_pack_start(GTK_BOX(hb), option_control(&optrefs[j]), FALSE, FALSE, 0);
+				gtk_box_pack_start(GTK_BOX(hb), ab, FALSE, FALSE, 0);
+				gtk_grid_attach(GTK_GRID(grid), hb, 1, row, 1, 1);
+			} else {
+				gtk_grid_attach(GTK_GRID(grid), option_control(&optrefs[j]), 1, row, 1, 1);
+			}
+			if (themer_option_is_set(&cfg, i, j)) {
+				r = gtk_button_new_with_label("Reset");
+				gtk_widget_set_halign(r, GTK_ALIGN_START);
+				g_signal_connect(r, "clicked", G_CALLBACK(on_opt_reset), &optrefs[j]);
+				gtk_grid_attach(GTK_GRID(grid), r, 2, row, 1, 1);
+				snprintf(note, sizeof note, "%s · default: %s", o->desc,
+				         !strcmp(o->name, "template") ? "the global set" : o->def);
+			} else {
+				snprintf(note, sizeof note, "%s", o->desc);
+			}
+			d = caption(note);
+			gtk_label_set_max_width_chars(GTK_LABEL(d), 60);
+			gtk_widget_set_margin_bottom(d, 6);
+			gtk_grid_attach(GTK_GRID(grid), d, 1, row + 1, 2, 1);
+			row += 2;
+		}
+	if (!no)
+		gtk_box_pack_start(GTK_BOX(box), caption("This module has no options."), FALSE, FALSE, 6);
+	gtk_container_add(GTK_CONTAINER(mod_detail), box);
+	gtk_widget_show_all(mod_detail);
+	updating--;
+}
+
+/* ---- the Server page: themer-web, started and stopped by hand ---- */
+
+static GtkWidget *server_box;
+
+static void server_fill(void);
+
+static gboolean
+server_refill(gpointer data)
+{
+	(void)data;
+	server_fill();
+	return G_SOURCE_REMOVE;
+}
+
+static void
+on_server_toggle(GtkButton *b, gpointer data)
+{
+	on_server(b, data);
+	g_idle_add(server_refill, NULL);
+}
+
+/* the action beside an option (Install for a stylus site): the style opened in the
+ * default browser, the server started if need be */
+static void
+on_opt_action(GtkButton *b, gpointer data)
+{
+	const OptRef *o = data;
+	char msg[256];
+
+	(void)b;
+	front_option_run(&cfg, o->module, o->option, msg, sizeof msg);
+	set_status(msg);
+	g_idle_add(server_refill, NULL);
+}
+
+static void
+on_web_port(GtkSpinButton *b, gpointer data)
+{
+	(void)data;
+	if (updating)
+		return;
+	if (front_set_web_port(&cfg, gtk_spin_button_get_value_as_int(b)) < 0)
+		set_status("could not move themer-web to that port");
+	else
+		set_status("port saved");
+	g_idle_add(server_refill, NULL);
+}
+
+static void
+server_fill(void)
+{
+	GList *old = gtk_container_get_children(GTK_CONTAINER(server_box));
+	int port = front_web_port(&cfg), up = front_web_running(port);
+	GtkWidget *row, *b, *grid, *spin;
+	char st[128], url[64];
+
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	updating++;
+	snprintf(url, sizeof url, "http://localhost:%d/", port);
+	row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+	snprintf(st, sizeof st, up ? "themer-web is running" : "themer-web is stopped");
+	gtk_box_pack_start(GTK_BOX(row), gtk_label_new(st), FALSE, FALSE, 0);
+	b = gtk_button_new_with_label(up ? "Stop" : "Start");
+	g_signal_connect(b, "clicked", G_CALLBACK(on_server_toggle), NULL);
+	gtk_box_pack_end(GTK_BOX(row), b, FALSE, FALSE, 0);
+	if (up)
+		gtk_box_pack_end(GTK_BOX(row), gtk_link_button_new_with_label(url, "Open in the browser"), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(server_box), row, FALSE, FALSE, 0);
+
+	grid = grid_new();
+	spin = gtk_spin_button_new_with_range(1024, 65535, 1);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin), port);
+	gtk_widget_set_halign(spin, GTK_ALIGN_START);
+	g_signal_connect(spin, "value-changed", G_CALLBACK(on_web_port), NULL);
+	grid_row(grid, 0, "Port", spin);
+	gtk_box_pack_start(GTK_BOX(server_box), grid, FALSE, FALSE, 6);
+	gtk_box_pack_start(GTK_BOX(server_box), caption("On localhost. A running server moves to a new port. "
+	                   "It stops by itself when no browser module (firefox, stylus) is on. Stylus installs "
+	                   "the userstyles from it and keeps them current while it runs: each site, with its "
+	                   "Install button, is under Modules, stylus."), FALSE, FALSE, 0);
+	gtk_widget_show_all(server_box);
+	updating--;
+}
+
+static GtkWidget *
+page_server(void)
+{
+	GtkWidget *box = page_box();
+
+	gtk_box_pack_start(GTK_BOX(box), heading("Server"), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), caption("themer-web: this window's settings in the browser, and the "
+	                                        "userstyles of the stylus module. Started and stopped here."),
+	                   FALSE, FALSE, 0);
+	server_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+	gtk_box_pack_start(GTK_BOX(box), server_box, FALSE, FALSE, 0);
+	server_fill();
+	return box;
+}
+
+static void
+on_module_selected(GtkListBox *box, GtkListBoxRow *row, gpointer data)
+{
+	(void)box;
+	(void)data;
+	if (!row)
+		return;
+	mod_sel = module_order[gtk_list_box_row_get_index(row)];
+	module_detail();
 }
 
 static GtkWidget *
 page_modules(void)
 {
-	GtkWidget *box = page_box(), *scroll, *list;
-	int i;
+	GtkWidget *box = page_box(), *paned, *scroll;
 
 	gtk_box_pack_start(GTK_BOX(box), heading("Modules"), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(box), caption("Each module writes one program's settings on Apply "
-	                                        "and removes them when turned off. Open a module for "
-	                                        "its options, which take effect at once; \"template\" "
-	                                        "pins it to a set of its own (the global set otherwise)."),
+	gtk_box_pack_start(GTK_BOX(box), caption("Each module themes one program: turned on it writes "
+	                                        "that program's settings, turned off it removes them. "
+	                                        "Switches and options take effect at once."),
 	                   FALSE, FALSE, 0);
-	list = gtk_list_box_new();
-	gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_NONE);
-	modules_box = list;
+	paned = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+	mod_list = gtk_list_box_new();
+	gtk_list_box_set_selection_mode(GTK_LIST_BOX(mod_list), GTK_SELECTION_BROWSE);
 	nmodule_order = front_module_order(module_order, MAX_MODULES);
 	for (int k = 0; k < nmodule_order; k++) {
-		GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10), *text, *name, *desc, *sw;
-		GtkWidget *outer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-		int no;
+		int i = module_order[k];
+		GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8), *name = gtk_label_new(themer_module_name(i));
 
-		i = module_order[k];
-		text = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-		name = gtk_label_new(themer_module_name(i));
 		gtk_widget_set_halign(name, GTK_ALIGN_START);
-		desc = caption(themer_module_desc(i));
-		if (!themer_module_present(&cfg, i)) {
-			gtk_label_set_text(GTK_LABEL(name), g_strdup_printf("%s  (not installed)", themer_module_name(i)));
-			gtk_widget_set_sensitive(desc, FALSE);
-		}
-		gtk_box_pack_start(GTK_BOX(text), name, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(text), desc, FALSE, FALSE, 0);
-		sw = gtk_switch_new();
-		gtk_widget_set_valign(sw, GTK_ALIGN_CENTER);
-		gtk_switch_set_active(GTK_SWITCH(sw), themer_module_on(&cfg, i));
-		g_signal_connect(sw, "notify::active", G_CALLBACK(on_module), GINT_TO_POINTER(i));
-		module_switch[i] = sw;
-		gtk_box_pack_start(GTK_BOX(row), text, TRUE, TRUE, 0);
-		gtk_box_pack_end(GTK_BOX(row), sw, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(outer), row, FALSE, FALSE, 0);
-		/* the options, under an expander */
-		no = themer_option_count(i);
-		if (no) {
-			GtkWidget *exp = gtk_expander_new("options");
-
-			gtk_container_add(GTK_CONTAINER(exp), options_grid(i));
-			gtk_box_pack_start(GTK_BOX(outer), exp, FALSE, FALSE, 0);
-		}
-		gtk_container_set_border_width(GTK_CONTAINER(outer), 6);
-		gtk_list_box_insert(GTK_LIST_BOX(list), outer, -1);
+		mod_state[i] = caption(module_state_text(i));
+		gtk_box_pack_start(GTK_BOX(row), name, TRUE, TRUE, 0);
+		gtk_box_pack_end(GTK_BOX(row), mod_state[i], FALSE, FALSE, 0);
+		gtk_container_set_border_width(GTK_CONTAINER(row), 4);
+		gtk_list_box_insert(GTK_LIST_BOX(mod_list), row, -1);
 	}
+	g_signal_connect(mod_list, "row-selected", G_CALLBACK(on_module_selected), NULL);
 	scroll = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll), GTK_SHADOW_IN);
-	gtk_container_add(GTK_CONTAINER(scroll), list);
-	gtk_box_pack_start(GTK_BOX(box), scroll, TRUE, TRUE, 0);
+	gtk_widget_set_size_request(scroll, 190, -1);
+	gtk_container_add(GTK_CONTAINER(scroll), mod_list);
+	gtk_box_pack_start(GTK_BOX(paned), scroll, FALSE, FALSE, 0);
+
+	mod_detail = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(mod_detail), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(mod_detail), GTK_SHADOW_IN);
+	gtk_box_pack_start(GTK_BOX(paned), mod_detail, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(box), paned, TRUE, TRUE, 0);
+	if (nmodule_order)
+		gtk_list_box_select_row(GTK_LIST_BOX(mod_list), gtk_list_box_get_row_at_index(GTK_LIST_BOX(mod_list), 0));
 	return box;
 }
 
@@ -1237,6 +2013,8 @@ set_controls_from_cfg(void)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(cfg.mode == MODE_DARK ? mode_dark : mode_light), TRUE);
 	font_button_label(ui_font, cfg.ui_font, cfg.ui_size);
 	font_button_label(mono_font, cfg.mono_font, cfg.mono_size);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(ui_size_spin), cfg.ui_size);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(mono_size_spin), cfg.mono_size);
 	gtk_entry_set_text(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(icon_combo))), cfg.icons);
 	gtk_entry_set_text(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(cursor_combo))), cfg.cursor);
 	gtk_spin_button_set_value(GTK_SPIN_BUTTON(cursor_size), cfg.cursor_size);
@@ -1247,9 +2025,11 @@ set_controls_from_cfg(void)
 	for (i = 0; i < 5; i++)
 		if (!strcmp(rgba_values[i], cfg.rgba))
 			gtk_combo_box_set_active(GTK_COMBO_BOX(rgba_combo), i);
-	for (i = 0; i < themer_module_count(); i++)
-		if (module_switch[i])
-			gtk_switch_set_active(GTK_SWITCH(module_switch[i]), themer_module_on(&cfg, i));
+	gtk_entry_set_text(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(tty_combo))), cfg.tty_font);
+	colors_fill();
+	env_fill();
+	refresh_module_states();
+	module_detail();
 }
 
 /* ordinary widgets, so the GTK theme shows on the real thing */
@@ -1431,6 +2211,8 @@ main(int argc, char *argv[])
 	if (themer_startup(&cfg) < 0)
 		return 1;
 	applied = cfg;
+	front_track(&cfg, &applied);
+	g_timeout_add(1000, sync_tick, NULL);
 
 	provider = gtk_css_provider_new();
 	gtk_style_context_add_provider_for_screen(gdk_screen_get_default(), GTK_STYLE_PROVIDER(provider),
@@ -1455,6 +2237,8 @@ main(int argc, char *argv[])
 	gtk_stack_add_titled(GTK_STACK(stack), page_icons(), "icons", "Icons");
 	gtk_stack_add_titled(GTK_STACK(stack), page_cursor(), "cursor", "Cursor");
 	gtk_stack_add_titled(GTK_STACK(stack), page_modules(), "modules", "Modules");
+	gtk_stack_add_titled(GTK_STACK(stack), page_env(), "env", "Environment");
+	gtk_stack_add_titled(GTK_STACK(stack), page_server(), "server", "Server");
 	sidebar = gtk_stack_sidebar_new();
 	gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(sidebar), GTK_STACK(stack));
 	gtk_widget_set_size_request(sidebar, 130, -1);
@@ -1491,9 +2275,15 @@ main(int argc, char *argv[])
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	restyle();
 	gtk_widget_show_all(window);
-	/* themer-gtk [theme|fonts|icons|cursor|modules] opens on that page */
+	/* themer-gtk [theme|fonts|icons|cursor|modules [MODULE]|server] opens on that page,
+	 * and on the modules page on that module */
 	if (argc > 1 && gtk_stack_get_child_by_name(GTK_STACK(stack), argv[1]))
 		gtk_stack_set_visible_child_name(GTK_STACK(stack), argv[1]);
+	if (argc > 2 && !strcmp(argv[1], "modules"))
+		for (int k = 0; k < nmodule_order; k++)
+			if (!strcmp(themer_module_name(module_order[k]), argv[2]))
+				gtk_list_box_select_row(GTK_LIST_BOX(mod_list),
+				                        gtk_list_box_get_row_at_index(GTK_LIST_BOX(mod_list), k));
 	gtk_main();
 	return 0;
 }

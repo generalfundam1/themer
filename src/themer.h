@@ -25,8 +25,10 @@ extern "C" {
 #define NAME_LEN     64
 #define MAX_ENV      64
 #define MAX_MODULES  32
-#define MAX_MODOPTS  128
-#define MAX_NAMES    64          /* themes, template sets, or files listed at once */
+#define MAX_MODOPTS  256
+#define MAX_OPTS     32          /* options of one module, the host's mode included */
+#define MAX_NAMES    64          /* template sets or files listed at once */
+#define MAX_THEMES   1024        /* colour schemes listed at once */
 
 /* the roles a theme file defines, in the order of color_names */
 enum { C_BG, C_FG, C_SURF, C_ACC, C_ACCFG, C_URG, C_WARN, C_N };
@@ -58,6 +60,7 @@ typedef struct {
 	char icons[64];
 	char cursor[64];
 	int cursor_size;
+	int web_port;                   /* where themer-web listens on localhost */
 	char hinting[16];               /* none, slight, medium, full */
 	int antialias;
 	char rgba[8];                   /* none, rgb, bgr, vrgb, vbgr */
@@ -92,15 +95,29 @@ int  theme_enforce(Theme *t, int *adjusted);
 int  theme_list(char names[][NAME_LEN], int max);
 void theme_scheme(const Config *c, Scheme *s);
 
+/* scheme.c: colour schemes in (from .theme, Gogh, Xresources, kitty, foot or
+ * alacritty colors; the missing side derived) and out (the user's deleted, a
+ * built-in one hidden). import returns how many it wrote, -1 on failure. */
+int  scheme_import(const char *path, const char *name, FILE *report);
+int  scheme_remove(const char *name);
+int  scheme_restore(const char *name);        /* NULL: every hidden one */
+int  scheme_removed(const char *name);
+
 /* state.c: defaults and the state file */
 int  config_defaults(Config *c);
 int  state_load(Config *c);
 int  state_save(const Config *c);
+int  config_same(const Config *a, const Config *b);   /* the same settings */
+/* whether the state file changed since this process last read or wrote it (another
+ * front end saved), and merging: into disk, the settings mine changed from base */
+int  state_changed(void);
+void config_merge(Config *disk, const Config *mine, const Config *base);
 void env_set(Config *c, const char *name, const char *value);
 int  config_module_on(const Config *c, const char *name, int dflt);
 void config_set_module(Config *c, const char *name, int on);
 const char *config_option(const Config *c, const char *key);
 void config_set_option(Config *c, const char *key, const char *value);
+void config_unset_option(Config *c, const char *key);
 
 /* registry.c: the loaded modules, their options, and apply */
 void modules_load(void);
@@ -115,11 +132,16 @@ int  themer_module_present(const Config *c, int i);   /* 1 unless its present() 
 int  themer_module_set(Config *c, int i, int on);
 int  themer_module_vars(int i, const TmTheme *t, TmVar *v, int max);
 void themer_view(const Config *c, const Scheme *s, TmTheme *t);
+/* the mode a module is rendered in (its "mode" option or the global one), and the
+ * view it is handed in that mode */
+int  themer_module_mode(const Config *c, int i);
+void themer_module_view(const Config *c, int i, Scheme *s, TmTheme *t);
 int  themer_option_count(int i);
 int  themer_option_find(int i, const char *name);
 const TmOption *themer_option(int i, int j);
 const char *themer_option_value(const Config *c, int i, int j);
-int  themer_option_set(Config *c, int i, int j, const char *value);
+int  themer_option_set(Config *c, int i, int j, const char *value);   /* NULL: the default */
+int  themer_option_is_set(const Config *c, int i, int j);  /* the user set it */
 
 /* manifest.c: runs a module's load (after undoing its previous changes) or its undo */
 int  mod_load(const TmModule *m, const TmTheme *t);
@@ -150,6 +172,17 @@ int  gen_tty(const Config *, const Scheme *);
 int  gen_grub(const Config *, const Scheme *);
 
 /* util.c */
+/* Replacing a file whole, atomically: afile_open makes a temporary file beside the
+ * real one (a symlink is followed, so a linked dotfile stays linked; the original's
+ * permissions are kept), afile_commit renames it into place, afile_abort drops it.
+ * A failure halfway never leaves the real file truncated. Setting sync before the
+ * commit also flushes it to disk first: for what cannot be made again (the state,
+ * the user's own files and their kept originals, the undo logs), not for files a
+ * module generates, which the next apply rewrites anyway. */
+typedef struct { char path[PATH_MAX], tmp[PATH_MAX + 16]; FILE *f; int sync; } AFile;
+FILE *afile_open(AFile *a, const char *path, int binary);
+int   afile_commit(AFile *a);
+void  afile_abort(AFile *a);
 int  path_under_home(char *out, size_t n, const char *rel);
 int  mkdirs(const char *path);
 int  write_gen(const char *path, EmitFn fn, const Config *c, const Scheme *s);
@@ -158,6 +191,7 @@ int  kv_set_file(const char *path, const char *key, const char *val);
 int  run(const char *cmd);
 int  is_root(void);
 int  valid_name(const char *s);
+int  valid_text(const char *s, size_t max);   /* printable, non-empty, shorter than max */
 
 /* icons.c: installed icon themes (directories with an index.theme), sorted; with
  * cursors = 1 only those that hold cursors. Looks in ~/.icons, ~/.local/share/icons,
@@ -187,6 +221,7 @@ int  set_info(const char *set, const char *key, char *out, size_t n);
  * front_apply applies and saves, returning the number of failures. */
 int  front_set_theme(Config *c, const char *name);
 int  front_set_set(Config *c, const char *name);           /* the template set */
+const char *front_set_title(const char *set, char *out, size_t n);  /* its display name */
 int  front_set_font(Config *c, int mono, const char *family, int size); /* size 0 keeps it */
 int  front_set_icons(Config *c, const char *name);
 int  front_set_cursor(Config *c, const char *name, int size); /* NULL or 0 keeps one */
@@ -194,14 +229,77 @@ int  front_set_hinting(Config *c, const char *value);
 int  front_set_rgba(Config *c, const char *value);
 void front_set_antialias(Config *c, int on);
 int  front_apply(Config *c);
+/* Keeping a long-running front end in step with the others. front_track names its
+ * settings (cfg, being browsed) and what was last saved (base). front_sync then
+ * reads the state file when another front end changed it and merges: their
+ * changes come in, cfg's unapplied ones stay; it returns 1 when anything changed
+ * (redraw). front_apply and every immediate save (a module, an option, the port)
+ * sync first, so no front end writes back settings it read before another
+ * changed them; an immediate save writes base with the one change, never cfg's
+ * unapplied browsing. */
+void front_track(Config *cfg, Config *base);
+/* a module loaded or unloaded now and saved (from base when tracked) */
+int  front_module_set(Config *c, int module, int on);
+int  front_sync(void);
+int  front_save_now(Config *c);
 int  front_set_copy(const char *from, const char *to, FILE *report);
 int  front_option_set(Config *c, int module, int option, const char *value, char *msg, size_t n);
+/* back to the option's default (for template: following the global set again) */
+int  front_option_reset(Config *c, int module, int option, char *msg, size_t n);
+/* How every front end lays out a module's options: the server section (server,
+ * port), the look (mode, font, template and every other setting), then the parts it
+ * themes (the on|off options: gtk2, qt6, a stylus site). */
+enum { OG_LOOK, OG_PARTS, OG_N };
+extern const char *const front_option_groups[OG_N];
+int  front_option_group(int module, int option);
+int  front_option_is_switch(int module, int option);   /* on|off */
+/* The control every front end draws for an option, so they look alike: a switch
+ * (on|off), buttons side by side (a few short choices, the chosen one in the
+ * accent), a list (the template set; long choice lists), a slider (a number in a
+ * range), or a text field. */
+enum { OC_SWITCH, OC_BUTTONS, OC_LIST, OC_SLIDER, OC_TEXT };
+int  front_option_control(int module, int option);
+/* themer-web: its port (in the state), whether it runs, and starting (detached) or
+ * stopping it; 0 on success. front_set_web_port moves a running server along. */
+int  front_web_port(const Config *c);
+int  front_set_web_port(Config *c, int port);
+int  front_web_running(int port);
+int  front_web_start(int port);
+int  front_web_stop(int port);
 /* the modules in name order: fills order with indexes, returns the count */
 int  front_module_order(int *order, int max);
 /* renders templates/<set>/<dir>/<file> for the configuration as it is now, with the
  * named module's own variables. Returns 0, or -1 with a message on stderr. */
 int  front_render(const Config *c, const char *module, const char *dir, const char *file,
                   char *out, size_t n);
+
+int  front_scheme_remove(Config *c, const char *name, char *msg, size_t n);
+
+/* opens a file or URL in the default browser (xdg-open), detached; 0 on success */
+int  front_open(const char *target);
+/* the stylus module's sites that are on (none when the module is off); returns the count */
+int  front_stylus_sites(const Config *c, const char **sites, int max);
+/* puts a site's userstyle (every site's, when site is NULL) in front of Stylus: starts
+ * themer-web when it is down, then opens the style's address in the default browser,
+ * where Stylus offers to install it. Returns 0 or -1, with a line for the user in msg. */
+int  front_stylus_install(const Config *c, const char *site, char *msg, size_t n);
+
+/* A single color over the scheme's (role is a C_* index; hex is rrggbb, with or
+ * without #; NULL or "" goes back to the scheme's), and a role by its name. */
+int  front_set_color(Config *c, int role, const char *hex);
+int  front_color_role(const char *name);
+/* the console (TTY) font, and the installed ones (kbd's consolefonts), sorted */
+int  front_set_tty_font(Config *c, const char *name);
+int  front_tty_fonts(char names[][NAME_LEN], int max);
+/* an environment variable for the session (environment.d): an empty value removes
+ * it. Refuses a bad name or a value that is not one line, with a reason in msg. */
+int  front_env_set(Config *c, const char *name, const char *value, char *msg, size_t n);
+/* An action shown beside an option, in every front end: its label ("Install" for a
+ * stylus site that is on) or NULL; the page it opens, as a themer-web path (the web
+ * front end links to it); and running it (the others: front_stylus_install). */
+const char *front_option_action(const Config *c, int module, int option);
+int  front_option_link(const Config *c, int module, int option, char *out, size_t n);
+int  front_option_run(const Config *c, int module, int option, char *msg, size_t n);
 
 /* tui.c */
 void tui_run(Config *c);

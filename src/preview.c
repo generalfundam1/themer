@@ -21,7 +21,7 @@ css_str(char *out, size_t n, const char *s)
 	out[k] = '\0';
 }
 
-/* writes ~/.cache/themer/fonts/<family>-<size>.html and returns its path */
+/* writes ~/.config/themer/cache/fonts/<family>-<size>.html and returns its path */
 int
 font_preview_write(const Config *c, const Scheme *s, const char *family, int size,
                    char *out, size_t n)
@@ -35,7 +35,7 @@ font_preview_write(const Config *c, const Scheme *s, const char *family, int siz
 	for (k = 0; family[k] && k < sizeof safe - 1; k++)
 		safe[k] = isalnum((unsigned char)family[k]) ? family[k] : '_';
 	safe[k] = '\0';
-	if (path_under_home(dir, sizeof dir, ".cache/themer/fonts") < 0)
+	if (path_under_home(dir, sizeof dir, ".config/themer/cache/fonts") < 0)
 		return -1;
 	mkdirs(dir);
 	if (snprintf(file, sizeof file, "%s/%s-%d.html", dir, safe, size) >= (int)sizeof file)

@@ -4,6 +4,9 @@
 /themer
 /themer-gtk
 /themer-qt
+/themer-web
+/gui/web_page.h
+__pycache__/
 /gui/qpa/qt5/
 /gui/qpa/qt6/
 /config.h

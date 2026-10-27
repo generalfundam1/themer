@@ -340,7 +340,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "qt",
-	.desc = "Qt 5 and 6: palette, flat stylesheet, icons, fonts, through themer's own platform theme",
+	.desc = "Qt 5 and 6: palette, stylesheet, icons and fonts, through themer's platform theme",
 	.templates = "qt",
 	.default_on = 1,
 	.present = present,

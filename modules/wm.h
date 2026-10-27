@@ -11,7 +11,10 @@
  * Options:
  *   font      ui or terminal, for window titles and the bar
  *   menu      the launcher bound to $menu: auto, wmenu, dmenu, or none
- *   bar       a themed bar block: auto adds one only if the config has none
+ *   bar       auto: your own bar { } blocks are switched off (#themer-off:, put
+ *             back on unload) and replaced: by waybar under sway when the waybar
+ *             module is on, by themer's themed bar otherwise, keeping your bar's
+ *             status_command. themer: always themer's bar. keep: your bar as it is.
  *   template  the set under templates/wm/
  * Borders, gaps, and titlebars are the user's own config: themer writes colors and
  * the font, nothing a line in the config could not say. */
@@ -31,7 +34,7 @@
 static const TmOption wm_options[] = {
 	{ "font",       "font for window titles and the bar", "ui|terminal", "ui", 0, 0 },
 	{ "menu",       "launcher for $menu (wmenu, dmenu, or none)", "auto|wmenu|dmenu|none", "auto", 0, 0 },
-	{ "bar",        "themed bar block: auto adds one only if the config has none", "auto|on|off", "auto", 0, 0 },
+	{ "bar",        "auto replaces your bar with themer's (or waybar, when its module is on); themer: always themer's; keep: your own", "auto|themer|keep", "auto", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
 
@@ -74,28 +77,51 @@ wm_present(const TmTheme *t, const char *wm, const char *socket_var)
 	return !access(p, F_OK);
 }
 
-/* true if the file has a "bar {" block of its own */
-static int
-wm_has_bar(const char *path)
+/* The status_command of the first bar { } block in the config, if any, so the bar
+ * that replaces it shows the same status line. */
+static void
+wm_bar_status(const char *path, char *out, size_t n)
 {
 	char *line = NULL;
 	size_t cap = 0;
-	int found = 0;
+	int in_bar = 0, depth = 0;
 	FILE *f = fopen(path, "r");
 
+	out[0] = '\0';
 	if (!f)
-		return 0;
-	while (getline(&line, &cap, f) > 0) {
+		return;
+	while (!out[0] && getline(&line, &cap, f) > 0) {
 		const char *s = line;
 
 		while (*s == ' ' || *s == '\t')
 			s++;
-		if (!strncmp(s, "bar", 3) && (s[3] == ' ' || s[3] == '{' || s[3] == '\t'))
-			found = 1;
+		if (!in_bar && !strncmp(s, "bar", 3) && (s[3] == ' ' || s[3] == '{' || s[3] == '\t'))
+			in_bar = 1;
+		if (!in_bar)
+			continue;
+		if (!strncmp(s, "status_command", 14) && (s[14] == ' ' || s[14] == '\t'))
+			snprintf(out, n, "%.*s", (int)strcspn(s, "\r\n"), s);
+		for (s = *s == '#' ? "" : s; *s; s++)       /* # inside a line is a color */
+			depth += *s == '{' ? 1 : *s == '}' ? -1 : 0;
+		if (depth <= 0 && strchr(line, '}'))
+			in_bar = 0, depth = 0;
 	}
 	free(line);
 	fclose(f);
-	return found;
+}
+
+/* the bar the WM gets: "themer", "waybar" (sway with the waybar module on), or
+ * "keep" (the user's own, left alone) */
+static const char *
+wm_bar_kind(const TmTheme *t, const char *wm)
+{
+	const char *o = wm_opt(t, wm, "bar");
+
+	if (o && (!strcmp(o, "keep") || !strcmp(o, "off")))   /* off: earlier builds */
+		return "keep";
+	if (o && (!strcmp(o, "themer") || !strcmp(o, "on")))
+		return "themer";
+	return !strcmp(wm, "sway") && tm_loaded(t, "waybar") && tm_have("waybar") ? "waybar" : "themer";
 }
 
 /* The launcher script for $menu: the chosen menu's, if its module is loaded, or
@@ -122,30 +148,37 @@ wm_menu_script(const TmTheme *t, const char *wm, char *out, size_t n)
 static int
 wm_vars(const TmTheme *t, const char *wm, TmVar *v, int max)
 {
-	static char bar[2048], fam[128], size_s[16], cursor[256];
-	const char *bar_opt = wm_opt(t, wm, "bar");
-	TmVar bv[2];
-	int size, want_bar;
+	static char bar[2048], fam[128], size_s[16], cursor[256], status[512];
+	const char *kind = wm_bar_kind(t, wm);
+	TmVar bv[3];
+	int size;
 
-	if (max < 4)
+	if (max < 5)
 		return 0;
 	tm_font_for(t, wm_key(wm, "font"), fam, sizeof fam, &size);
 	snprintf(size_s, sizeof size_s, "%d", size);
-	if (!bar_opt || !strcmp(bar_opt, "auto")) {
+	bar[0] = '\0';
+	if (!strcmp(kind, "waybar")) {
+		snprintf(bar, sizeof bar, "bar {\n\tswaybar_command waybar\n}\n");
+	}
+	{
 		char cfg[PATH_MAX];
 
+		/* the status line of the bar it replaces; i3status, or the date, otherwise */
 		wm_config_path(t, wm, cfg, sizeof cfg);
-		want_bar = !wm_has_bar(cfg);
-	} else {
-		want_bar = !strcmp(bar_opt, "on");
+		wm_bar_status(cfg, status, sizeof status);
+		if (!status[0])
+			snprintf(status, sizeof status, "status_command %s",
+			         tm_have("i3status") ? "i3status" : "while date +'%Y-%m-%d %H:%M'; do sleep 30; done");
 	}
-
-	bar[0] = '\0';
-	bv[0] = (TmVar){ "font_family", fam };
-	bv[1] = (TmVar){ "font_size", size_s };
-	if (want_bar && tm_render(bar, sizeof bar, WM_TEMPLATES, wm_opt(t, wm, "template"),
-	                          "bar.conf", t, bv, 2) < 0)
-		return -1;
+	if (!strcmp(kind, "themer")) {
+		bv[0] = (TmVar){ "font_family", fam };
+		bv[1] = (TmVar){ "font_size", size_s };
+		bv[2] = (TmVar){ "bar_status", status };
+		if (tm_render(bar, sizeof bar, WM_TEMPLATES, wm_opt(t, wm, "template"),
+		              "bar.conf", t, bv, 3) < 0)
+			return -1;
+	}
 	v[0] = (TmVar){ "font_family", fam };
 	v[1] = (TmVar){ "font_size", size_s };
 	v[2] = (TmVar){ "bar_block", bar };
@@ -154,7 +187,8 @@ wm_vars(const TmTheme *t, const char *wm, TmVar *v, int max)
 	if (!strcmp(wm, "sway"))
 		snprintf(cursor, sizeof cursor, "seat * xcursor_theme %s %d", t->cursor, t->cursor_size);
 	v[3] = (TmVar){ "cursor_block", cursor };
-	return 4;
+	v[4] = (TmVar){ "bar_status", status };
+	return 5;
 }
 
 /* writes <wm>/themer.conf from templates/wm/<set>/themer.conf and includes it from
@@ -164,7 +198,7 @@ wm_load(const TmTheme *t, const char *wm, const char *socket_var)
 {
 	char cfg[PATH_MAX], conf[PATH_MAX], rel[128], script[PATH_MAX], menu_line[PATH_MAX + 32];
 	char body[4096];
-	TmVar v[4];
+	TmVar v[5];
 	int nv;
 
 	if (!wm_present(t, wm, socket_var))
@@ -178,6 +212,10 @@ wm_load(const TmTheme *t, const char *wm, const char *socket_var)
 	                        "themer.conf", t, v, nv) < 0)
 		return -1;
 	if (tm_writef(conf, "%s", body) < 0)
+		return -1;
+
+	/* the user's own bar gives way to the one in themer.conf */
+	if (strcmp(wm_bar_kind(t, wm), "keep") && tm_disable_block(cfg, "bar") < 0)
 		return -1;
 
 	/* $menu is expanded where a binding is read, so it must be set in the config

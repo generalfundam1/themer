@@ -23,7 +23,9 @@ bad() { printf 'FAIL: %s\n' "$*"; fail=1; }
 mkdir -p "$HOME/.config/foot" "$HOME/.config/sway" "$HOME/.config/waybar" "$HOME/.config/nvim" \
          "$HOME/.config/qt6ct" "$HOME/.config/gtk-3.0"
 printf 'font=monospace:size=9\n[colors]\nbackground=000000\n' > "$HOME/.config/foot/foot.ini"
-printf 'set $mod Mod4\nset $menu dmenu_run\nbindsym $mod+d exec $menu\n' > "$HOME/.config/sway/config"
+# set $menu with a tab and a line longer than any fixed buffer: unload must give it
+# back byte for byte (the undo log escapes tabs and keeps lines of any length)
+printf 'set $mod Mod4\nset $menu\tdmenu_run -l 10 # %0300d\nbindsym $mod+d exec $menu\nbar {\n  status_command i3blocks\n  colors { background #000000 }\n}\n' 0 > "$HOME/.config/sway/config"
 printf '* { color: red; }\n' > "$HOME/.config/waybar/style.css"
 printf '{ "modules-left": ["sway/workspaces"] }\n' > "$HOME/.config/waybar/config.jsonc"
 printf -- '-- my init\nvim.o.number = true\n' > "$HOME/.config/nvim/init.lua"
@@ -43,23 +45,37 @@ mkdir -p "$HOME/orig" && cp -r "$HOME/.config" "$HOME/.mozilla" "$HOME/orig/"
 
 # ---- 1. render every template ----
 t "render: every template, every theme, both modes"
-for theme in $(./themer list); do
-	for mode in dark light; do
-		./themer theme "$theme" >/dev/null 2>&1
-		./themer "$mode" >/dev/null 2>&1
-		./themer module list | awk '{print $1}' | while read -r mod; do
-			./themer template list "$mod" 2>/dev/null | while read -r set; do
-				./themer template list "$mod" "$set" | while read -r file; do
-					./themer template render "$mod" "$set" "$file" >/dev/null 2>"$HOME/err" ||
-						{ bad "$mod/$set/$file with $theme $mode: $(cat "$HOME/err")"; touch "$HOME/failed"; }
-				done
-			done
-		done
-	done
-done
-[ -e "$HOME/failed" ] && fail=1
+# set check renders every file of the set for every theme in both modes, in one
+# process, with each module's own variables
+./themer set check themer_chicago >"$HOME/check" 2>&1 || bad "$(grep -v '^ ' "$HOME/check" | tail -20)"
+grep -q ' 0 failed' "$HOME/check" || bad "render failures: $(tail -1 "$HOME/check")"
 
 # ---- 2. apply ----
+t "schemes: import (Gogh, Xresources, kitty, alacritty), remove, restore"
+d="$HOME/schemes"; mkdir -p "$d"
+printf '*background: #1d2021\n*foreground: #ebdbb2\n' > "$d/x.Xresources"
+i=0; for c in 282828 cc241d 98971a d79921 458588 b16286 689d6a a89984 928374 fb4934 b8bb26 fabd2f 83a598 d3869b 8ec07c ebdbb2; do
+	printf '*color%d: #%s\n' $i $c >> "$d/x.Xresources"; printf 'color%d #%s\n' $i $c >> "$d/k.conf"; i=$((i + 1))
+done
+printf '[colors.primary]\nbackground = "#fdf6e3"\n[colors.normal]\nblack = "#073642"\nred = "#dc322f"\ngreen = "#859900"\nyellow = "#b58900"\nblue = "#268bd2"\nmagenta = "#d33682"\ncyan = "#2aa198"\nwhite = "#eee8d5"\n[colors.bright]\nblack = "#002b36"\nred = "#cb4b16"\ngreen = "#586e75"\nyellow = "#657b83"\nblue = "#839496"\nmagenta = "#6c71c4"\ncyan = "#93a1a1"\nwhite = "#fdf6e3"\n' > "$d/a.toml"
+./themer scheme import "$d/x.Xresources" mine-x >/dev/null || bad "import Xresources"
+./themer scheme import "$d/k.conf" mine-k >/dev/null || bad "import kitty"
+./themer scheme import "$d/a.toml" mine-a >/dev/null || bad "import alacritty"
+[ "$(./themer scheme import test/gogh-schemes.txt 2>/dev/null | grep -c imported)" = 226 ] || bad "import of the Gogh list did not give 226 schemes"
+for n in mine-x mine-k mine-a 3024night; do ./themer list | grep -qx "$n" || bad "imported $n not listed"; done
+grep -q '^\[light\]' "$HOME/.config/themer/themes/mine-a.theme" && grep -q '^\[dark\]' "$HOME/.config/themer/themes/mine-a.theme" ||
+	bad "an imported scheme lacks a side"
+./themer theme mine-x >/dev/null 2>&1 || bad "an imported scheme does not apply"
+./themer scheme remove mine-x >/dev/null 2>&1 && bad "the scheme in use was removed"
+./themer theme nord >/dev/null 2>&1
+./themer scheme remove mine-x >/dev/null || bad "remove an imported scheme"
+[ -e "$HOME/.config/themer/themes/mine-x.theme" ] && bad "a removed own scheme is still there"
+./themer scheme remove habamax >/dev/null || bad "hide a built-in scheme"
+./themer list | grep -qx habamax && bad "a hidden built-in scheme is still listed"
+./themer scheme restore >/dev/null || bad "restore"
+./themer list | grep -qx habamax || bad "a restored scheme is not listed"
+rm -rf "$HOME/.config/themer/themes" "$d"
+
 t "apply: user configs edited in place"
 ./themer theme nord >/dev/null 2>&1
 # a gtk-3.0/gtk.css rendered by an old build is moved aside; the user's own is kept
@@ -80,12 +96,128 @@ grep -q 'color: red' "$HOME/.config/gtk-3.0/gtk.css" || bad "the user's own gtk-
 expect .config/qt6ct/qss/themer/themer.qss
 expect .config/themer/qt/theme.conf
 expect .config/themer/stylus/youtube.user.css
+expect .config/themer/stylus/wikipedia.user.css
+grep -q "filter: invert(1) hue-rotate(180deg)" "$HOME/.config/themer/stylus/wikipedia.user.css" || bad "wikipedia: drawings not inverted in dark mode"
+grep -q "^@updateURL *http://localhost:7331/stylus/wikipedia.user.css" "$HOME/.config/themer/stylus/wikipedia.user.css" || bad "wikipedia userstyle has no @updateURL"
 head -c 512 "$HOME/.config/themer/stylus/youtube.user.css" | grep -q 'generated by themer' || bad "userstyle has no marker"
 head -1 "$HOME/.config/themer/stylus/youtube.user.css" | grep -q '==UserStyle==' || bad "userstyle does not start with the UserCSS header"
 grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" || bad "userstyle has no font rule"
 ./themer module option stylus font site >/dev/null 2>&1 || bad "set stylus.font"
 grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" && bad "stylus font=site still sets a font"
 ./themer module option stylus font ui >/dev/null 2>&1
+grep -q '^@updateURL *http://localhost:7331/stylus/youtube.user.css' "$HOME/.config/themer/stylus/youtube.user.css" || bad "userstyle has no @updateURL"
+# names typed in are checked: no newline into config files, no path as a set
+./themer font ui "$(printf 'Sans\nexec touch /tmp/x')" 11 >/dev/null 2>&1 && bad "a font name with a newline was taken"
+./themer module option gtk template ../.config/nvim >/dev/null 2>&1 && bad "a path was taken as a template set"
+grep -q 'exec touch' "$HOME/.config/sway/themer.conf" 2>/dev/null && bad "a newline in a font name reached the sway config"
+# one switch per site: off removes that site's style, on brings it back
+./themer module options stylus | grep -q '^youtube  *= on' || bad "stylus has no youtube switch"
+./themer module option stylus youtube off >/dev/null 2>&1 || bad "set stylus.youtube"
+[ -e "$HOME/.config/themer/stylus/youtube.user.css" ] && bad "stylus.youtube off left the style"
+./themer module option stylus youtube on >/dev/null 2>&1
+[ -e "$HOME/.config/themer/stylus/youtube.user.css" ] || bad "stylus.youtube on did not render the style"
+./themer module option stylus wikipedia off >/dev/null 2>&1 || bad "set stylus.wikipedia"
+[ -e "$HOME/.config/themer/stylus/wikipedia.user.css" ] && bad "stylus.wikipedia off left the style"
+[ -e "$HOME/.config/themer/stylus/youtube.user.css" ] || bad "stylus.wikipedia off took youtube with it"
+./themer module option stylus wikipedia on >/dev/null 2>&1
+grep -q '^@version *1\.[0-9]*\.[0-9]*' "$HOME/.config/themer/stylus/youtube.user.css" || bad "userstyle version does not grow"
+
+# ---- the web front end: serves the page, the state, the styles; applies ----
+if command -v curl >/dev/null 2>&1; then
+	t "themer-web: page, state, styles, apply"
+	mkdir -p "$HOME/.config/themer/themes"
+	printf '[dark]\nbg=zz\n' > "$HOME/.config/themer/themes/000broken.theme"
+	./themer-web -p 7390 >"$HOME/web.log" 2>&1 &
+	webpid=$!
+	sleep 1
+	w=http://127.0.0.1:7390
+	code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+	post() { curl -s -H 'X-Themer: 1' -H 'Content-Type: application/json' -d "$2" "$w$1"; }
+	# a POST without X-Themer, or a request for another Host, is refused
+	[ "$(code -d '{}' "$w/api/apply")" = 403 ] || bad "themer-web: a POST without X-Themer was taken"
+	[ "$(code -H 'Host: evil.example:7390' "$w/api/state")" = 403 ] || bad "themer-web: another Host was answered"
+	curl -s "$w/" | grep -q '<title>themer</title>' || bad "themer-web: no page"
+	curl -s "$w/api/state" > "$HOME/state.json"
+	grep -q '"theme":"' "$HOME/state.json" && grep -q '"name":"stylus"' "$HOME/state.json" ||
+		bad "themer-web: the state is missing things"
+	# a broken theme file leaves the JSON well formed: no element is skipped
+	# with its separator left behind
+	grep -q '\[,\|,,\|,\]' "$HOME/state.json" && bad "themer-web: malformed state JSON"
+	curl -s "$w/stylus/youtube.user.css" | head -c 512 | grep -q 'generated by themer' || bad "themer-web: no userstyle"
+	curl -s "$w/theme.css" | head -1 | grep -q '^:root {' || bad "themer-web: no theme.css"
+	# icons: the selected theme's own file, or 404; never a path outside the themes
+	mkdir -p "$HOME/.icons/T/48x48/apps"
+	printf '[Icon Theme]\nDirectories=48x48/apps\n[48x48/apps]\nSize=48\n' > "$HOME/.icons/T/index.theme"
+	printf '<svg xmlns="http://www.w3.org/2000/svg"><path fill="#bebebe"/></svg>' > "$HOME/.icons/T/48x48/apps/tm-sym-symbolic.svg"
+	cp "$HOME/.icons/T/48x48/apps/tm-sym-symbolic.svg" "$HOME/.icons/T/48x48/apps/tm-own.svg"
+	post /api/set '{"icons":"T"}' >/dev/null
+	curl -s "$w/icon/tm-own" | grep -q 'fill="#bebebe"' || bad "themer-web: icon not served as is"
+	curl -s "$w/icon/tm-sym" | grep -q 'fill="#bebebe"' && bad "themer-web: symbolic icon not recolored"
+	[ "$(code "$w/icon/tm-none")" = 404 ] || bad "themer-web: missing icon not 404"
+	[ "$(code "$w/icon/..%2f..%2fetc%2fpasswd")" = 404 ] || bad "themer-web: icon path escapes"
+	post /api/set "{\"icons\":\"$(sed 's/.*"icons":"\([^"]*\)".*/\1/' "$HOME/state.json")\"}" >/dev/null
+	[ "$(code -H 'X-Themer: 1' -H 'Content-Length: 99999999' -d x "$w/api/set")" = 413 ] ||
+		bad "themer-web: a huge Content-Length was not refused"
+	# every setting reaches the page: colors of your own, the console font, the
+	# environment, and Install beside a stylus site in its options
+	curl -s "$w/api/state" > "$HOME/st.json"
+	grep -q '"overrides":{"bg":""' "$HOME/st.json" || bad "themer-web: no color overrides in the state"
+	grep -q '"tty_font":"' "$HOME/st.json" || bad "themer-web: no console font in the state"
+	grep -q '"env":\[\["' "$HOME/st.json" || bad "themer-web: no environment in the state"
+	grep -q '"name":"youtube"[^}]*"action":"Install","link":"/stylus/youtube.user.css"' "$HOME/st.json" ||
+		bad "themer-web: no Install action on the stylus site"
+	post /api/set '{"color":"acc","value":"12ab34"}' | grep -q '"acc":"12ab34"' || bad "themer-web: color override not set"
+	[ "$(code -H 'X-Themer: 1' -d '{"color":"acc","value":"zz"}' "$w/api/set")" = 400 ] || bad "themer-web: a bad color was taken"
+	post /api/set '{"color":"acc","value":""}' | grep -q '"overrides":{[^}]*"acc":""' || bad "themer-web: color override not cleared"
+	post /api/set '{"env":"TM_TEST","value":"a b"}' | grep -q '\["TM_TEST","a b"\]' || bad "themer-web: env not set"
+	[ "$(code -H 'X-Themer: 1' -d '{"env":"1BAD","value":"x"}' "$w/api/set")" = 400 ] || bad "themer-web: a bad variable name was taken"
+	post /api/set '{"env":"TM_TEST","value":""}' | grep -q 'TM_TEST' && bad "themer-web: env not removed"
+	post /api/set '{"tty_font":"ter-v20n"}' | grep -q '"tty_font":"ter-v20n"' || bad "themer-web: console font not set"
+	[ "$(code -H 'X-Themer: 1' -d '{"tty_font":"../x"}' "$w/api/set")" = 400 ] || bad "themer-web: a bad console font was taken"
+	post /api/revert '{}' >/dev/null
+	# another front end saves while this one browses: its change comes in, the
+	# browsing stays, and saving a module does not write the browsing
+	th0=$(sed -n 's/^theme=//p' "$HOME/.config/themer/state")
+	post /api/set '{"theme":"gruvbox"}' >/dev/null
+	m0=$(sed -n 's/^mode=//p' "$HOME/.config/themer/state"); m1=$([ "$m0" = dark ] && echo light || echo dark)
+	./themer $m1 >/dev/null 2>&1
+	curl -s "$w/api/state" | grep -q "\"theme\":\"gruvbox\",\"mode\":\"$m1\"" || bad "themer-web: a change made elsewhere did not merge"
+	post /api/module '{"name":"st","on":"true"}' >/dev/null
+	grep -qx "theme=$th0" "$HOME/.config/themer/state" || bad "themer-web: a module switch saved the browsed theme"
+	post /api/module '{"name":"st","on":"false"}' >/dev/null
+	./themer $m0 >/dev/null 2>&1; post /api/revert '{}' >/dev/null
+	# started by hand while running: opens the running one's page instead
+	mkdir -p "$HOME/bin"
+	printf '#!/bin/sh\necho "$1" >> "$HOME/opened"\n' > "$HOME/bin/xdg-open"; chmod +x "$HOME/bin/xdg-open"
+	PATH="$HOME/bin:$PWD:$PATH" ./themer-web -p 7390 >/dev/null 2>&1 || bad "themer-web did not open the running server"
+	grep -qx "http://localhost:7390/" "$HOME/opened" 2>/dev/null || bad "themer-web opened the wrong page"
+	rm -f "$HOME/opened"
+	[ "$(code --path-as-is "$w/stylus/../state")" = 404 ] || bad "themer-web: a path outside the styles was served"
+	post /api/set '{"theme":"gruvbox","mode":"light"}' | grep -q '"theme":"gruvbox","mode":"light"' ||
+		bad "themer-web: set did not take"
+	grep -q '"dirty":true' "$HOME/state.json" && bad "themer-web: a fresh server says it has unapplied changes"
+	post /api/apply '{}' | grep -q '"failures":0' || bad "themer-web: apply failed"
+	curl -s "$w/api/state" | grep -q '"dirty":false' || bad "themer-web: still unapplied after apply"
+	kill $webpid 2>/dev/null; wait $webpid 2>/dev/null
+	rm -f "$HOME/.config/themer/themes/000broken.theme"
+	grep -q '^theme=gruvbox' "$HOME/.config/themer/state" || bad "themer-web apply did not save the state"
+	# back to what the later checks expect
+	./themer theme nord >/dev/null 2>&1; ./themer dark >/dev/null 2>&1
+	# without a browser module it declines to run
+	./themer module unload firefox >/dev/null 2>&1; ./themer module unload stylus >/dev/null 2>&1
+	./themer-web -p 7391 2>&1 | grep -q "no browser module" || bad "themer-web ran without a browser module"
+	./themer module load firefox >/dev/null 2>&1; ./themer module load stylus >/dev/null 2>&1
+	# server install: starts the server and opens each style in the browser (a stand-in xdg-open)
+	mkdir -p "$HOME/bin"
+	printf '#!/bin/sh\necho "$1" >> "$HOME/opened"\n' > "$HOME/bin/xdg-open"; chmod +x "$HOME/bin/xdg-open"
+	./themer apply >/dev/null 2>&1; ./themer server port 7392 >/dev/null
+	PATH="$HOME/bin:$PWD:$PATH" ./themer server install >/dev/null 2>&1 || bad "server install failed"
+	sleep 0.3
+	grep -qx "http://localhost:7392/stylus/youtube.user.css" "$HOME/opened" 2>/dev/null || bad "server install opened the wrong address"
+	[ "$(code http://127.0.0.1:7392/stylus/youtube.user.css)" = 200 ] || bad "server install: the style is not served"
+	PATH="$HOME/bin:$PWD:$PATH" ./themer server install nosuch >/dev/null 2>&1 && bad "server install took a site that is not on"
+	PATH="$PWD:$PATH" ./themer server stop >/dev/null 2>&1; ./themer server port 7331 >/dev/null; rm -f "$HOME/opened"
+fi
 expect .config/themer/qt/themer.qss
 grep -q '^active=#' "$HOME/.config/themer/qt/theme.conf" || bad "theme.conf has no palette"
 if [ -e gui/qpa/qt5/platformthemes/libthemer.so ] || [ -e gui/qpa/qt6/platformthemes/libthemer.so ]; then
@@ -99,7 +231,8 @@ grep -q '^QT_QPA_PLATFORMTHEME=qt5ct$' "$HOME/.config/environment.d/40-themer-qt
 ./themer module option qt platformtheme auto >/dev/null 2>&1
 expect .config/nvim/colors/themer.lua
 expect .config/sway/themer.conf
-expect .config/waybar/style.css.themer-orig
+# the user's own style.css is kept under ~/.config/themer/originals while waybar is on
+[ -e "$HOME/.config/themer/originals/waybar$HOME/.config/waybar/style.css" ] || bad "waybar: the user's style.css was not kept in originals/"
 # a module whose program is absent writes nothing, but stays on for when it appears
 if command -v wmenu >/dev/null 2>&1; then
 	expect .config/themer/bin/themer-wmenu
@@ -113,6 +246,7 @@ expect .config/themer/env.sh
 expect .config/environment.d/40-themer-newt.conf
 grep -q 'themer:firefox begin' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox chrome block missing"
 grep -q '^/\* mine \*/' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "user's userChrome.css lost"
+grep -q '#TabsToolbar)\[collapsed\]:not(\[collapsed="false"\])' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox: a toolbar Firefox hides with a bare collapsed attribute is forced visible"
 grep -q 'themer:firefox-content begin' "$HOME/.mozilla/firefox/abc.default/chrome/userContent.css" || bad "firefox content block missing"
 grep -q 'open-menu\|data:image/svg+xml' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "no icon embedded (fallback icons not found)"
 grep -q 'themer:thunderbird begin' "$HOME/.config/thunderbird/tb.default/chrome/userChrome.css" || bad "thunderbird chrome block missing"
@@ -120,6 +254,15 @@ grep -q '^/\* mine \*/' "$HOME/.config/thunderbird/tb.default/chrome/userChrome.
 grep -q 'themer:thunderbird-content begin' "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" || bad "thunderbird content block missing"
 grep -q -- '--layout-background-0: #' "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" || bad "thunderbird tokens not in userContent.css"
 grep -q 'background=2e3440' "$HOME/.config/foot/foot.ini" || bad "foot colors not set"
+# the host's mode option: foot pinned to light under a dark system, then back
+./themer module options foot | grep -q '^mode  *= auto' || bad "foot has no mode option"
+./themer module options cursor | grep -q '^mode ' && bad "a colorless module got a mode option"
+./themer module option foot mode light >/dev/null 2>&1 || bad "set foot.mode"
+grep -q '^initial-color-theme=light' "$HOME/.config/foot/foot.ini" || bad "foot.mode light not rendered light"
+grep -q 'gtk-application-prefer-dark-theme=1' "$HOME/.config/gtk-3.0/settings.ini" || bad "foot.mode changed gtk's mode"
+./themer module option foot mode purple >/dev/null 2>&1 && bad "foot.mode took a bad value"
+./themer module option foot mode auto >/dev/null 2>&1
+grep -q '^initial-color-theme=dark' "$HOME/.config/foot/foot.ini" || bad "foot.mode auto did not follow the global mode"
 grep -q '^font=monospace:size=10' "$HOME/.config/foot/foot.ini" || bad "foot top-level font not updated"
 grep -q 'themer:wm begin' "$HOME/.config/sway/config" || bad "sway include block missing"
 grep -q 'set \$menu .*themer-wmenu\|set \$menu .*themer-dmenu' "$HOME/.config/sway/config" ||
@@ -129,9 +272,32 @@ grep -q 'style=Fusion' "$HOME/.config/qt6ct/qt6ct.conf" || bad "qt6ct style not 
 grep -q 'generated by themer' "$HOME/.config/waybar/style.css" || bad "waybar style.css not replaced"
 grep -q '^mode=dark$' "$HOME/.config/themer/state" || bad "state file mode"
 
+# the mode reaches the desktop color-scheme, which browsers pass on to sites as
+# prefers-color-scheme: light says prefer-light (a stand-in gsettings, a stand-in bus)
+mkdir -p "$HOME/gsbin"
+printf '#!/bin/sh\necho "$*" >> "$HOME/gs.log"\n' > "$HOME/gsbin/gsettings"; chmod +x "$HOME/gsbin/gsettings"
+DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent PATH="$HOME/gsbin:$PATH" ./themer light >/dev/null 2>&1
+grep -q "color-scheme 'prefer-light'" "$HOME/gs.log" || bad "light mode did not set color-scheme prefer-light"
+DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent PATH="$HOME/gsbin:$PATH" ./themer dark >/dev/null 2>&1
+grep -q "color-scheme 'prefer-dark'" "$HOME/gs.log" || bad "dark mode did not set color-scheme prefer-dark"
+rm -f "$HOME/gs.log"
+
+# colors of your own, the console font, the environment, from the command line
+./themer color acc '#12AB34' >/dev/null 2>&1 || bad "themer color acc failed"
+./themer color | grep -q '^acc *12ab34  (yours)$' || bad "themer color does not list the override"
+./themer color acc zz >/dev/null 2>&1 && bad "themer color took a bad value"
+./themer color acc reset >/dev/null 2>&1; ./themer color | grep -q '^acc .*(yours)' && bad "themer color reset kept the override"
+./themer font tty ter-v20n >/dev/null 2>&1; grep -q '^tty_font=ter-v20n$' "$HOME/.config/themer/state" || bad "themer font tty not saved"
+./themer font tty '../x' >/dev/null 2>&1 && bad "themer font tty took a path"
+./themer env 'TM_TEST=x y' >/dev/null 2>&1; ./themer env | grep -qx 'TM_TEST=x y' || bad "themer env not listed"
+./themer env '1BAD=x' >/dev/null 2>&1 && bad "themer env took a bad name"
+./themer env 'TM_TEST=' >/dev/null 2>&1; ./themer env | grep -q TM_TEST && bad "themer env NAME= did not remove it"
 # applying twice must not duplicate anything
 ./themer apply >/dev/null 2>&1 || bad "second apply failed"
 [ "$(grep -c 'themer:wm begin' "$HOME/.config/sway/config")" = 1 ] || bad "sway block duplicated"
+# the user's bar gives way to themer's, which keeps its status line
+[ "$(grep -c '^#themer-off: ' "$HOME/.config/sway/config")" = 4 ] || bad "the user's bar block was not switched off (exactly)"
+grep -q 'status_command i3blocks' "$HOME/.config/sway/themer.conf" || bad "themer's bar lost the user's status_command"
 [ "$(grep -c '^background=' "$HOME/.config/foot/foot.ini")" = 2 ] || bad "foot keys duplicated"
 
 # a module option round-trips, and a bad value is refused
@@ -143,6 +309,11 @@ grep -q '^mode=dark$' "$HOME/.config/themer/state" || bad "state file mode"
 ./themer module option firefox style mask >/dev/null 2>&1 || bad "set firefox.style"
 grep -q '#back-button { list-style-image: none' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox mask style not rendered"
 grep -q 'mask: url(' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox mask style has no masks"
+# style=firefox: Firefox's own icons, the icon rules cut out, the size kept
+./themer module option firefox style firefox >/dev/null 2>&1 || bad "set firefox.style firefox"
+grep -q "list-style-image" "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" && bad "firefox style=firefox kept icon rules"
+grep -q "themer:icons" "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" && bad "firefox style=firefox left a marker"
+grep -q "glyph-size" "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox style=firefox lost the icon size"
 ./themer module option firefox style image >/dev/null 2>&1
 grep -q '#back-button { list-style-image: url(' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox image style not restored"
 
@@ -204,7 +375,7 @@ grep -q '^/\* generated by themer' "$HOME/.config/themer/templates/imported/gtk/
 [ -e "$HOME/.config/themer/templates/imported/gtk/assets/b.png" ] || bad "import: asset not copied"
 ./themer set import imported firefox "$HOME/imp/ff" >/dev/null 2>&1 || bad "set import firefox"
 ./themer set check imported > "$HOME/imp/out" 2>&1 || bad "set check imported: $(cat "$HOME/imp/out")"
-./themer set imported >/dev/null 2>&1 || bad "set imported"
+./themer set imported >"$HOME/imp/out" 2>&1 || bad "set imported: $(cat "$HOME/imp/out")"
 [ -e "$HOME/.config/themer/gtk/gtk-3.0/assets/b.png" ] || bad "gtk asset not placed"
 grep -q '^window { background-color: #2e3440' "$HOME/.config/themer/gtk/gtk-4.0/gtk.css" || bad "gtk4.css not used for GTK 4"
 grep -q '^gtk-theme-name=imported$' "$HOME/.config/gtk-3.0/settings.ini" || bad "gtk theme not named after the set"
@@ -265,7 +436,7 @@ left=$(cd "$HOME" && find .config .themes .local -type f 2>/dev/null |
 	grep -v '^\.config/themer/\(state\|tty\.rgb\|env\.sh\|templates/\)' |
 	grep -v '^\.config/environment\.d/50-themer\.conf$' |
 	grep -v '^\.config/\(foot\|sway\|waybar\|nvim\|qt6ct\|gtk-3\.0\|thunderbird\)/' || true)
-[ -z "$left" ] || bad "files left after unload:
+[ -z "$left" ] || bad "files left after unload: [$left]
 $left"
 [ ! -e "$HOME/.local/state/themer" ] || [ -z "$(ls -A "$HOME/.local/state/themer")" ] ||
 	bad "manifests left: $(ls "$HOME/.local/state/themer")"

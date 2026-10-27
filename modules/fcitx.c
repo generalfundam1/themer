@@ -62,7 +62,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "fcitx",
-	.desc = "fcitx5 input method: input variables, flat candidate window",
+	.desc = "fcitx5: the input method's candidate window and fonts",
 	.templates = "fcitx",
 	.default_on = 1,
 	.present = present,

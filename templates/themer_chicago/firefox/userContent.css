@@ -129,6 +129,10 @@
   }
   /* square, flat, in the theme's font */
   *, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
+  /* except radio buttons, which are round: square ones read as checkboxes */
+  input[type="radio"], input[type="radio"]::before, input[type="radio"]::after {
+    border-radius: 50% !important;
+  }
   html, body { background-color: #{{bg}} !important; color: #{{fg}} !important; }
   body, .main-content, #categories, .sidebar-footer-list, .category, .navigation {
     font-family: "{{ui_font}}" !important;
@@ -148,6 +152,17 @@
     appearance: none !important; background-color: #{{field}} !important; color: #{{fg}} !important;
     border: 1px solid !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important;
     padding: {{pad_field}} !important;
+  }
+  /* userContent.css reaches into shadow trees, so this rule also hits the input
+   * inside moz-input-search (the settings search): that one draws its magnifier in
+   * its start padding, which is given back to it here */
+  input.with-icon, input[type="search"].with-icon {
+    padding-inline-start: calc(2 * var(--space-medium, 12px) + var(--input-search-icon-size, var(--input-text-icon-size, 16px))) !important;
+  }
+  /* about:config draws its magnifier in the search field's start padding too */
+  #about-config-search {
+    padding-inline-start: calc(var(--space-small, 8px) * 2 + 16px) !important;
+    background-position: var(--space-small, 8px) center !important;
   }
   input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
     outline: 1px solid #{{acc}} !important; outline-offset: -1px !important;
@@ -245,6 +260,10 @@
   }
   #viewerContainer, #viewer, .pdfViewer { background-color: #{{bg}} !important; }
   *, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
+  /* except radio buttons, which are round: square ones read as checkboxes */
+  input[type="radio"], input[type="radio"]::before, input[type="radio"]::after {
+    border-radius: 50% !important;
+  }
   #scaleSelectContainer, #scaleSelect, select, .toolbarField, #pageNumber, .toolbarButton, .secondaryToolbarButton, .dropdownToolbarButton {
     border-radius: 0 !important;
   }
@@ -254,3 +273,108 @@
   }
   .toolbarButton.toggled, .secondaryToolbarButton.toggled { background-color: #{{acc}} !important; color: #{{accfg}} !important; }
 }
+
+/* ---- about:preferences: the search field keeps room for its icon; the brand
+ * illustrations (the shield of "Firefox is on guard", the VPN fox) go: the shield
+ * becomes the theme's own, the promo art is hidden ---- */
+@-moz-document url-prefix("about:preferences"), url-prefix("about:settings") {
+  /* themer:icons */
+  #trackingProtectionShield, .info-icon, img.info-icon {
+    content: {{menu_shield}} !important;
+    list-style-image: {{menu_shield}} !important;
+    -webkit-mask: {{mask_shield}} center / contain no-repeat !important; mask: {{mask_shield}} center / contain no-repeat !important;
+    background-color: {{menu_tint_shield}} !important;
+    width: 48px !important; height: 48px !important; fill-opacity: 1 !important;
+  }
+  /* themer:icons end */
+  #vpnPromoCard img, #vpn-promo img, .vpn-promo-image, [id*="vpnPromo"] img, [class*="promo"] img, [class*="Promo"] img,
+  #etpBannerEl, .fxaMobilePromo img, #mozilla-vpn, #firefox-mobile, #firefox-monitor, #firefox-relay, #solo-ai, #mdn {
+    background-image: none !important;
+    display: none !important;
+  }
+}
+
+/* themer:icons */
+/* the settings sidebar: every category icon from the icon theme (menu_X as the
+ * image, or mask_X as a mask in the text color with the mask style), matched on the
+ * category id, so new panes with the same naming follow */
+@-moz-document url-prefix("about:preferences"), url-prefix("about:settings") {
+  .category-icon, .sidebar-footer-icon { -moz-context-properties: fill !important; fill: currentColor !important; width: 20px !important; height: 20px !important; }
+  richlistitem[id^="category-"][id*="sync"] > .category-icon, .category[id*="sync"] > .category-icon, [data-l10n-id*="category-sync"] > .category-icon {
+    list-style-image: {{menu_account}} !important; content: {{menu_account}} !important;
+    -webkit-mask: {{mask_account}} center / contain no-repeat !important; mask: {{mask_account}} center / contain no-repeat !important; background-color: {{menu_tint_account}} !important;
+  }
+  richlistitem[id^="category-"][id*="home"] > .category-icon, .category[id*="home"] > .category-icon, [data-l10n-id*="category-home"] > .category-icon {
+    list-style-image: {{menu_home}} !important; content: {{menu_home}} !important;
+    -webkit-mask: {{mask_home}} center / contain no-repeat !important; mask: {{mask_home}} center / contain no-repeat !important; background-color: {{menu_tint_home}} !important;
+  }
+  richlistitem[id^="category-"][id*="search"] > .category-icon, .category[id*="search"] > .category-icon, [data-l10n-id*="category-search"] > .category-icon {
+    list-style-image: {{menu_search}} !important; content: {{menu_search}} !important;
+    -webkit-mask: {{mask_search}} center / contain no-repeat !important; mask: {{mask_search}} center / contain no-repeat !important; background-color: {{menu_tint_search}} !important;
+  }
+  richlistitem[id^="category-"][id*="privacy"] > .category-icon, .category[id*="privacy"] > .category-icon, [data-l10n-id*="category-privacy"] > .category-icon {
+    list-style-image: {{menu_shield}} !important; content: {{menu_shield}} !important;
+    -webkit-mask: {{mask_shield}} center / contain no-repeat !important; mask: {{mask_shield}} center / contain no-repeat !important; background-color: {{menu_tint_shield}} !important;
+  }
+  richlistitem[id^="category-"][id*="password"] > .category-icon, .category[id*="password"] > .category-icon, [data-l10n-id*="category-password"] > .category-icon {
+    list-style-image: {{menu_password}} !important; content: {{menu_password}} !important;
+    -webkit-mask: {{mask_password}} center / contain no-repeat !important; mask: {{mask_password}} center / contain no-repeat !important; background-color: {{menu_tint_password}} !important;
+  }
+  richlistitem[id^="category-"][id*="appearance"] > .category-icon, .category[id*="appearance"] > .category-icon, [data-l10n-id*="category-appearance"] > .category-icon {
+    list-style-image: {{menu_appearance}} !important; content: {{menu_appearance}} !important;
+    -webkit-mask: {{mask_appearance}} center / contain no-repeat !important; mask: {{mask_appearance}} center / contain no-repeat !important; background-color: {{menu_tint_appearance}} !important;
+  }
+  richlistitem[id^="category-"][id*="download"] > .category-icon, .category[id*="download"] > .category-icon, [data-l10n-id*="category-download"] > .category-icon {
+    list-style-image: {{menu_downloads}} !important; content: {{menu_downloads}} !important;
+    -webkit-mask: {{mask_downloads}} center / contain no-repeat !important; mask: {{mask_downloads}} center / contain no-repeat !important; background-color: {{menu_tint_downloads}} !important;
+  }
+  richlistitem[id^="category-"][id*="tab"] > .category-icon, .category[id*="tab"] > .category-icon, [data-l10n-id*="category-tab"] > .category-icon {
+    list-style-image: {{menu_window}} !important; content: {{menu_window}} !important;
+    -webkit-mask: {{mask_window}} center / contain no-repeat !important; mask: {{mask_window}} center / contain no-repeat !important; background-color: {{menu_tint_window}} !important;
+  }
+  richlistitem[id^="category-"][id*="accessib"] > .category-icon, .category[id*="accessib"] > .category-icon, [data-l10n-id*="category-accessib"] > .category-icon {
+    list-style-image: {{menu_access}} !important; content: {{menu_access}} !important;
+    -webkit-mask: {{mask_access}} center / contain no-repeat !important; mask: {{mask_access}} center / contain no-repeat !important; background-color: {{menu_tint_access}} !important;
+  }
+  richlistitem[id^="category-"][id*="lang"] > .category-icon, .category[id*="lang"] > .category-icon, [data-l10n-id*="category-lang"] > .category-icon {
+    list-style-image: {{menu_translate}} !important; content: {{menu_translate}} !important;
+    -webkit-mask: {{mask_translate}} center / contain no-repeat !important; mask: {{mask_translate}} center / contain no-repeat !important; background-color: {{menu_tint_translate}} !important;
+  }
+  richlistitem[id^="category-"][id*="ai"] > .category-icon, .category[id*="ai"] > .category-icon, [data-l10n-id*="category-ai"] > .category-icon {
+    list-style-image: {{menu_tools}} !important; content: {{menu_tools}} !important;
+    -webkit-mask: {{mask_tools}} center / contain no-repeat !important; mask: {{mask_tools}} center / contain no-repeat !important; background-color: {{menu_tint_tools}} !important;
+  }
+  richlistitem[id^="category-"][id*="permission"] > .category-icon, .category[id*="permission"] > .category-icon, [data-l10n-id*="category-permission"] > .category-icon {
+    list-style-image: {{menu_info}} !important; content: {{menu_info}} !important;
+    -webkit-mask: {{mask_info}} center / contain no-repeat !important; mask: {{mask_info}} center / contain no-repeat !important; background-color: {{menu_tint_info}} !important;
+  }
+  richlistitem[id^="category-"][id*="experimental"] > .category-icon, .category[id*="experimental"] > .category-icon, [data-l10n-id*="category-experimental"] > .category-icon {
+    list-style-image: {{menu_tools}} !important; content: {{menu_tools}} !important;
+    -webkit-mask: {{mask_tools}} center / contain no-repeat !important; mask: {{mask_tools}} center / contain no-repeat !important; background-color: {{menu_tint_tools}} !important;
+  }
+  richlistitem[id^="category-"][id*="labs"] > .category-icon, .category[id*="labs"] > .category-icon, [data-l10n-id*="category-labs"] > .category-icon {
+    list-style-image: {{menu_tools}} !important; content: {{menu_tools}} !important;
+    -webkit-mask: {{mask_tools}} center / contain no-repeat !important; mask: {{mask_tools}} center / contain no-repeat !important; background-color: {{menu_tint_tools}} !important;
+  }
+  richlistitem[id^="category-"][id*="about"] > .category-icon, .category[id*="about"] > .category-icon, [data-l10n-id*="category-about"] > .category-icon {
+    list-style-image: {{menu_help}} !important; content: {{menu_help}} !important;
+    -webkit-mask: {{mask_help}} center / contain no-repeat !important; mask: {{mask_help}} center / contain no-repeat !important; background-color: {{menu_tint_help}} !important;
+  }
+  richlistitem[id^="category-"][id*="more"] > .category-icon, .category[id*="more"] > .category-icon, [data-l10n-id*="category-more"] > .category-icon {
+    list-style-image: {{menu_info}} !important; content: {{menu_info}} !important;
+    -webkit-mask: {{mask_info}} center / contain no-repeat !important; mask: {{mask_info}} center / contain no-repeat !important; background-color: {{menu_tint_info}} !important;
+  }
+  richlistitem[id^="category-"][id*="general"] > .category-icon, .category[id*="general"] > .category-icon, [data-l10n-id*="category-general"] > .category-icon {
+    list-style-image: {{menu_settings}} !important; content: {{menu_settings}} !important;
+    -webkit-mask: {{mask_settings}} center / contain no-repeat !important; mask: {{mask_settings}} center / contain no-repeat !important; background-color: {{menu_tint_settings}} !important;
+  }
+  .sidebar-footer-icon.addons-icon, #addonsButton > .sidebar-footer-icon {
+    list-style-image: {{menu_extensions}} !important; content: {{menu_extensions}} !important;
+    -webkit-mask: {{mask_extensions}} center / contain no-repeat !important; mask: {{mask_extensions}} center / contain no-repeat !important; background-color: {{menu_tint_extensions}} !important;
+  }
+  .sidebar-footer-icon.help-icon, #helpButton > .sidebar-footer-icon {
+    list-style-image: {{menu_help}} !important; content: {{menu_help}} !important;
+    -webkit-mask: {{mask_help}} center / contain no-repeat !important; mask: {{mask_help}} center / contain no-repeat !important; background-color: {{menu_tint_help}} !important;
+  }
+}
+/* themer:icons end */

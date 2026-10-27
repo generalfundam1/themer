@@ -83,7 +83,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "thunderbird",
-	.desc = "thunderbird: flat tabs, toolbars, panes, and settings (userChrome.css, userContent.css)",
+	.desc = "Thunderbird: flat tabs, toolbars, panes and settings",
 	.templates = "thunderbird",
 	.default_on = 1,
 	.present = present,

@@ -18,7 +18,7 @@
 #include "themer_module.h"
 
 static const TmOption opts[] = {
-	{ "font",    "font for the bar", "terminal|ui", "terminal", 0, 0 },
+	{ "font",    "font for the bar", "ui|terminal", "terminal", 0, 0 },
 	{ "padding", "space around workspaces and status modules", "tight|normal|loose", "normal", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
@@ -118,7 +118,7 @@ reload(void)
 
 static const TmModule mod = {
 	.name = "waybar",
-	.desc = "dwm-style waybar; owns style.css (original kept)",
+	.desc = "Waybar: a dwm-style bar; under sway it takes the place of sway's own bar",
 	.templates = "waybar",
 	.default_on = 1,
 	.present = present,

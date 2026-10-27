@@ -5,7 +5,7 @@
 themer is a suckless-style theme manager written in C99. It takes a colour theme and a
 mode (dark or light) and writes the configuration of everything on the desktop from
 them: GTK 2/3/4, Qt 5/6, Firefox, Thunderbird, sway or i3, waybar, foot, nvim, fcitx5,
-launchers, newt dialogs, the TTY — and YouTube, through Stylus. Every write is recorded, so unloading a module puts
+launchers, newt dialogs, the TTY — and YouTube and Wikipedia, through Stylus. Every write is recorded, so unloading a module puts
 the user's files back byte for byte.
 
 It replaces nwg-look, qt5ct and qt6ct: icons, cursor, fonts and font rendering are
@@ -16,6 +16,7 @@ theme plugin.
 themer                 # the TUI
 themer-gtk             # the same, as a GTK window with a live preview
 themer-qt              # ... or a Qt window
+themer-web             # ... or a page in the browser, on localhost
 themer toggle          # flip dark/light, apply everywhere
 themer theme gruvbox   # switch theme, apply everywhere
 ```
@@ -36,6 +37,7 @@ themer theme gruvbox   # switch theme, apply everywhere
 
 - [Build and install](#build-and-install)
 - [Usage](#usage)
+- [Setting up Firefox, Thunderbird and Stylus](#setting-up-firefox-thunderbird-and-stylus)
 - [Front ends](#front-ends)
 - [What apply covers](#what-apply-covers)
 - [Qt](#qt)
@@ -48,7 +50,7 @@ themer theme gruvbox   # switch theme, apply everywhere
 - [Firefox](#firefox)
 - [Stylus (web sites)](#stylus-web-sites)
 - [Thunderbird](#thunderbird)
-- [Themes](#themes)
+- [Colour schemes](#colour-schemes)
 - [Fonts](#fonts)
 - [Writing a module](#writing-a-module)
 - [Upgrading](#upgrading)
@@ -72,7 +74,7 @@ one on purpose. The only hard dependencies are a C compiler and libc.
 |---|---|
 | `make` | host binary, modules, front ends, Qt plugin |
 | `make check` | templates rendered for every theme and mode; apply/unload round trip (`test/run.sh`) |
-| `FIREFOX=/path/to/firefox sh test/firefox.sh [theme] [dark\|light]` | renders the chrome in a real Firefox under Xvfb; screenshots and toolbar geometry to `test/firefox/out/` |
+| `FIREFOX=/path/to/firefox sh test/firefox.sh [theme] [dark\|light]` | renders the chrome in a real Firefox under Xvfb; screenshots to `test/firefox/out/` |
 | `sudo make install` | binaries to `PREFIX/bin`, themes/templates/icons to `PREFIX/share/themer`, modules to `PREFIX/lib/themer/modules`, the Qt plugin to `PREFIX/lib/themer/qt`, the module header to `PREFIX/include/themer` |
 | `make dist` | `themer-VERSION.tar.gz` from the git tree |
 
@@ -87,30 +89,40 @@ rebuilt after a Qt minor upgrade; a package makes that one command.
 | Directory | Contents |
 |---|---|
 | `src/` | the host: one binary. `main.c` the command line; `state.c` the state file; `registry.c` finds modules and runs apply; `manifest.c` the `tm_*` helpers modules write with, and the undo log; `template.c` and `palette.c` the templates and shared variables; `theme.c` the theme files and readability rules; `targets.c` the env, tty, and grub targets; `front.c` the layer every front end calls; `tui.c`, `fonts.c`, `preview.c` the interactive parts |
-| `gui/` | `themer-gtk` (GTK 3, C) and `themer-qt` (Qt 5 or 6, C++); `common.c` is what they share; `qpa/` the Qt platform theme plugin |
+| `gui/` | `themer-gtk` (GTK 3, C), `themer-qt` (Qt 5 or 6, C++) and `themer-web` (C, with its page in `web/index.html`); `common.c` is what they share; `qpa/` the Qt platform theme plugin |
 | `include/` | `themer_module.h`, the API modules are built against |
 | `modules/` | one `.c` per module; `wm.h`, `launcher.h`, `icons.h` are shared code |
 | `templates/` | `templates/<set>/<dir>/<file>`; a set is one directory (`themer_chicago` is built in), `<dir>` is named by the module |
 | `themes/` | `<name>.theme`, a `[dark]` and a `[light]` section each |
 | `icons/` | Adwaita's symbolic icons, the fallback for the Firefox toolbar |
-| `test/` | `make check` |
+| `test/` | `make check`, a shell script (its themer-web checks use `curl`, and are skipped without it); `firefox.sh` screenshots a real Firefox, by hand; `gogh-schemes.txt`, the Gogh collection the shipped schemes were imported from |
 
 ## Usage
 
 ```
 themer                              TUI
 themer-gtk | themer-qt [PAGE]       the same settings in a window, with a live preview;
-                                    PAGE: theme, fonts, icons, cursor, or modules
+                                    PAGE: theme, fonts, icons, cursor, modules, env,
+                                    or server (modules NAME opens one module)
+themer-web [-p PORT] [-d | -q]      the same in the browser at http://localhost:7331/
+                                    (-d detach, -q stop the one running); runs only
+                                    while a browser module (firefox, stylus) is on;
+                                    started while one runs, it opens that one's page
 themer apply                        re-apply everything and save state (run at login)
 themer toggle                       flip dark/light and apply
 themer dark | light                 set mode and apply
 themer theme NAME                   switch theme and apply
 themer list                         list themes
 themer check                        list every color the readability rules adjust
-themer env NAME=VALUE               set an environment variable and apply
+themer env [NAME=VALUE]             list the session's variables, or set one (NAME=
+                                    removes it) and apply
+themer color [ROLE HEX|reset]       list the colors (yours marked), or put one of your
+                                    own over the scheme's (bg fg surf acc accfg urg
+                                    warn), or reset it, and apply
 themer icons [NAME]                 show (current first) or set the icon theme and apply
 themer cursor [NAME [SIZE]]         show or set the cursor theme and size and apply
 themer font ui|mono FAMILY [SIZE]   set the interface or terminal font and apply
+themer font tty [NAME]              list the console fonts, or set one and apply
 themer render [hinting none|slight|medium|full] [antialias on|off]
               [rgba none|rgb|bgr|vrgb|vbgr]
                                     show or set font rendering and apply
@@ -122,8 +134,16 @@ themer set import NAME MODULE PATH  turn an existing theme into (part of) a set
 themer set check NAME               render every file of NAME for every theme
 themer module list                  list modules, on/off, description
 themer module load|unload NAME      load (write its files) or unload (remove them) now
-themer module options NAME          list a module's options
+themer module options NAME          list a module's options by section; * marks a set value
 themer module option NAME KEY VALUE set one; a loaded module reloads at once
+themer module reset NAME KEY        back to the default (template: the global set)
+themer server start|stop|status     themer-web: start it, stop it, or say whether it runs
+themer server port N                its port (a running server moves to it)
+themer server install [SITE]        open the userstyles (or one site's) in the browser,
+                                    for Stylus to install; starts the server if need be
+themer scheme import FILE [NAME]    add a colour scheme (see Colour schemes)
+themer scheme remove NAME           delete one of yours, or hide a built-in one
+themer scheme restore [NAME]        bring hidden built-in schemes back
 themer template list DIR [SET]      list template sets, or the files in SET
 themer template render MODULE SET FILE [OUT]
                                     render one template with the current theme
@@ -150,14 +170,78 @@ THEMER_TEMPLATES=$PWD/templates THEMER_ICONS=$PWD/icons ./themer
 theme, cursor theme and size, font rendering, environment, which modules are on, and
 option values. Compile-time defaults are in `config.def.h`.
 
+## Setting up Firefox, Thunderbird and Stylus
+
+Most modules work as soon as they are on. These three need a step or two in the
+program itself the first time, because themer does not change a program's own
+settings for it.
+
+### Firefox
+
+1. **Let Firefox read user stylesheets.** Open `about:config`, accept the warning,
+   search for `toolkit.legacyUserProfileCustomizations.stylesheets` and set it to
+   `true` (double-click it). Without it Firefox ignores `userChrome.css`, which is
+   where the theme goes. themer does not write `user.js` for you.
+2. **Apply.** `themer apply`, or Apply in any front end, with the firefox module on
+   (it is by default). The output names the profile it wrote to:
+   `themer: firefox profile: ~/.mozilla/firefox/xxxx.default-release`.
+3. **Restart Firefox.** It reads its stylesheets at startup only, so every later
+   apply (another theme, dark/light) shows after a restart too; the output says when
+   a running Firefox holds the profile.
+
+The profile written to is the one a running Firefox holds, otherwise the one used most
+recently (profiles in `~/.mozilla/firefox`, `~/.config/mozilla/firefox`, the snap and
+the Flatpak). With several profiles, start Firefox with the one you want, then apply.
+
+### Thunderbird
+
+1. **Let Thunderbird read user stylesheets.** Settings, General, at the very bottom
+   **Config Editor…**; search for `toolkit.legacyUserProfileCustomizations.stylesheets`
+   and set it to `true`.
+2. **Apply** with the thunderbird module on; the output names the profile.
+3. **Restart Thunderbird**, now and after every later apply.
+
+### Stylus (web sites)
+
+1. **Install the Stylus extension** in your browser: from addons.mozilla.org for
+   Firefox, from the Chrome Web Store for the Chromium family.
+2. **Apply** with the stylus module on. It renders a style per site into
+   `~/.config/themer/stylus/` (YouTube and Wikipedia ship).
+3. **Install each style once:** **Install** beside the site in the stylus module's
+   options (Modules, stylus, What it themes) in any front end, or
+   `themer server install` for every site (`themer server install youtube` for one).
+   That starts the server if it is stopped and opens the style in your default browser
+   (xdg-open), where Stylus shows its install page: click **Install style**. Stylus
+   asks for that click itself, so no program can install a style for you. The server
+   keeps running while a browser module (firefox or stylus) is on.
+4. **Later applies** reach Stylus through the style's update address, while the server
+   runs: Stylus checks on its own schedule (its options set how often), or at once with
+   *Check for updates* in Stylus's style manager. To see each apply instantly instead,
+   tick **Live reload** on the install page and leave that tab open.
+
+The styles set every color themselves, whichever of its own modes a site is in, but
+a site in the other mode can still show its own colors in a corner the style does
+not reach yet. The sites follow the desktop: themer sets the desktop's color scheme
+(`color-scheme` in gsettings, which Firefox reads through the portal) to the mode, so
+with Firefox's **Settings, General, Website appearance** on *Automatic* and YouTube's
+and Wikipedia's own appearance on *device theme* / *Automatic*, they match.
+
+A site you do not want themed: switch it off under Modules, stylus, What it themes
+(`themer module option stylus youtube off`). Like every module, stylus has `mode`, so the
+sites can stay dark on a light desktop. Without the server, a style can be installed
+from its file (`file:///home/you/.config/themer/stylus/youtube.user.css`; in Chromium,
+first allow Stylus access to file URLs), with Live reload on.
+
 ## Front ends
 
-The CLI, the TUI, `themer-gtk` and `themer-qt` are four faces of one layer
+The CLI, the TUI, `themer-gtk`, `themer-qt` and `themer-web` are faces of one layer
 (`src/front.c`); every setting and action is reachable from each, and Apply runs the
 same `themer apply` whichever one you used.
 
 `themer-gtk` and `themer-qt` are the TUI as a window, like nwg-look: pages for the
-theme, the fonts, the icon theme, the cursor and the modules on the left, a preview on
+theme (the scheme, the mode, the set, and colors of your own over the scheme's), the
+fonts (the console font too), the icon theme, the cursor, the modules, the environment
+and the server on the left, a preview on
 the right, Apply at the bottom (Ctrl+S; Revert to applied undoes browsing), File and
 Help menus. The preview is the real thing, not a mock-up: the window restyles itself
 from the `gtk.css` (or `qt.qss` and palette) the gtk (or qt) module would write for the
@@ -171,8 +255,32 @@ Template sets from the window: on the Theme page, **New set** copies the selecte
 under a new name into `~/.config/themer/templates/`, **Import theme** turns a theme you
 already have into part of a set (a GTK theme directory, a `.qss`, a `chrome/`
 directory...), **Check** renders the selected set for every theme and shows the report.
-The TUI has the same under *Template set* (`n`, `i`, `c`). Module options are on the
-Modules page and take effect at once; `template` pins one module to a set of its own.
+The TUI has the same under *Template set* (`n`, `i`, `c`).
+
+The four front ends have the same pages in the same order, **Theme**, **Fonts**,
+**Icons**, **Cursor**, **Modules**, **Server** (the TUI's main menu has them as
+sections), and draw the same control for the same kind of setting: on/off is a
+switch, a few short choices are buttons side by side with the chosen one in the
+accent (the mode, a module's font), a number in a range is a slider with its value,
+the template set is a list shown by its title (Themer Chicago; `themer_chicago` is its
+directory name). A font is a family and a size, set apart.
+
+**Modules**: the modules on the left with their state (on, off, not installed), the
+selected one on the right with its switch and its options in two sections, in the same
+order everywhere: **Look** (`mode`, `font`, `template` and the module's other settings)
+and **What it themes** (the on/off parts: GTK 2/3/4, Qt 5/6, each Stylus site). Each
+option shows what it does; a changed one shows its default and a Reset button. A
+module's switch and its options take effect at once; Apply is for the theme, fonts,
+icons and cursor. In the TUI: `l` into the options, `h`/`l` change one, enter picks
+from a list or types a value, `r` resets.
+
+**Server**: `themer-web`, the same settings as a page on localhost for when the
+browser is what you have open, and what serves the stylus module's userstyles. It is
+started and stopped by hand there (or `themer server start`), on the port set there
+(7331); it runs only while a browser module is on, and stops by itself a few seconds
+after the last one is turned off. It answers only requests for `localhost:PORT` and
+changes nothing without the page's own header, so other sites open in the browser
+cannot drive it.
 
 <p align="center">
   <img src="screenshots/themer-qt-dark.png" width="49%" alt="themer-qt, nord dark">
@@ -261,10 +369,10 @@ All on by default unless noted:
 | **fontconfig** | font rendering for everything that reads fontconfig |
 | **firefox** | the browser chrome (`chrome/userChrome.css`) and Firefox's own pages (`chrome/userContent.css`), as marked blocks in the profile |
 | **thunderbird** | the mail window and the panes Thunderbird draws as content, the same way |
-| **stylus** | userstyles for web sites, for the Stylus extension in Firefox or Chromium: `~/.config/themer/stylus/<site>.user.css`, one per `*.user.css` in the set (YouTube ships). Installed once from `file://` with Live reload on; every apply then restyles the site at once |
+| **stylus** | userstyles for web sites, for the Stylus extension in Firefox or Chromium: `~/.config/themer/stylus/<site>.user.css`, one per `*.user.css` in the set (YouTube and Wikipedia ship). Installed once through the server (`themer server install`); Stylus then picks up every apply on its own |
 | **sway** | window and bar colours, the font, `$menu`, the seat cursor; loads only where sway is in use. Borders, gaps and titlebars stay in your own config |
 | **i3** | the same for i3 |
-| **waybar** | dwm-style bar; owns `style.css`, the original is kept as `style.css.themer-orig` and put back on unload. `config.jsonc` is not touched |
+| **waybar** | dwm-style bar; owns `style.css` (yours is kept in `~/.config/themer/originals/` and put back on unload); under sway it replaces sway's own bar. `config.jsonc` is not touched |
 | **foot** | font and colours in `foot.ini` (`[colors-dark]` and `[colors-light]`, foot 1.15+, plus `initial-color-theme`) |
 | **nvim** | a `themer` colorscheme, selected from the end of `init.lua` or `init.vim` |
 | **fcitx** | fcitx5 input-method variables and candidate-window theme |
@@ -279,21 +387,53 @@ console palette and font, as root), **grub** (as root). They write system files 
 undo log cannot cover.
 
 **How modules change files.** Every write goes through the `tm_*` helpers in
-`themer_module.h` and is recorded in `~/.local/state/themer/<module>.manifest`.
-Unloading reverses the records: generated files are deleted (only while still generated
-by themer), replaced files are put back from their `.themer-orig` copy, marked blocks
-are cut out, ini keys and replaced lines get their old values, and directories themer
-created are removed when empty. Applying runs unload-then-load, so re-applying never
-duplicates anything. After a change each module's reload hook tells its running
-program: sway and i3 are reloaded when their socket variable is set, waybar gets
-SIGUSR2, xsettingsd gets SIGHUP.
+`themer_module.h` and is recorded in `~/.config/themer/undo/<module>.manifest`. Before
+a module first edits one of your files in place (your sway config, `foot.ini`,
+`settings.ini`...), the file is copied to `~/.config/themer/originals/`. Unloading puts
+that copy back byte for byte when the file is as the module left it; when you have
+changed the file since, the module's edits are taken out one by one instead (marked
+blocks cut, ini keys and replaced lines given their old values, switched-off lines
+switched back on), so your own changes stay. Files themer generated are deleted (only
+while still its own), and directories it created are removed when empty. Every file is
+written to a temporary file and renamed into place, so a crash never leaves one half
+written, and a symlinked dotfile stays a symlink. Applying runs unload-then-load, so
+re-applying never duplicates anything; editing your configs while a module is on is
+fine. After a change each module's reload hook tells its running program: sway and i3
+are reloaded when their socket variable is set, waybar gets SIGUSR2, xsettingsd gets
+SIGHUP.
+
+### Where themer keeps its files
+
+Everything of themer's own is under `~/.config/themer`; the configs a module generates
+go where each program reads them.
+
+```
+~/.config/themer/
+  state            your settings: theme, mode, fonts, icons, modules, options, port
+  themes/          your colour schemes (imported ones too); .removed: hidden built-ins
+  templates/       template sets (the built-in Themer Chicago mirrored here, to edit)
+  modules/         modules of your own (.so)
+  undo/            what each module wrote, so it can be taken back
+  originals/       your files as they were before a module edited them
+  stylus/          the rendered userstyles
+  bin/             the launcher scripts ($menu for sway and i3)
+  qt/ gtk/ ...     files a module keeps for itself
+  cache/           font specimens, the TUI's error log
+  env.sh, tty.rgb  the environment and the console palette
+```
 
 ### Module options
 
-Set them in the TUI (module menu, then `o`), on the Modules page of the GUIs, or with
-`themer module option`. Modules that render templates all have `template`, the set
-name: unset, it follows the global template set; set, it pins that module to a set of
-its own.
+Set them on the Modules page of any front end, or with `themer module option`; `themer
+module reset` puts one back to its default. Two options every module has:
+
+- **`mode`** (`auto` \| `dark` \| `light`, default `auto`): which side of the theme the
+  program uses. `auto` follows the global mode; `dark` or `light` pins that program to
+  that side whatever the global mode is, say a dark terminal on a light desktop. The
+  host renders the module from that side, so it works for third-party modules too.
+  Modules that draw no colours (cursor, fontconfig) have none.
+- **`template`**: the template set it is drawn from. Unset, it follows the global set
+  (`themer_chicago` by default); set, it pins that module to a set of its own.
 
 | Module | Option | Values | Default |
 |---|---|---|---|
@@ -305,17 +445,19 @@ its own.
 | | `platformtheme` | `auto` \| `themer` \| `qt5ct` | `auto` (the plugin when installed) |
 | firefox | `font` | `ui` \| `terminal` | `ui` |
 | | `icons` | `0`–`8`, glyph size in points above the text | `2` |
-| | `style` | `image` (the theme's icons, recoloured) \| `mask` (every icon's shape in the bar ink) | `image` |
+| | `size` | icon size in pixels, `0` = text size plus `icons` | `0` |
+| | `style` | `firefox` (Firefox's own icons) \| `image` (the icon theme's icons, recoloured) \| `mask` (the icon theme's shapes in the bar ink) | `image` |
 | | `recolor` | `all` \| `symbolic` | `all` |
 | | `raster` | `color` \| `ink` | `color` |
 | thunderbird | `font` | `ui` \| `terminal` | `ui` |
 | stylus | `font` | `ui` \| `terminal` \| `site` (the site's own) | `ui` |
-| waybar | `font` | `terminal` \| `ui` | `terminal` |
+| | one per site: `youtube`, ... | `on` \| `off` (off leaves the site alone) | `on` |
+| waybar | `font` | `ui` \| `terminal` | `terminal` |
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |
 | fcitx, wmenu, dmenu | `font` | `ui` \| `terminal` | `ui` |
 | sway, i3 | `font` | `ui` \| `terminal` | `ui` |
 | | `menu` | `auto` \| `wmenu` \| `dmenu` \| `none` | `auto` |
-| | `bar` | `auto` \| `on` \| `off` | `auto` (a bar only if the config has none) |
+| | `bar` | `auto` (your `bar { }` blocks switched off and replaced: by waybar under sway when the waybar module is on, by themer's bar otherwise, which keeps your bar's `status_command`) \| `themer` (always themer's bar) \| `keep` (yours as it is) | `auto` |
 | example | `style` | `short` \| `long` | |
 
 ## Templates
@@ -329,7 +471,7 @@ gtk/          gtk.css                        GTK 3 and 4
 qt/           qt.qss, colors.conf, *.svg     the plugin, qt5ct and qt6ct
 firefox/      userChrome.css, userContent.css
 thunderbird/  tokens.css, chrome.css, content.css
-stylus/       youtube.user.css, <site>.user.css  Stylus userstyles, one per site
+stylus/       youtube.user.css, wikipedia.user.css, ...  Stylus userstyles, one per site
 wm/           themer.conf, bar.conf          sway and i3
 launcher/     launcher                       wmenu and dmenu
 waybar/       style.css
@@ -408,7 +550,7 @@ What each module directory takes, and what becomes of it on apply:
 | `qt/` | `qt.qss` | to `~/.config/themer/qt/themer.qss` (and qt5ct/qt6ct's copies). `{{qt_assets}}` is the directory it lands in: `url({{qt_assets}}/x.svg)` for images, since a Qt stylesheet's `url()` is not relative to the stylesheet |
 | | `*.svg` | rendered like templates (arrows, check marks in the theme's colours) and written beside the stylesheet |
 | | `colors.conf` | the qt5ct/qt6ct palette; `{{qt_active}}`, `{{qt_disabled}}`, `{{qt_inactive}}` are the role lists built from the theme |
-| `firefox/` | `userChrome.css`, `userContent.css` | a marked block at the end of the profile's files; other files copied into `chrome/`. Variables: `{{tab_font}}`, `{{tab_size}}`, `{{glyph_size}}`, and per toolbar icon `{{icon_X}}`, `{{icon_X_hover}}`, `{{raster_X}}`, `{{tint_X}}`, `{{tint_X_hover}}` (X: back forward reload stop home newtab menu downloads extensions star_off star reader identity close), data URIs of the icon theme |
+| `firefox/` | `userChrome.css`, `userContent.css` | a marked block at the end of the profile's files; other files copied into `chrome/`. Variables: `{{tab_font}}`, `{{tab_size}}`, `{{glyph_size}}`, `{{icon_hover_filter}}`, and nine per icon, data URIs from the icon theme: `{{icon_X}}` `{{icon_X_hover}}` (the icon in the bar's ink and hover ink), `{{raster_X}}` `{{tint_X}}` `{{tint_X_hover}}` (the icon as a mask and its colours, for bitmaps and `style=mask`), `{{menu_X}}` `{{menu_X_hover}}` `{{mask_X}}` `{{menu_tint_X}}` (the same for menus). Unused forms are `none` or `transparent`. X is one of: back forward reload stop home newtab menu star star_off downloads extensions reader identity close prev next down sidebar history library bookmarks folder search more screenshot account sound muted translate window private password print save zoom_in zoom_out fullscreen settings tools help quit shield tag appearance access info. Rules between `/* themer:icons */` and `/* themer:icons end */` are left out with `style=firefox` |
 | `thunderbird/` | `tokens.css`, `chrome.css`, `content.css` | tokens+chrome → userChrome, tokens+content → userContent. `{{font_family}}`, `{{font_size}}` |
 | `stylus/` | `<site>.user.css` | a UserCSS file (`/* ==UserStyle==` header, `@-moz-document domain(...)`), rendered to `~/.config/themer/stylus/<site>.user.css`; every such file in the set is a site, and the built-in set's sites are kept when a set adds one. `{{font_family}}`, `{{font_size}}`, `{{font_rule}}` (a complete `font-family` declaration, empty with `font=site`). The marker goes in `@description` |
 | `wm/` | `themer.conf`, `bar.conf` | included from the sway/i3 config. `{{font_family}}`, `{{font_size}}`, `{{bar_block}}`, `{{cursor_block}}` |
@@ -491,13 +633,26 @@ read at profile startup only). It needs
 module does not write `user.js`. Profiles are looked for in `~/.config/mozilla/firefox`,
 `~/.mozilla/firefox`, the snap and the Flatpak.
 
-**Icons:** the toolbar buttons show icons from the installed icon theme, searched along
+**Icons:** every icon in the chrome comes from the installed icon theme: the toolbar
+buttons (back, forward, reload, home, new tab, menu, downloads, extensions, bookmark,
+reader, the site identity, tab close, sidebar, history, library, screenshot, account,
+print, save, settings, zoom, fullscreen), the tab strip's scroll arrows and audio
+marks, the findbar's arrows, the bookmarks toolbar's folders and chevron, the close
+buttons of notifications and panels, and the app menu's items. Toolbar icons are
+recolored to the bar's ink with a hover variant; icons inside menus are the shape as
+a mask over the text color, so they follow hover and selection like their label.
+Icons are looked up in the theme, searched along
 its `Inherits` chain, then hicolor, then Adwaita. Icons are embedded in the stylesheet
 as `list-style-image`, so Firefox needs no file access. By default each icon is the
 theme's own, recoloured to the bar's ink; `style=mask` draws every icon's shape as a CSS
 mask over the ink instead, in a fixed box, which evens out an icon theme with mixed
 artwork. A glyph missing from every theme in the chain comes from the bundled Adwaita
 icons, so every button has an icon whatever the icon theme.
+`style=firefox` leaves the icon theme out of Firefox altogether: Firefox draws its own
+icons, in the bar's ink as it does for any theme, and only their size follows the
+`size` and `icons` options. The template marks every icon rule between
+`/* themer:icons */` and `/* themer:icons end */` comments, and the module cuts those
+stretches out; a set of your own does the same with its icon rules.
 
 **How the template reaches Firefox's own rules:** Firefox draws the chrome from design
 tokens declared on `:root` and, inside its custom elements, on `:host` in shadow trees
@@ -520,17 +675,24 @@ variables set to the roles on both of YouTube's own modes, square corners, the
 Chicago bevel on buttons and chips, the accent on the selected chip and guide entry
 and on the player's progress bar, menus and dialogs flat and outlined.
 
-Stylus keeps its styles inside the browser, where nothing outside can write, so the
-file is installed once by hand:
+Wikipedia ships too, for every language and for desktop and mobile: the Codex
+design tokens Wikipedia's skins draw from set to the roles, on its day, night and
+automatic modes alike; infobox, navbox and table headers on the face color (a cell
+that carries a color of its own, such as a party's, keeps it); links in the accent,
+visited ones in ansi5, missing pages in the urgent color; message boxes outlined with
+a colored stripe for their kind. Photos are untouched; drawings that are black on
+transparent (formulas, the wordmark, pictures Wikipedia marks to invert) are inverted
+in dark mode, as Wikipedia does at night (the stylus module's `{{image_filter}}`).
 
-1. open `file:///home/<you>/.config/themer/stylus/youtube.user.css` in the browser
-   (Chromium: turn on *Allow access to file URLs* for Stylus first);
-2. Stylus opens its install page: tick **Live reload**, then **Install style**.
-
-From then on every apply restyles the site at once, since Stylus re-reads the file
-when it changes. A set adds a site by adding `stylus/<site>.user.css`; nothing in the
-module changes. Not checked against a live YouTube here: the selectors and variable
-names are from YouTube's current stylesheets, and the rendered file is checked to
+Stylus keeps its styles inside the browser, where nothing outside can write, so each
+style is installed once by hand (see [Setting up Firefox, Thunderbird and
+Stylus](#setting-up-firefox-thunderbird-and-stylus)). The style's `@updateURL` points
+back at themer-web and its `@version` grows with every apply, so Stylus's own update
+check brings each apply in while the server runs. Each site has its own switch
+(`themer module option stylus youtube off`): off leaves the site alone. A set adds a
+site by adding `stylus/<site>.user.css`; the module finds it and gives it a switch,
+nothing in the module changes. Not checked against live YouTube or Wikipedia here: the selectors and variable
+names are from their current stylesheets (Wikipedia's from the Codex token list), and the rendered file is checked to
 parse (every rule kept) in Chromium.
 
 ## Thunderbird
@@ -549,110 +711,36 @@ The profile is found as for Firefox. It needs
 a restart after applying. The selectors and token names are taken from Thunderbird's
 own stylesheets; not checked by running Thunderbird here.
 
-## Themes
+## Colour schemes
 
-80 themes, each with a `[dark]` and a `[light]` section. The first batch was taken
-by hand from the projects' own palettes; the rest come from the Gogh collection of
-terminal schemes through `tools/gogh2theme.py`, which picks the roles from the
-sixteen colours (bg, the white that reads best on it, the most saturated colour
-that reads 3:1 as the accent with reds and yellows left to urgent and warning) and
-derives the missing side where a scheme has only one: the same hues with the
-lightness flipped, then the readability rules on load. Backgrounds run from black
-through mid greys (afterglow, zenburn, warmneon, espresso, lunaria) to coloured
-(belafonte, cyberpunk, ubuntu, mono-amber), and the lights from white through
-cream (belafonte, novel, lunaria, sonoran-sunrise, manpage). Each file's header
-names its source.
+220 schemes ship, each a `.theme` file with a `[dark]` and a `[light]` section giving
+`bg`, `fg`, `surf`, `acc`, `accfg`, `urg`, `warn` and `ansi0`–`ansi15`. A handful were
+taken by hand from the projects' own palettes (catppuccin, gruvbox, solarized, nord,
+dracula, habamax...); the rest are the whole Gogh collection of terminal schemes
+(`test/gogh-schemes.txt`), imported with `themer scheme import`. Backgrounds run from
+black through mid greys to coloured, and the lights from white through cream. Each
+file's first lines name its source.
 
-| Theme | Source |
-|---|---|
-| 3024 | `3024night`, `3024day` |
-| afterglow | `afterglow`; light derived |
-| atom | `atom`; light derived |
-| aura | `aura`; light derived |
-| ayu-mirage | `ayu_mirage`, `ayu_light` |
-| ayu | `ayu_dark`, `ayu_light` |
-| belafonte | `belafonte_night`, `belafonte_day` |
-| bluloco | `bluloco_light`; dark derived |
-| breeze | `breeze`, `breath_light` |
-| c64 | `c64`; light derived |
-| catppuccin-frappe | `catppuccin_frappe`, `catppuccin_latte` |
-| catppuccin-macchiato | `catppuccin_macchiato`, `catppuccin_latte` |
-| catppuccin | Mocha (dark) and Latte (light) |
-| chalk | `chalk`; light derived |
-| cobalt2 | `cobalt2`; light derived |
-| crimson | this project's; light derived |
-| cyberpunk | `cyberpunk`; light derived |
-| dehydration | `dehydration`; light derived |
-| desert | neovim's desert; light derived |
-| doom-one | `doomone`; light derived |
-| dracula | Dracula (dark) and Alucard (light), the official Dracula palettes |
-| earthsong | `earthsong`; light derived |
-| elementary | `elementary`; light derived |
-| espresso | `espresso`; light derived |
-| fairyfloss | `fairyfloss`; light derived |
-| flat | `flat`; light derived |
-| github | Primer default dark and light (terminal colours approximate) |
-| gotham | `gotham`; light derived |
-| greyscale | neutral greys, high contrast |
-| gruvbox | dark and light, medium contrast |
-| habamax | neovim's habamax; light derived |
-| hemisu | `hemisu_dark`, `hemisu_light` |
-| hopscotch | `hopscotch`; light derived |
-| horizon | `horizon_dark`, `horizon_bright` |
-| hybrid | `hybrid`; light derived |
-| ibm3270 | `ibm3270`; light derived |
-| iceberg | `iceberg_dark`, `iceberg_light` |
-| jellybeans | `jellybeans`; light derived |
-| kanagawa | `kanagawa`; light derived |
-| laserwave | `laserwave`; light derived |
-| lunaria | `lunaria_dark`, `lunaria_light` |
-| manpage | `manpage`; dark derived |
-| material | `material`; light derived |
-| mono-amber | `mono_amber`; light derived |
-| mono-green | `mono_green`; light derived |
-| monokai-pro | `monokai_pro`; light derived |
-| monokai | `monokai_dark`; light derived |
-| night-owl | `nightowl`, `nightowlish_light` |
-| nighty | `nighty`; light derived |
-| nord | `nord`, `nord_light` |
-| novel | `novel`; dark derived |
-| oceanic-next | `oceanicnext`; light derived |
-| one | `onedark`, `onelight` |
-| palenight | `palenight`; light derived |
-| papercolor | `papercolor_dark`, `papercolor_light` |
-| paraiso | `paraiso_dark`; light derived |
-| pencil | `pencil_dark`, `pencil_light` |
-| relaxed | `relaxed`; light derived |
-| rose-pine-moon | `rosepine_moon`, `rosepine_dawn` |
-| rose-pine | main (dark) and dawn (light) |
-| ryuuko | `ryuuko`; light derived |
-| seashells | `seashells`; light derived |
-| slate | neovim's slate; light derived |
-| solarized | dark and light, canonical values |
-| sonoran-sunrise | `sonoransunrise`; dark derived |
-| spacegray | `spacegray`; light derived |
-| suckless | dwm's and dmenu's default colours; light derived |
-| terminix | `terminix_dark`; light derived |
-| tokyonight | night (dark) and day (light) |
-| tomorrow-night | `tomorrow_night`; light derived |
-| twilight | `twilight`; light derived |
-| ubuntu | `ubuntu`; light derived |
-| vaughn | `vaughn`; light derived |
-| vscode | `vscode_dark`, `vscode_light` |
-| warmneon | `warmneon`; light derived |
-| wombat | `wombat`; light derived |
-| wryan | `wryan`; light derived |
-| xterm | xterm's own defaults, dark and light |
-| zenbones | zenwritten, dark and light |
-| zenburn | `zenburn`; light derived |
+**Your own.** `themer scheme import FILE [NAME]` (or **Import…** on the Theme page,
+`i` in the TUI's scheme list) takes:
 
-A theme is a `.theme` file with a `[dark]` and a `[light]` section, each giving `bg`,
-`fg`, `surf`, `acc`, `accfg`, `urg`, `warn` and `ansi0`–`ansi15`. Drop your own into
-`~/.config/themer/themes/`, or make one from any Gogh-style line of sixteen colours:
+- a themer `.theme` file, as it is;
+- Gogh lines, `name= #000000 #aa0000 ...` with the sixteen colours, any number of them;
+- Xresources (`*color0: #...`, `*background:`), kitty (`color0 #...`), foot
+  (`regular0=...`, `bright0=...`) or alacritty (`[colors.normal] black = "#..."`).
 
-```sh
-python3 tools/gogh2theme.py schemes.txt ~/.config/themer/themes mytheme=my_dark/my_light
-```
+From the sixteen colours it picks the roles: the background (the scheme's own, or
+`ansi0`), the white that reads best on it, a surface a step toward it, the red and the
+yellow that read better as urgent and warning, and as the accent the most saturated
+of the rest that reads 3:1 (yellows weighted down, so it is not the warning colour).
+The side the scheme is (dark or light) comes from it; the other side is derived: the
+same hues with the lightness flipped, each colour moved until it reads. The readability
+rules check the rest on load. Imports land in `~/.config/themer/themes/`.
+
+**Removing.** `themer scheme remove NAME` (**Remove**, `d`) deletes one of yours; a
+built-in one is hidden instead, its name kept in `~/.config/themer/themes/.removed`, so
+the install is left alone. `themer scheme restore` (**Restore hidden**, `r`) brings
+them back. The scheme in use cannot be removed: switch first.
 
 ## Fonts
 
@@ -660,21 +748,252 @@ The font browser lists every installed family, from `fc-list` when present and f
 the name table of each `.ttf`/`.otf`/`.ttc` under the standard font directories. The UI
 font goes to GTK, Qt, waybar, sway/i3 and fcitx; the terminal font to foot and the Qt
 fixed font. Ctrl-P in the font browser writes an HTML specimen in the theme's colours
-to `~/.cache/themer/fonts/` and opens it.
+to `~/.config/themer/cache/fonts/` and opens it.
 
 ## Writing a module
 
-See `include/themer_module.h` and `modules/example.c`. A module is one C file:
+A module themes one program. It is one C file, built into a shared object
+(`name.so`) that themer finds at startup. themer hands it the theme (colours, fonts,
+options), and the module writes the program's config through themer's `tm_*` helpers.
+The helpers record every change, so themer can undo the module's writes without the
+module's help: you write a `load`, and unload comes for free.
 
-```sh
-cc -shared -fPIC -I PREFIX/include/themer -o name.so name.c
+The pieces, in the order you meet them:
+
+| File | What it is |
+|---|---|
+| `include/themer_module.h` | the whole API, every field and helper commented (installed as `PREFIX/include/themer/themer_module.h`) |
+| `modules/example.c` | a working module that renders a template: copy it |
+| `templates/themer_chicago/example/colors` | its template |
+| `modules/*.c` | the shipped modules, from the small (`newt.c`, `cursor.c`) to the large (`firefox.c`) |
+
+### 1. Write it
+
+The smallest module writes one file:
+
+```c
+#include "themer_module.h"
+
+static int
+present(const TmTheme *t)
+{
+	(void)t;
+	return tm_have("myapp");          /* is myapp on PATH? */
+}
+
+static int
+load(const TmTheme *t)
+{
+	char p[1024];
+
+	tm_path(p, sizeof p, t, ".config/myapp/colors");     /* $HOME/.config/myapp/colors */
+	return tm_writef(p, "# generated by themer\nbg=#%s\nfg=#%s\naccent=#%s\n",
+	                 t->bg, t->fg, t->acc);
+}
+
+static const TmModule mod = {
+	.name = "myapp",
+	.desc = "myapp: its colors in ~/.config/myapp/colors",
+	.default_on = 1,
+	.present = present,
+	.load = load,
+};
+TM_EXPORT(mod)
 ```
 
-dropped into `~/.config/themer/modules/`. Modules are compiled against the layout of
-`TmModule` and `TmTheme` (`TM_ABI`); one built for another layout is skipped with a
-message. A module with a `present()` hook is skipped by apply where its program is
-missing. `make install` replaces the installed modules; rebuild any in
-`~/.config/themer/modules`.
+The `generated by themer` line is required: it is how themer tells its own files from
+yours, and it refuses to overwrite a file without it.
+
+### 2. Build and install
+
+```sh
+cc -shared -fPIC -I/usr/local/include/themer -o myapp.so myapp.c
+mkdir -p ~/.config/themer/modules && cp myapp.so ~/.config/themer/modules/
+```
+
+Use your `PREFIX` in place of `/usr/local`. Modules are found in `$THEMER_MODULES`, then
+`~/.config/themer/modules/`, then `PREFIX/lib/themer/modules/`; the first with a given
+name wins, so a copy in your home overrides a shipped module of the same name.
+
+### 3. Try it
+
+```sh
+themer module list                    # myapp is listed: on/off, "absent" if present() said no
+themer module load myapp              # turn it on and write its files now
+cat ~/.config/myapp/colors
+cat ~/.config/themer/undo/myapp.manifest   # what it wrote, as themer recorded it
+themer toggle                         # dark/light: the file follows
+themer module unload myapp            # everything it wrote is gone or put back
+```
+
+For a module with templates, `themer template render MODULE SET FILE` prints one
+rendered file without applying anything, and names any `{{variable}}` that is not
+defined.
+
+### Lifecycle
+
+| Hook | Called | Must |
+|---|---|---|
+| `present(t)` | before every load, and to list the module | return 1 if the program is installed or configured here, 0 if not. Optional: without it the module always writes |
+| `load(t)` | on every apply, on `module load`, when one of its options changes | write everything, return 0. themer first undoes what the last load wrote, so `load` always starts from the user's own files and never needs to check for its own leftovers |
+| `unload()` | on `module unload`, and before every load, after the recorded changes are undone | clean up what the helpers could not record (rarely needed). Optional |
+| `reload()` | after every apply, load and unload, of any module | tell the running program to re-read its config (a signal, an IPC call through `tm_run`). Optional. Must do nothing when the program is not running |
+| `more_options(o, max)` | once, when the module is found | add options known only at run time; return how many. Optional |
+
+When `load` returns non-zero, apply reports `module NAME failed` and carries on with the
+other modules. What the failed load had already written stays recorded, and the next
+apply or unload takes it away.
+
+When `present` returns 0 the module stays on but writes nothing (anything from an
+earlier load is taken away); it takes effect once the program appears. The front ends
+show it as *(not installed)*.
+
+### TmModule fields
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | yes | the name users type: `themer module load NAME`, option keys `NAME.option`. Letters, digits, `-`, `_` |
+| `desc` | yes | one line, shown in every front end: `"myapp: what it themes and where"` |
+| `load` | yes | see Lifecycle |
+| `templates` | no | the template directory it renders from, `templates/<set>/<templates>/`. Modules may share one (sway and i3 both use `wm`) |
+| `default_on` | no | 1 to be on in a fresh install |
+| `present`, `unload`, `reload`, `more_options` | no | see Lifecycle |
+| `options`, `noptions` | no | its options: an array of `TmOption` and its length (`TM_COUNT(opts)`) |
+| `colorless` | no | 1 for a module that draws no colours (cursor, fontconfig): it gets no `mode` option |
+| `watches_modules` | no | 1 when its output depends on which other modules are on (`tm_loaded`): it is reloaded whenever another module is switched |
+
+### What the module is given: TmTheme
+
+| Fields | Contents |
+|---|---|
+| `bg fg surf acc accfg urg warn line on_urg on_warn` | the colour roles, 6 hex digits without `#` (see [Design language](#design-language) for what each is for) |
+| `ansi[0..15]` | the terminal colours |
+| `dark` | 1 in dark mode, 0 in light (already resolved from the module's `mode` option) |
+| `theme` | the theme's name, e.g. `gruvbox` |
+| `ui_font ui_size mono_font mono_size tty_font` | the fonts; `tm_font_for(t, "NAME.font", ...)` picks one from a `ui\|terminal` option |
+| `icons cursor cursor_size` | the icon and cursor themes |
+| `hinting antialias rgba` | font rendering |
+| `web_port` | where themer-web serves on localhost |
+| `home` | `$HOME` (use `tm_path` to build paths under it) |
+| `opts nopts`, `loaded nloaded` | read them with `tm_opt` and `tm_loaded` |
+
+The colours in `TmTheme` are the roles only. The derived tones (`hover_bg`,
+`bar_text`, `light`, `shade`, ...) are available by name with `tm_shared(t, name, ...)`,
+and in templates as variables.
+
+### Options
+
+```c
+static const TmOption opts[] = {
+	/* name     description shown under it          choices         default  min max */
+	{ "font",  "font for myapp's interface",         "ui|terminal",  "ui",    0,  0 },
+	{ "size",  "border width in pixels",             NULL,           "1",     0,  8 },
+	{ "tabs",  "theme the tab bar",                  "on|off",       "on",    0,  0 },
+	TM_OPT_TEMPLATE,                     /* last, when the module renders templates */
+};
+```
+
+Read a value with `tm_opt(t, "myapp.font")`: the user's value, or the default when
+they set none. Values are checked when set, so a choice option is always one of its
+choices and a ranged one an integer in range. themer adds a `mode` option (`auto|dark|light`) to every module that is not
+`colorless` and renders the module from that side of the theme, so the module needs no
+code for it.
+
+Every front end draws an option from its fields alone, so a module never writes UI
+code:
+
+| The option has | Drawn as | Section |
+|---|---|---|
+| choices `on\|off` | a switch | What it themes |
+| up to 4 choices, 32 characters in all | a row of buttons | Look |
+| more or longer choices | a drop-down list | Look |
+| `max > min` | a slider from `min` to `max` | Look |
+| none of these | a text field | Look |
+
+### Templates
+
+A module that renders templates keeps its file contents out of the C code, so a template
+set can restyle it without a rebuild:
+
+```c
+static int
+load(const TmTheme *t)
+{
+	char body[8192], p[1024];
+
+	if (tm_render(body, sizeof body, "myapp", tm_opt(t, "myapp.template"), "colors.conf",
+	              t, NULL, 0) < 0)
+		return -1;
+	tm_path(p, sizeof p, t, ".config/myapp/colors.conf");
+	return tm_writef(p, "%s", body);
+}
+```
+
+That renders `templates/<set>/myapp/colors.conf` (set `.templates = "myapp"`). The
+template sees every shared variable (see [Writing a template set](#writing-a-template-set))
+and starts with its own marker line:
+
+```
+# generated by themer
+background = #{{bg}}
+foreground = #{{fg}}
+selection  = #{{acc}}
+```
+
+Variables of the module's own are exported with `TM_VARS`, so `themer template render`
+and `themer set check` see them too; `modules/example.c` shows one. Ship the template in
+your set's directory, or in `~/.config/themer/templates/themer_chicago/myapp/` to add it
+to the built-in set.
+
+### Helpers
+
+Every helper that changes a file is recorded and undone on unload. Paths are absolute;
+build them with `tm_path`.
+
+| Helper | Does | Returns | Undone on unload |
+|---|---|---|---|
+| `tm_path(buf, n, t, rel)` | `$HOME/rel` into `buf` | 0 | — |
+| `tm_writef(path, fmt, ...)` | writes a whole file of your own (marker line required); never overwrites a file without the marker | 0, -1 | deleted |
+| `tm_writex(path, fmt, ...)` | the same, executable (a script) | 0, -1 | deleted |
+| `tm_replacef(path, fmt, ...)` | takes over a file the program has only one of (waybar's `style.css`): the user's is kept and put back | 0, -1 | the user's file restored |
+| `tm_blockf(path, id, prefix, suffix, top, fmt, ...)` | a marked block in the user's file, first (`top = 1`) or last | 0, -1 | block cut out |
+| `tm_ini(path, section, key, value)` | one `key=value` in an ini file | 0, -1 | old value back |
+| `tm_setline(path, prefix, text)` | replaces the last line starting with `prefix`, in place | 0, 1 (no such line), -1 | old line back |
+| `tm_disable_block(path, keyword)` | comments out every top-level `keyword { ... }` | count, -1 | commented back in |
+| `tm_mkdirs(path)` | creates directories | 0, -1 | removed when empty |
+| `tm_copy(src, dst)`, `tm_write_asset(path, data, len)` | an image, a font, a binary | 0, -1 | deleted |
+| `tm_copy_tree(srcdir, dstdir, skip)` | every file of a template directory except `skip` | count, -1 | deleted |
+| `tm_symlink(target, path)` | a symbolic link | 0, -1 | removed |
+| `tm_render(out, n, dir, set, file, t, extra, nextra)` | one template into `out` | 0, -1 | — |
+| `tm_template_dir`, `tm_template_names`, `tm_set_info` | where a set's files are, which there are, its label | 0 or count, -1 | — |
+| `tm_opt(t, "mod.opt")`, `tm_loaded(t, "mod")`, `tm_font_for(...)` | options, other modules, the font an option picks | value or NULL, 1/0, — | — |
+| `tm_shared(t, name, out, n)` | a derived tone by name (`hover_bg`) | 0, -1 | — |
+| `tm_contrast`, `tm_mix`, `tm_ensure_contrast`, `tm_text_on` | colour arithmetic (WCAG contrast, mixing in tenths) | see the header | — |
+| `tm_have(prog)` | is `prog` on `PATH` | 1, 0 | — |
+| `tm_run(argv)` | runs a program without a shell, output discarded | exit status, -1 | — |
+
+### Rules
+
+- **Write only through the helpers.** A file written with `fopen` is not recorded, so
+  unload cannot take it away.
+- **Never replace a user's file with `tm_writef`.** Edit it with `tm_blockf`, `tm_ini` or
+  `tm_setline`; take it over only with `tm_replacef`.
+- **Put generated files under `~/.config/themer/`** when the program can include them
+  from there, and add one include line to the user's config with `tm_blockf`: the
+  user's file stays theirs.
+- **Run programs with `tm_run`**, never `system()`: names with spaces or quotes are
+  passed as they are.
+- **Keep `reload` harmless** when the program is not running, and `load` free of
+  questions: it runs unattended on every apply.
+- **Use the roles as the other modules do** (the table in [Design language](#design-language)), so
+  the program looks like the rest of the desktop.
+
+### Compatibility
+
+Modules are compiled against the layout of `TmModule` and `TmTheme`, numbered by
+`TM_ABI` in the header. A module built for another number is skipped with a message,
+never loaded, so a stale module cannot crash themer. After a `make install` that changes
+the number, rebuild the modules in `~/.config/themer/modules/`.
 
 ## Upgrading
 
@@ -689,7 +1008,15 @@ missing. `make install` replaces the installed modules; rebuild any in
 - From a build with the single `wm` module: `themer module unload wm` with that build
   first. From a build whose waybar module used a marked block: `themer module unload
   waybar` with that build.
-- Modules built before TM_ABI 5 must be rebuilt.
+- Modules built before TM_ABI 6 must be rebuilt (TmModule gained `colorless`,
+  `more_options` and `watches_modules`; TmTheme gained `web_port`).
+- From a build that kept its undo logs in `~/.local/state/themer` and the files it
+  replaced as `<file>.themer-orig`: both are still read, so unload works as before;
+  new loads keep them in `~/.config/themer/undo/` and `originals/`.
+- The stylus module's `server` and `port` options are gone: the server is started by
+  hand (Server, or `themer server start`), its port is in the state (`themer server
+  port N`). sway/i3's `bar` option is `auto|themer|keep` (a saved `on` reads as
+  `themer`, `off` as `keep`).
 - The sway/i3 border, gaps and titlebar options and the qt interface options are gone:
   set those in your own config; a saved value is ignored.
 

@@ -1,10 +1,11 @@
-/* example.c: a template module. Copy it and change the names.
+/* example.c: a template module. Copy it and change the names (the README's
+ * "Writing a module" walks through it).
  *
- * A module writes files from templates. The layout is in
- * templates/example/<set>/colors, a text file with {{name}} placeholders. The shared
- * names (bg, fg, surf, acc, mode, ...) come from the theme. A module adds names of its
- * own with TM_VARS, as below. The template set is selected by the "template" option,
- * and the directory by the module's .templates field.
+ * It writes one file, ~/.config/themer/example/colors, rendered from the template
+ * templates/<set>/example/colors: a text file with {{name}} placeholders. The shared
+ * names (bg, fg, surf, acc, mode, ...) come from the theme; the module adds names of
+ * its own with TM_VARS, as below. The set is the "template" option's value, and the
+ * directory under it is the module's .templates field.
  *
  * Rules that keep modules easy to unload:
  *   - write generated files with tm_writef or tm_writex: the first line must say
@@ -15,7 +16,7 @@
  *   - if a running program must be told about the change, do it in reload(), which
  *     runs after every apply; it must do nothing when the program is not running
  *
- * Users set options in the TUI (module menu, then 'o') or with
+ * Users set its option on the Modules page of any front end, or with
  * 'themer module option example style long'. */
 #include <limits.h>
 #include <stdio.h>
@@ -61,7 +62,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "example",
-	.desc = "template: writes ~/.config/themer/example/colors",
+	.desc = "example: the module to copy when writing one; writes ~/.config/themer/example/colors",
 	.templates = "example",
 	.default_on = 0,
 	.load = load,

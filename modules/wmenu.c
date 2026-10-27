@@ -39,7 +39,7 @@ TM_VARS(vars)
 
 static const TmModule mod = {
 	.name = "wmenu",
-	.desc = "wmenu launcher, colored (the script sway and i3 use as $menu)",
+	.desc = "wmenu: a launcher in the theme's colors, used as $menu by sway",
 	.templates = LAUNCHER_TEMPLATES,
 	.default_on = 1,
 	.present = present,

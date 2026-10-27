@@ -232,6 +232,7 @@
   --input-border-color: #{{shade}} !important;
   --input-text-border-radius: 0 !important;
   --sidebar-text-color: #{{fg}} !important;
+  --sidebar-background-color: var(--toolbar-bgcolor) !important;
   --sidebar-border-color: #{{line}} !important;
   --table-header-text-color: #{{fg}} !important;
   --table-border-color: #{{line}} !important;
@@ -277,6 +278,45 @@ menupopup, panel, panelview {
   opacity: 1 !important; transform: none !important;
 }
 #PersonalToolbar { border-bottom: none !important; }
+/* the toolbars stay yours to hide: a toolbar turned off in Firefox's View menu, or
+ * the bookmarks toolbar set to never or only on new tabs, is not shown, whatever the
+ * rows above say. Firefox marks it with a bare collapsed attribute (older versions
+ * wrote collapsed="true" and collapsed="false"). */
+:is(#PersonalToolbar, #nav-bar, #TabsToolbar)[collapsed]:not([collapsed="false"]) {
+  display: none !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; visibility: collapse !important;
+}
+/* with the bookmarks row gone the URL bar's row is the last: its line would sit on
+ * the toolbox's own and draw a double one */
+#navigator-toolbox:has(#PersonalToolbar[collapsed]:not([collapsed="false"])) #nav-bar {
+  border-bottom: none !important;
+}
+
+/* vertical tabs: the tabs move into the sidebar, and the row they leave would stay
+ * as an empty strip */
+#TabsToolbar:not(:has(#tabbrowser-tabs)) {
+  display: none !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important;
+}
+#sidebar-main, sidebar-main, #vertical-tabs {
+  background-color: var(--toolbar-bgcolor) !important; color: var(--toolbar-color) !important;
+}
+#sidebar-main { border-inline-end: 1px solid #{{line}} !important; }
+/* the sidebar's launcher buttons: hover and the open panel in the theme's colors, not
+ * Firefox's blue (the variables reach into the buttons' own trees) */
+#sidebar-main, sidebar-main {
+  --button-background-color-ghost-hover: #{{hover_bg}} !important;
+  --button-text-color-ghost-hover: #{{hover_fg}} !important;
+  --button-background-color-ghost-active: #{{acc}} !important;
+  --button-text-color-ghost-active: #{{tab_active_text}} !important;
+  --button-background-color-ghost-selected: #{{acc}} !important;
+  --button-text-color-ghost-selected: #{{tab_active_text}} !important;
+  --button-border-color-ghost-selected: transparent !important;
+  --button-background-color-selected: #{{acc}} !important;
+  --button-text-color-selected: #{{tab_active_text}} !important;
+  --button-border-color-selected: transparent !important;
+  --button-background-color-hover: #{{hover_bg}} !important;
+  --button-text-color-hover: #{{hover_fg}} !important;
+  --button-border-radius: 0 !important;
+}
 #titlebar, .titlebar-spacer, .titlebar-buttonbox-container, #private-browsing-indicator-with-label,
 #firefox-view-button, #alltabs-button, statuspanel { display: none !important; }
 
@@ -308,8 +348,10 @@ menupopup, panel, panelview {
   height: auto !important; line-height: 1.3 !important;
   mask-image: none !important; --tab-label-mask-size: 0px !important;
 }
-.tab-label-container { overflow: visible !important; }
-.tab-label { color: inherit !important; }
+/* the label is cut at its own box (tall glyphs keep their room above and below),
+ * so a long title ends before the close button instead of running under it */
+.tab-label-container { overflow-x: clip !important; overflow-y: visible !important; min-width: 0 !important; flex: 1 1 auto !important; }
+.tab-label { color: inherit !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
 .tab-icon-image { margin-inline-end: 6px !important; }
 .tab-throbber { display: none !important; }
 .tab-close-button {
@@ -374,6 +416,26 @@ toolbar .toolbarbutton-1:hover, toolbar .toolbarbutton-1[open], toolbar .toolbar
   height: var(--row-height) !important; min-height: var(--row-height) !important;
   max-height: var(--row-height) !important;
 }
+/* no breakout: focused or typing, the bar keeps its place and size instead of
+ * growing out of its row (Firefox moves it with left/top/width and scales its
+ * text and padding when it opens) */
+#urlbar[breakout][breakout-extend], #urlbar[breakout-extend], .urlbar[breakout-extend] {
+  font-size: inherit !important;
+  margin-inline: 0 !important;
+}
+#urlbar[breakout-extend] > .urlbar-input-container, .urlbar[breakout-extend] > .urlbar-input-container {
+  height: var(--row-height) !important; min-height: var(--row-height) !important;
+  padding: 0 !important;
+}
+#urlbar[breakout-extend] #urlbar-input, #urlbar[breakout-extend] .urlbar-input {
+  font-size: inherit !important;
+}
+:root {
+  --urlbar-container-height: var(--row-height) !important;
+  --urlbar-height: var(--row-height) !important;
+  --urlbar-margin-inline: 0px !important;
+  --urlbar-toolbar-height: var(--row-height) !important;
+}
 #urlbar[open] > .urlbar-input-container, .urlbar[open] > .urlbar-input-container {
   height: var(--row-height) !important; min-height: var(--row-height) !important;
 }
@@ -404,14 +466,22 @@ toolbar .toolbarbutton-1:hover, toolbar .toolbarbutton-1[open], toolbar .toolbar
 /* the identity box is the lock alone, in the field's colors */
 #identity-box, #identity-icon-box, #identity-box[pageproxystate] {
   background: transparent !important; border: none !important; color: #{{fg}} !important;
-  padding-inline: 0.25em !important; margin: 0 !important;
+  margin: 0 !important;
 }
+/* the lock sits in the middle of its own space: the padding is the outer box's alone,
+ * the same on both sides, and the inner box is just the icon */
+#identity-box, #identity-box[pageproxystate] { padding-inline: 0.25em !important; }
+#identity-icon-box {
+  padding: 0 !important; min-width: 0 !important;
+  display: flex !important; justify-content: center !important; align-items: center !important;
+}
+#identity-permission-box, #notification-popup-box { margin: 0 !important; }
 #identity-icon-label, #identity-icon-labels { display: none !important; }
 #identity-icon { width: var(--glyph-size) !important; height: var(--glyph-size) !important; padding: 0 !important; }
-/* everything else in the field is hidden: shields, permissions, page actions, the
+/* everything else in the field is hidden: permissions, page actions, the
  * search-mode switcher, the go arrow, zoom. The page actions can be dragged into the
  * nav bar once in Firefox's customize mode. */
-#tracking-protection-icon-container, #identity-permission-box, #blocked-permissions-container,
+#identity-permission-box, #blocked-permissions-container,
 #notification-popup-box, #permissions-granted-icon, #urlbar-revert-button-container,
 #contextual-feature-recommendation, #urlbar-label-box, #page-action-buttons,
 #urlbar-go-button, #urlbar-zoom-button, #urlbar-searchmode-switcher, #searchmode-switcher-chicklet,
@@ -526,10 +596,21 @@ input:focus, textarea:focus, html|input:focus { border-color: #{{acc}} !importan
   width: var(--glyph-size) !important; height: var(--glyph-size) !important;
   padding: 0 !important; -moz-context-properties: fill; fill: currentColor;
 }
+/* themer:icons -- the lines up to the matching end marker are left out with style=firefox */
 /* Firefox's own animated reload/stop art is hidden; only the themed icon shows */
 #reload-button > .toolbarbutton-animatable-box, #stop-button > .toolbarbutton-animatable-box,
 .toolbarbutton-animatable-image { display: none !important; }
 #reload-button > .toolbarbutton-icon, #stop-button > .toolbarbutton-icon { visibility: visible !important; }
+/* themer:icons end */
+/* a hovered icon steps toward the light as well as changing ink (brighter on dark
+ * themes, darker on light): icon_hover_filter comes from the module */
+toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton-icon,
+#star-button-box:hover #star-button, .tab-close-button:hover, #identity-box:hover #identity-icon,
+#reader-mode-button:hover #reader-mode-button-icon, .tab-icon-overlay:hover, .tab-audio-button:hover,
+#tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, #tabbrowser-arrowscrollbox::part(scrollbutton-down):hover {
+  filter: {{icon_hover_filter}} !important;
+}
+/* themer:icons */
 /* Each icon is the theme's image, recolored to the ink (icon_*). An icon drawn as a
  * mask (raster_* and tint_*: bitmaps with raster=ink, every icon with style=mask) is
  * its shape over the ink color instead; otherwise those are none and transparent. */
@@ -590,3 +671,234 @@ input:focus, textarea:focus, html|input:focus { border-color: #{{acc}} !importan
 .tab-close-button:hover { list-style-image: {{icon_close_hover}} !important; }
 .tab-close-button:hover { background-color: {{tint_close_hover}} !important; }
 
+/* the rest of the chrome: the tab strip's arrows and audio marks, the sidebar,
+ * account, screenshot and overflow buttons, and the bookmarks toolbar's folders,
+ * the same way */
+#sidebar-button { list-style-image: {{icon_sidebar}} !important; }
+#sidebar-button > .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
+#sidebar-button:hover { list-style-image: {{icon_sidebar_hover}} !important; }
+#sidebar-button:hover > .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
+#history-panelmenu { list-style-image: {{icon_history}} !important; }
+#history-panelmenu > .toolbarbutton-icon { -webkit-mask: {{raster_history}} center / contain no-repeat !important; mask: {{raster_history}} center / contain no-repeat !important; background-color: {{tint_history}} !important; }
+#history-panelmenu:hover { list-style-image: {{icon_history_hover}} !important; }
+#history-panelmenu:hover > .toolbarbutton-icon { background-color: {{tint_history_hover}} !important; }
+#library-button { list-style-image: {{icon_library}} !important; }
+#library-button > .toolbarbutton-icon { -webkit-mask: {{raster_library}} center / contain no-repeat !important; mask: {{raster_library}} center / contain no-repeat !important; background-color: {{tint_library}} !important; }
+#library-button:hover { list-style-image: {{icon_library_hover}} !important; }
+#library-button:hover > .toolbarbutton-icon { background-color: {{tint_library_hover}} !important; }
+#bookmarks-menu-button { list-style-image: {{icon_bookmarks}} !important; }
+#bookmarks-menu-button > .toolbarbutton-icon { -webkit-mask: {{raster_bookmarks}} center / contain no-repeat !important; mask: {{raster_bookmarks}} center / contain no-repeat !important; background-color: {{tint_bookmarks}} !important; }
+#bookmarks-menu-button:hover { list-style-image: {{icon_bookmarks_hover}} !important; }
+#bookmarks-menu-button:hover > .toolbarbutton-icon { background-color: {{tint_bookmarks_hover}} !important; }
+#screenshot-button { list-style-image: {{icon_screenshot}} !important; }
+#screenshot-button > .toolbarbutton-icon { -webkit-mask: {{raster_screenshot}} center / contain no-repeat !important; mask: {{raster_screenshot}} center / contain no-repeat !important; background-color: {{tint_screenshot}} !important; }
+#screenshot-button:hover { list-style-image: {{icon_screenshot_hover}} !important; }
+#screenshot-button:hover > .toolbarbutton-icon { background-color: {{tint_screenshot_hover}} !important; }
+#fxa-toolbar-menu-button { list-style-image: {{icon_account}} !important; }
+#fxa-toolbar-menu-button > .toolbarbutton-icon { -webkit-mask: {{raster_account}} center / contain no-repeat !important; mask: {{raster_account}} center / contain no-repeat !important; background-color: {{tint_account}} !important; }
+#fxa-toolbar-menu-button:hover { list-style-image: {{icon_account_hover}} !important; }
+#fxa-toolbar-menu-button:hover > .toolbarbutton-icon { background-color: {{tint_account_hover}} !important; }
+#translations-button { list-style-image: {{icon_translate}} !important; }
+#translations-button > .toolbarbutton-icon { -webkit-mask: {{raster_translate}} center / contain no-repeat !important; mask: {{raster_translate}} center / contain no-repeat !important; background-color: {{tint_translate}} !important; }
+#translations-button:hover { list-style-image: {{icon_translate_hover}} !important; }
+#translations-button:hover > .toolbarbutton-icon { background-color: {{tint_translate_hover}} !important; }
+#print-button { list-style-image: {{icon_print}} !important; }
+#print-button > .toolbarbutton-icon { -webkit-mask: {{raster_print}} center / contain no-repeat !important; mask: {{raster_print}} center / contain no-repeat !important; background-color: {{tint_print}} !important; }
+#print-button:hover { list-style-image: {{icon_print_hover}} !important; }
+#print-button:hover > .toolbarbutton-icon { background-color: {{tint_print_hover}} !important; }
+#save-page-button { list-style-image: {{icon_save}} !important; }
+#save-page-button > .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
+#save-page-button:hover { list-style-image: {{icon_save_hover}} !important; }
+#save-page-button:hover > .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
+#preferences-button { list-style-image: {{icon_settings}} !important; }
+#preferences-button > .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
+#preferences-button:hover { list-style-image: {{icon_settings_hover}} !important; }
+#preferences-button:hover > .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
+#zoom-in-button { list-style-image: {{icon_zoom_in}} !important; }
+#zoom-in-button > .toolbarbutton-icon { -webkit-mask: {{raster_zoom_in}} center / contain no-repeat !important; mask: {{raster_zoom_in}} center / contain no-repeat !important; background-color: {{tint_zoom_in}} !important; }
+#zoom-in-button:hover { list-style-image: {{icon_zoom_in_hover}} !important; }
+#zoom-in-button:hover > .toolbarbutton-icon { background-color: {{tint_zoom_in_hover}} !important; }
+#zoom-out-button { list-style-image: {{icon_zoom_out}} !important; }
+#zoom-out-button > .toolbarbutton-icon { -webkit-mask: {{raster_zoom_out}} center / contain no-repeat !important; mask: {{raster_zoom_out}} center / contain no-repeat !important; background-color: {{tint_zoom_out}} !important; }
+#zoom-out-button:hover { list-style-image: {{icon_zoom_out_hover}} !important; }
+#zoom-out-button:hover > .toolbarbutton-icon { background-color: {{tint_zoom_out_hover}} !important; }
+#fullscreen-button { list-style-image: {{icon_fullscreen}} !important; }
+#fullscreen-button > .toolbarbutton-icon { -webkit-mask: {{raster_fullscreen}} center / contain no-repeat !important; mask: {{raster_fullscreen}} center / contain no-repeat !important; background-color: {{tint_fullscreen}} !important; }
+#fullscreen-button:hover { list-style-image: {{icon_fullscreen_hover}} !important; }
+#fullscreen-button:hover > .toolbarbutton-icon { background-color: {{tint_fullscreen_hover}} !important; }
+#search-button { list-style-image: {{icon_search}} !important; }
+#search-button > .toolbarbutton-icon { -webkit-mask: {{raster_search}} center / contain no-repeat !important; mask: {{raster_search}} center / contain no-repeat !important; background-color: {{tint_search}} !important; }
+#search-button:hover { list-style-image: {{icon_search_hover}} !important; }
+#search-button:hover > .toolbarbutton-icon { background-color: {{tint_search_hover}} !important; }
+#nav-bar-overflow-button { list-style-image: {{icon_next}} !important; }
+#nav-bar-overflow-button > .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
+#nav-bar-overflow-button:hover { list-style-image: {{icon_next_hover}} !important; }
+#nav-bar-overflow-button:hover > .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
+#pageActionButton { list-style-image: {{icon_more}} !important; }
+#pageActionButton > .toolbarbutton-icon { -webkit-mask: {{raster_more}} center / contain no-repeat !important; mask: {{raster_more}} center / contain no-repeat !important; background-color: {{tint_more}} !important; }
+#pageActionButton:hover { list-style-image: {{icon_more_hover}} !important; }
+#pageActionButton:hover > .toolbarbutton-icon { background-color: {{tint_more_hover}} !important; }
+#add-ons-button { list-style-image: {{icon_extensions}} !important; }
+#add-ons-button > .toolbarbutton-icon { -webkit-mask: {{raster_extensions}} center / contain no-repeat !important; mask: {{raster_extensions}} center / contain no-repeat !important; background-color: {{tint_extensions}} !important; }
+#add-ons-button:hover { list-style-image: {{icon_extensions_hover}} !important; }
+#add-ons-button:hover > .toolbarbutton-icon { background-color: {{tint_extensions_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up), .findbar-find-previous { list-style-image: {{icon_prev}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up), .findbar-find-previous > .toolbarbutton-icon { -webkit-mask: {{raster_prev}} center / contain no-repeat !important; mask: {{raster_prev}} center / contain no-repeat !important; background-color: {{tint_prev}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, .findbar-find-previous:hover { list-style-image: {{icon_prev_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, .findbar-find-previous:hover > .toolbarbutton-icon { background-color: {{tint_prev_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down), .findbar-find-next { list-style-image: {{icon_next}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down), .findbar-find-next > .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down):hover, .findbar-find-next:hover { list-style-image: {{icon_next_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down):hover, .findbar-find-next:hover > .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
+.tab-icon-overlay[soundplaying], .tab-audio-button[soundplaying], .tab-icon-sound[soundplaying] { list-style-image: {{icon_sound}} !important; }
+.tab-icon-overlay[soundplaying], .tab-audio-button[soundplaying], .tab-icon-sound[soundplaying] { -webkit-mask: {{raster_sound}} center / contain no-repeat !important; mask: {{raster_sound}} center / contain no-repeat !important; background-color: {{tint_sound}} !important; }
+.tab-icon-overlay[soundplaying]:hover, .tab-audio-button[soundplaying]:hover, .tab-icon-sound[soundplaying]:hover { list-style-image: {{icon_sound_hover}} !important; }
+.tab-icon-overlay[soundplaying]:hover, .tab-audio-button[soundplaying]:hover, .tab-icon-sound[soundplaying]:hover { background-color: {{tint_sound_hover}} !important; }
+.tab-icon-overlay[muted], .tab-audio-button[muted], .tab-icon-sound[muted] { list-style-image: {{icon_muted}} !important; }
+.tab-icon-overlay[muted], .tab-audio-button[muted], .tab-icon-sound[muted] { -webkit-mask: {{raster_muted}} center / contain no-repeat !important; mask: {{raster_muted}} center / contain no-repeat !important; background-color: {{tint_muted}} !important; }
+.tab-icon-overlay[muted]:hover, .tab-audio-button[muted]:hover, .tab-icon-sound[muted]:hover { list-style-image: {{icon_muted_hover}} !important; }
+.tab-icon-overlay[muted]:hover, .tab-audio-button[muted]:hover, .tab-icon-sound[muted]:hover { background-color: {{tint_muted_hover}} !important; }
+#PlacesToolbarItems .bookmark-item[container], #OtherBookmarks, #BMB_bookmarksToolbar, #BMB_unsortedBookmarks { list-style-image: {{icon_folder}} !important; }
+#PlacesToolbarItems .bookmark-item[container] > .toolbarbutton-icon, #OtherBookmarks > .toolbarbutton-icon { -webkit-mask: {{raster_folder}} center / contain no-repeat !important; mask: {{raster_folder}} center / contain no-repeat !important; background-color: {{tint_folder}} !important; }
+#PlacesToolbarItems .bookmark-item[container]:hover, #OtherBookmarks:hover { list-style-image: {{icon_folder_hover}} !important; }
+#PlacesToolbarItems .bookmark-item[container]:hover > .toolbarbutton-icon, #OtherBookmarks:hover > .toolbarbutton-icon { background-color: {{tint_folder_hover}} !important; }
+#alltabs-button, #PlacesChevron, #PanelUI-menu-button .toolbarbutton-menu-dropmarker { list-style-image: {{icon_down}} !important; }
+#alltabs-button > .toolbarbutton-icon, #PlacesChevron > .toolbarbutton-icon { -webkit-mask: {{raster_down}} center / contain no-repeat !important; mask: {{raster_down}} center / contain no-repeat !important; background-color: {{tint_down}} !important; }
+#alltabs-button:hover, #PlacesChevron:hover { list-style-image: {{icon_down_hover}} !important; }
+#alltabs-button:hover > .toolbarbutton-icon, #PlacesChevron:hover > .toolbarbutton-icon { background-color: {{tint_down_hover}} !important; }
+.close-icon, .findbar-closebutton, .notification-close, .popup-notification-closebutton, .urlbarView-button-close { list-style-image: {{icon_close}} !important; }
+.close-icon > .toolbarbutton-icon, .findbar-closebutton > .toolbarbutton-icon, .notification-close > .toolbarbutton-icon { -webkit-mask: {{raster_close}} center / contain no-repeat !important; mask: {{raster_close}} center / contain no-repeat !important; background-color: {{tint_close}} !important; }
+.close-icon:hover, .findbar-closebutton:hover, .notification-close:hover { list-style-image: {{icon_close_hover}} !important; }
+.close-icon:hover > .toolbarbutton-icon, .findbar-closebutton:hover > .toolbarbutton-icon { background-color: {{tint_close_hover}} !important; }
+
+/* icons inside menus and panels take the color of their text: the shape as a mask
+ * over currentColor with the mask style, so they follow the hover and selection colors
+ * like the label; with the image style, the image in the menu's text color and its
+ * hover color. The module fills one of menu_X / mask_X and leaves the other none. */
+.subviewbutton > .toolbarbutton-icon, .subviewbutton-nav::after, .toolbarbutton-menu-dropmarker > .dropmarker-icon, dropmarker > .dropmarker-icon,
+.menu-right, .menu-iconic-icon {
+  -moz-context-properties: fill !important; fill: currentColor !important;
+}
+.subviewbutton > .toolbarbutton-icon { margin-inline: 6px 10px !important; }
+#appMenu-new-tab-button2 > .toolbarbutton-icon { list-style-image: {{menu_newtab}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_newtab}} center / contain no-repeat !important; mask: {{mask_newtab}} center / contain no-repeat !important; background-color: {{menu_tint_newtab}} !important; }
+#appMenu-new-tab-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_newtab_hover}} !important; }
+#appMenu-new-window-button2 > .toolbarbutton-icon { list-style-image: {{menu_window}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_window}} center / contain no-repeat !important; mask: {{mask_window}} center / contain no-repeat !important; background-color: {{menu_tint_window}} !important; }
+#appMenu-new-window-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_window_hover}} !important; }
+#appMenu-new-private-window-button2 > .toolbarbutton-icon { list-style-image: {{menu_private}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_private}} center / contain no-repeat !important; mask: {{mask_private}} center / contain no-repeat !important; background-color: {{menu_tint_private}} !important; }
+#appMenu-new-private-window-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_private_hover}} !important; }
+#appMenu-bookmarks-button > .toolbarbutton-icon { list-style-image: {{menu_bookmarks}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_bookmarks}} center / contain no-repeat !important; mask: {{mask_bookmarks}} center / contain no-repeat !important; background-color: {{menu_tint_bookmarks}} !important; }
+#appMenu-bookmarks-button:hover > .toolbarbutton-icon { list-style-image: {{menu_bookmarks_hover}} !important; }
+#appMenu-history-button > .toolbarbutton-icon { list-style-image: {{menu_history}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_history}} center / contain no-repeat !important; mask: {{mask_history}} center / contain no-repeat !important; background-color: {{menu_tint_history}} !important; }
+#appMenu-history-button:hover > .toolbarbutton-icon { list-style-image: {{menu_history_hover}} !important; }
+#appMenu-downloads-button > .toolbarbutton-icon { list-style-image: {{menu_downloads}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_downloads}} center / contain no-repeat !important; mask: {{mask_downloads}} center / contain no-repeat !important; background-color: {{menu_tint_downloads}} !important; }
+#appMenu-downloads-button:hover > .toolbarbutton-icon { list-style-image: {{menu_downloads_hover}} !important; }
+#appMenu-passwords-button > .toolbarbutton-icon { list-style-image: {{menu_password}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_password}} center / contain no-repeat !important; mask: {{mask_password}} center / contain no-repeat !important; background-color: {{menu_tint_password}} !important; }
+#appMenu-passwords-button:hover > .toolbarbutton-icon { list-style-image: {{menu_password_hover}} !important; }
+#appMenu-extensions-themes-button > .toolbarbutton-icon { list-style-image: {{menu_extensions}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_extensions}} center / contain no-repeat !important; mask: {{mask_extensions}} center / contain no-repeat !important; background-color: {{menu_tint_extensions}} !important; }
+#appMenu-extensions-themes-button:hover > .toolbarbutton-icon { list-style-image: {{menu_extensions_hover}} !important; }
+#appMenu-print-button2 > .toolbarbutton-icon { list-style-image: {{menu_print}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_print}} center / contain no-repeat !important; mask: {{mask_print}} center / contain no-repeat !important; background-color: {{menu_tint_print}} !important; }
+#appMenu-print-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_print_hover}} !important; }
+#appMenu-save-file-button2 > .toolbarbutton-icon { list-style-image: {{menu_save}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_save}} center / contain no-repeat !important; mask: {{mask_save}} center / contain no-repeat !important; background-color: {{menu_tint_save}} !important; }
+#appMenu-save-file-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_save_hover}} !important; }
+#appMenu-find-button2 > .toolbarbutton-icon { list-style-image: {{menu_search}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_search}} center / contain no-repeat !important; mask: {{mask_search}} center / contain no-repeat !important; background-color: {{menu_tint_search}} !important; }
+#appMenu-find-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_search_hover}} !important; }
+#appMenu-translate-button > .toolbarbutton-icon { list-style-image: {{menu_translate}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_translate}} center / contain no-repeat !important; mask: {{mask_translate}} center / contain no-repeat !important; background-color: {{menu_tint_translate}} !important; }
+#appMenu-translate-button:hover > .toolbarbutton-icon { list-style-image: {{menu_translate_hover}} !important; }
+#appMenu-zoomReduce-button2 > .toolbarbutton-icon { list-style-image: {{menu_zoom_out}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_zoom_out}} center / contain no-repeat !important; mask: {{mask_zoom_out}} center / contain no-repeat !important; background-color: {{menu_tint_zoom_out}} !important; }
+#appMenu-zoomReduce-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_zoom_out_hover}} !important; }
+#appMenu-zoomEnlarge-button2 > .toolbarbutton-icon { list-style-image: {{menu_zoom_in}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_zoom_in}} center / contain no-repeat !important; mask: {{mask_zoom_in}} center / contain no-repeat !important; background-color: {{menu_tint_zoom_in}} !important; }
+#appMenu-zoomEnlarge-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_zoom_in_hover}} !important; }
+#appMenu-fullscreen-button2 > .toolbarbutton-icon { list-style-image: {{menu_fullscreen}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_fullscreen}} center / contain no-repeat !important; mask: {{mask_fullscreen}} center / contain no-repeat !important; background-color: {{menu_tint_fullscreen}} !important; }
+#appMenu-fullscreen-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_fullscreen_hover}} !important; }
+#appMenu-settings-button > .toolbarbutton-icon { list-style-image: {{menu_settings}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_settings}} center / contain no-repeat !important; mask: {{mask_settings}} center / contain no-repeat !important; background-color: {{menu_tint_settings}} !important; }
+#appMenu-settings-button:hover > .toolbarbutton-icon { list-style-image: {{menu_settings_hover}} !important; }
+#appMenu-more-button2 > .toolbarbutton-icon { list-style-image: {{menu_tools}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_tools}} center / contain no-repeat !important; mask: {{mask_tools}} center / contain no-repeat !important; background-color: {{menu_tint_tools}} !important; }
+#appMenu-more-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_tools_hover}} !important; }
+#appMenu-help-button2 > .toolbarbutton-icon { list-style-image: {{menu_help}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_help}} center / contain no-repeat !important; mask: {{mask_help}} center / contain no-repeat !important; background-color: {{menu_tint_help}} !important; }
+#appMenu-help-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_help_hover}} !important; }
+#appMenu-quit-button2 > .toolbarbutton-icon { list-style-image: {{menu_quit}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_quit}} center / contain no-repeat !important; mask: {{mask_quit}} center / contain no-repeat !important; background-color: {{menu_tint_quit}} !important; }
+#appMenu-quit-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_quit_hover}} !important; }
+#appMenu-fxa-label2 > .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_account}} center / contain no-repeat !important; mask: {{mask_account}} center / contain no-repeat !important; background-color: {{menu_tint_account}} !important; }
+#appMenu-fxa-label2:hover > .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account_hover}} !important; }
+.subviewbutton-back > .toolbarbutton-icon { list-style-image: {{menu_back}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_back}} center / contain no-repeat !important; mask: {{mask_back}} center / contain no-repeat !important; background-color: {{menu_tint_back}} !important; }
+.subviewbutton-back:hover > .toolbarbutton-icon { list-style-image: {{menu_back_hover}} !important; }
+.subviewbutton-nav::after, .menu-right { list-style-image: {{menu_next}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_next}} center / contain no-repeat !important; mask: {{mask_next}} center / contain no-repeat !important; background-color: {{menu_tint_next}} !important; }
+.subviewbutton-nav:hover::after, menu:hover > .menu-right { list-style-image: {{menu_next_hover}} !important; }
+.toolbarbutton-menu-dropmarker > .dropmarker-icon, dropmarker > .dropmarker-icon { list-style-image: {{menu_down}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+  -webkit-mask: {{mask_down}} center / contain no-repeat !important; mask: {{mask_down}} center / contain no-repeat !important; background-color: {{menu_tint_down}} !important; }
+.toolbarbutton-menu-dropmarker > .dropmarker-icon, dropmarker > .dropmarker-icon { list-style-image: {{menu_down_hover}} !important; }
+
+/* the Library window and the places trees (the bookmarks sidebar, the Library's
+ * left pane): folders, the bookmark queries, downloads, tags, history, and the
+ * Library's toolbar buttons. Tree images take an image only, so the bar's icons
+ * are used (with the mask style they fall back to Firefox's own). */
+#organizeButton { list-style-image: {{icon_settings}} !important; }
+#organizeButton > .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
+#organizeButton:hover { list-style-image: {{icon_settings_hover}} !important; }
+#organizeButton:hover > .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
+#viewMenu { list-style-image: {{icon_sidebar}} !important; }
+#viewMenu > .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
+#viewMenu:hover { list-style-image: {{icon_sidebar_hover}} !important; }
+#viewMenu:hover > .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
+#maintenanceButton { list-style-image: {{icon_save}} !important; }
+#maintenanceButton > .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
+#maintenanceButton:hover { list-style-image: {{icon_save_hover}} !important; }
+#maintenanceButton:hover > .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
+treechildren::-moz-tree-image(title, container), treechildren::-moz-tree-image(title, open),
+treechildren::-moz-tree-image(title, query, hostContainer), treechildren::-moz-tree-image(title, query, folder),
+treechildren::-moz-tree-image(query) { list-style-image: {{icon_folder}} !important; }
+treechildren::-moz-tree-image(container, queryFolder_toolbar_____), treechildren::-moz-tree-image(container, queryFolder_menu________),
+treechildren::-moz-tree-image(query, OrganizerQuery_allbms_____v) { list-style-image: {{icon_bookmarks}} !important; }
+treechildren::-moz-tree-image(query, OrganizerQuery_downloads__v) { list-style-image: {{icon_downloads}} !important; }
+treechildren::-moz-tree-image(title, query, tagContainer), treechildren::-moz-tree-image(query, OrganizerQuery_tags_______v) { list-style-image: {{icon_tag}} !important; }
+treechildren::-moz-tree-image(title, query, dayContainer), treechildren::-moz-tree-image(query, OrganizerQuery_history____v) { list-style-image: {{icon_history}} !important; }
+treechildren::-moz-tree-image { fill-opacity: 1 !important; }
+
+/* the tracking-protection shield in the URL bar: the theme's shield, sized and
+ * centered like the identity icon, whatever state Firefox gives it */
+#tracking-protection-icon-container { display: flex !important; align-items: center !important; padding: 0 2px !important; }
+#tracking-protection-icon-box, #tracking-protection-icon-box::before, #tracking-protection-icon-box::after { background: none !important; }
+#tracking-protection-icon { width: var(--glyph-size) !important; height: var(--glyph-size) !important; padding: 0 !important; }
+#tracking-protection-icon { list-style-image: {{icon_shield}} !important; }
+#tracking-protection-icon { -webkit-mask: {{raster_shield}} center / contain no-repeat !important; mask: {{raster_shield}} center / contain no-repeat !important; background-color: {{tint_shield}} !important; }
+#tracking-protection-icon-container:hover #tracking-protection-icon { list-style-image: {{icon_shield_hover}} !important; }
+#tracking-protection-icon-container:hover #tracking-protection-icon { background-color: {{tint_shield_hover}} !important; }
+/* the sidebar launcher: each button's icon from the icon theme (with style=mask they
+ * keep Firefox's, as a mask cannot reach into the button) */
+moz-button[view="viewHistorySidebar"] { --button-icon-content: {{menu_history}} !important; }
+moz-button[view="viewHistorySidebar"]:hover { --button-icon-content: {{menu_history_hover}} !important; }
+moz-button[view="viewTabsSidebar"] { --button-icon-content: {{menu_window}} !important; }
+moz-button[view="viewTabsSidebar"]:hover { --button-icon-content: {{menu_window_hover}} !important; }
+moz-button[view="viewBookmarksSidebar"] { --button-icon-content: {{menu_bookmarks}} !important; }
+moz-button[view="viewBookmarksSidebar"]:hover { --button-icon-content: {{menu_bookmarks_hover}} !important; }
+moz-button[view="viewGenaiChatSidebar"] { --button-icon-content: {{menu_help}} !important; }
+moz-button[view="viewGenaiChatSidebar"]:hover { --button-icon-content: {{menu_help_hover}} !important; }
+moz-button[view="viewCPMSidebar"] { --button-icon-content: {{menu_password}} !important; }
+moz-button[view="viewCPMSidebar"]:hover { --button-icon-content: {{menu_password_hover}} !important; }
+moz-button[view="viewOpenTabsSidebar"] { --button-icon-content: {{menu_newtab}} !important; }
+moz-button[view="viewOpenTabsSidebar"]:hover { --button-icon-content: {{menu_newtab_hover}} !important; }
+moz-button[view="viewCustomizeSidebar"] { --button-icon-content: {{menu_settings}} !important; }
+moz-button[view="viewCustomizeSidebar"]:hover { --button-icon-content: {{menu_settings_hover}} !important; }
+/* themer:icons end */
