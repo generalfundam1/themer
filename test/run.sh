@@ -166,6 +166,8 @@ if command -v curl >/dev/null 2>&1; then
 	[ "$(code -d '{}' "$w/api/apply")" = 403 ] || bad "themer-web: a POST without X-Themer was taken"
 	[ "$(code -H 'Host: evil.example:7390' "$w/api/state")" = 403 ] || bad "themer-web: another Host was answered"
 	curl -s "$w/" | grep -q '<title>themer</title>' || bad "themer-web: no page"
+	curl -s "$w/page.css" | grep -q "after GNOME's Adwaita" || bad "themer-web: /page.css is not the set's web/page.css"
+	curl -s "$w/theme.css" | grep -q -- '--control_hover: #' || bad "themer-web: /theme.css lacks the Adwaita tones"
 	curl -s "$w/api/state" > "$HOME/state.json"
 	grep -q '"theme":"' "$HOME/state.json" && grep -q '"name":"stylus"' "$HOME/state.json" ||
 		bad "themer-web: the state is missing things"

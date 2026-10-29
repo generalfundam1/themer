@@ -24,6 +24,7 @@
  * Routes:
  *   GET  /                      the page
  *   GET  /theme.css             the browsed theme as CSS variables
+ *   GET  /page.css              the page's look: the web module's template, web/page.css
  *   GET  /api/state             everything the page shows, as JSON
  *   POST /api/set               {theme|mode|set|ui_font|ui_size|mono_font|mono_size|
  *                                icons|cursor|cursor_size|hinting|antialias|rgba}
@@ -404,8 +405,17 @@ theme_css(Buf *b)
 	TmVar v[MAX_SHARED];
 	int nv;
 
-	gui_scheme(&cfg, &s);
-	themer_view(&cfg, &s, &t);
+	{
+		/* from the web module's side of the theme (its mode option), as /page.css */
+		int i = themer_module_find("web");
+
+		if (i >= 0) {
+			themer_module_view(&cfg, i, &s, &t);
+		} else {
+			gui_scheme(&cfg, &s);
+			themer_view(&cfg, &s, &t);
+		}
+	}
 	nv = shared_vars(&t, &st, v, MAX_SHARED);
 	bputs(b, ":root {\n");
 	for (int i = 0; i < nv; i++) {
@@ -419,7 +429,25 @@ theme_css(Buf *b)
 		else if (strlen(v[i].value) < 120 && !strchr(v[i].value, '\n'))
 			bprintf(b, "  --%s: %s;\n", v[i].name, v[i].value);
 	}
-	bprintf(b, "  color-scheme: %s;\n}\n", cfg.mode == MODE_DARK ? "dark" : "light");
+	bprintf(b, "  color-scheme: %s;\n}\n", t.dark ? "dark" : "light");
+}
+
+/* The page's look: web/page.css of the set the web module renders from, as browsed
+ * (not yet applied), so it changes with the set as the rest of the preview does */
+static void
+page_css(Buf *b)
+{
+	static char css[256 * 1024];
+	static Config view;
+
+	int i = themer_module_find("web");
+
+	if (i >= 0 && !themer_module_on(&cfg, i))
+		return;               /* the web module off: the browser's own controls */
+	view = cfg;
+	snprintf(view.set, sizeof view.set, "%s", front_template_set(&cfg, "web"));
+	if (front_render(&view, "web", "web", "page.css", css, sizeof css) == 0)
+		bputs(b, css);
 }
 
 /* ---- the settings ---- */
@@ -620,6 +648,9 @@ handle(int fd, const char *method, const char *path, const char *body)
 		respond(fd, 200, "text/html; charset=utf-8", web_page, strlen(web_page));
 	} else if (!strcmp(method, "GET") && !strcmp(path, "/theme.css")) {
 		theme_css(&b);
+		respond(fd, 200, "text/css; charset=utf-8", b.s, b.n);
+	} else if (!strcmp(method, "GET") && !strcmp(path, "/page.css")) {
+		page_css(&b);
 		respond(fd, 200, "text/css; charset=utf-8", b.s, b.n);
 	} else if (!strcmp(method, "GET") && !strcmp(path, "/api/state")) {
 		state_json(&b);

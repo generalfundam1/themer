@@ -388,6 +388,7 @@ All on by default unless noted:
 | **dmenu** | the same for dmenu |
 | **newt** | `NEWT_COLORS` for nmtui and other newt dialogs, each colour mapped to the nearest terminal colour. Set in environment.d; copy the line to your shell profile for programs started elsewhere |
 | **st** *(off)* | a colours header; st's `config.h` needs one edit, see `modules/st.c` |
+| **web** | themer-web's own page: its look is the set's `web/page.css` (Themer Default's after Adwaita, Themer Chicago's bevelled), rendered as you browse; `mode` and `template` pin it like any module, off leaves the browser's own controls |
 | **example** *(off)* | the template module to copy |
 
 Built-in targets, not modules: **env** (`environment.d/50-themer.conf`), **tty** (the
@@ -487,6 +488,7 @@ nvim/         themer.lua, select.lua, select.vim
 fcitx/        theme.conf
 newt/         newt.conf
 st/           colors.h
+web/          page.css                       themer-web's own page
 example/      colors
 set.conf      name=, description=, author=, url=   (optional)
 ```
@@ -600,6 +602,7 @@ What each module directory takes, and what becomes of it on apply:
 | `fcitx/` | `theme.conf` | the fcitx5 classic UI theme. `{{font_family}}`, `{{font_size}}` |
 | `newt/` | `newt.conf` | `NEWT_COLORS`. `{{newt_colors}}` |
 | `st/` | `colors.h` | st's `colorname[]` header |
+| `web/` | `page.css` | themer-web's page: its look (colours, edges, corners, padding), served as `/page.css`; the layout is the page's own. The shared names are CSS variables there (`var(--acc)`), so the page redraws as you browse |
 
 Every file sees the shared variables plus its module's own. Rendered text files must
 start with the marker (import adds it): that is how themer tells its own files from
