@@ -368,7 +368,7 @@ $('webport').onchange = async e => {
 };
 async function load() { S = await api('/api/state'); render(); }
 async function set(kv) { S = await api('/api/set', kv); render(); }
-async function apply() { status('applying…'); const r = await api('/api/apply', {}); await load(); status(r.failures ? `applied with ${r.failures} failure(s), see the server's output` : 'applied'); }
+async function apply() { status('applying…'); const r = await api('/api/apply', {}); await load(); status(r.message); }
 async function revert() { S = await api('/api/revert', {}); render(); }
 async function module(name, on) { const r = await api('/api/module', {name, on}); status(r.msg); await load(); }
 async function option(module, option, value) {

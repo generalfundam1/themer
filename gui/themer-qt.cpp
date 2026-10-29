@@ -429,12 +429,12 @@ private:
 	{
 		status->setText("applying...");
 		qApp->processEvents();
-		int fails = front_apply(&cfg);
+		char msg[256];
+		front_apply(&cfg, msg, sizeof msg);
 		applied = cfg;
 		dirty = false;
 		applyButton->setEnabled(false);
-		status->setText(fails ? "applied with failures; see the terminal"
-		                      : "applied. Qt apps keep their theme until restarted; restart Firefox and Thunderbird");
+		status->setText(msg);
 	}
 
 	void menus()

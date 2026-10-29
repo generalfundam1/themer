@@ -588,21 +588,18 @@ on_font_button(GtkButton *b, gpointer data)
 static void
 on_apply(GtkButton *b, gpointer data)
 {
-	int fails;
+	char msg[256];
 
 	(void)b;
 	(void)data;
 	set_status("applying...");
 	while (gtk_events_pending())
 		gtk_main_iteration();
-	fails = front_apply(&cfg);
+	front_apply(&cfg, msg, sizeof msg);
 	applied = cfg;
 	dirty = 0;
 	gtk_widget_set_sensitive(apply_button, FALSE);
-	if (fails)
-		set_status("applied with failures; see the terminal");
-	else
-		set_status("applied. GTK apps keep their theme until restarted; restart Firefox and Thunderbird");
+	set_status(msg);
 }
 
 /* back to what was last applied */

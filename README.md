@@ -217,7 +217,11 @@ the Flatpak). With several profiles, start Firefox with the one you want, then a
    options (Modules, stylus, What it themes) in any front end, or
    `themer server install` for every site (`themer server install youtube` for one).
    That starts the server if it is stopped and opens the style in your default browser
-   (xdg-open), where Stylus shows its install page: click **Install style**. Stylus
+   (xdg-open), where Stylus shows its install page: click **Install style**. Apply in
+   a front end does the same for every site that is on (the stylus option `open`,
+   `apply` by default; `never` leaves it to Install). The CLI's `apply`, `toggle`,
+   `dark`/`light` and `theme`, which keybindings and login scripts run, never open
+   the browser. Stylus
    asks for that click itself, so no program can install a style for you. The server
    keeps running while a browser module (firefox or stylus) is on.
 4. **Later applies** reach Stylus through the style's update address, while the server

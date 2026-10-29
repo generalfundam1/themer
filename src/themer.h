@@ -218,7 +218,8 @@ int  set_info(const char *set, const char *key, char *out, size_t n);
 
 /* front.c: the settings as every front end changes them (CLI, TUI, themer-gtk,
  * themer-qt). Setters return 0, or -1 when the value is refused and nothing changes;
- * front_apply applies and saves, returning the number of failures. */
+ * front_apply applies and saves, returning the number of failures, and writes the
+ * status line every front end shows after it into msg (NULL for none). */
 int  front_set_theme(Config *c, const char *name);
 int  front_set_set(Config *c, const char *name);           /* the template set */
 const char *front_set_title(const char *set, char *out, size_t n);  /* its display name */
@@ -228,7 +229,10 @@ int  front_set_cursor(Config *c, const char *name, int size); /* NULL or 0 keeps
 int  front_set_hinting(Config *c, const char *value);
 int  front_set_rgba(Config *c, const char *value);
 void front_set_antialias(Config *c, int on);
-int  front_apply(Config *c);
+int  front_apply(Config *c, char *msg, size_t n);
+/* themer-web names the port it serves on: front_web_port is then that one, so what it
+ * opens or renders (the stylus addresses) points at itself */
+void front_web_serving(int port);
 /* Keeping a long-running front end in step with the others. front_track names its
  * settings (cfg, being browsed) and what was last saved (base). front_sync then
  * reads the state file when another front end changed it and merges: their

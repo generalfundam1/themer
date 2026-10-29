@@ -309,9 +309,25 @@ front_option_group(int module, int option)
 	return OG_LOOK;
 }
 
-int
-front_apply(Config *c)
+/* stylus.open=apply: after an Apply from a front end, each site that is on opens in
+ * the browser, where Stylus offers to install or update it. Not from the CLI's apply,
+ * toggle or theme commands, which keybindings and login scripts run. */
+static int
+stylus_open_on_apply(const Config *c, char *note, size_t n)
 {
+	int i = themer_module_find("stylus"), j;
+	const char *sites[64];
+
+	if (i < 0 || !themer_module_on(c, i) || (j = themer_option_find(i, "open")) < 0 ||
+	    strcmp(themer_option_value(c, i, j), "apply") || !front_stylus_sites(c, sites, (int)TM_COUNT(sites)))
+		return 0;
+	return front_stylus_install(c, NULL, note, n);
+}
+
+int
+front_apply(Config *c, char *msg, size_t n)
+{
+	char note[160] = "";
 	int fails;
 
 	if (tcfg && c == tcfg)
@@ -321,6 +337,15 @@ front_apply(Config *c)
 		fails++;
 	else if (tcfg && c == tcfg)
 		*tbase = *c;
+	if (!fails)
+		stylus_open_on_apply(c, note, sizeof note);   /* note: what it opened, or why not */
+	if (msg && n) {
+		if (fails)
+			snprintf(msg, n, "applied with %d failure%s: see the output", fails, fails == 1 ? "" : "s");
+		else
+			snprintf(msg, n, "applied and saved; running programs take it when restarted%s%s",
+			         *note ? "; stylus: " : "", note);
+	}
 	return fails;
 }
 
@@ -401,9 +426,19 @@ front_module_dark(const Config *c, const char *module)
 
 /* ---- themer-web, the server the stylus module and the web front end use ---- */
 
+static int serving;   /* the port this process serves on, in themer-web */
+
+void
+front_web_serving(int port)
+{
+	serving = port;
+}
+
 int
 front_web_port(const Config *c)
 {
+	if (serving)
+		return serving;
 	return c->web_port >= 1024 && c->web_port <= 65535 ? c->web_port : 7331;
 }
 

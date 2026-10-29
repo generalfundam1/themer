@@ -1738,7 +1738,7 @@ render_menu(void)
 static void
 apply_all(void)
 {
-	char dir[PATH_MAX], log[PATH_MAX], first[160] = "";
+	char dir[PATH_MAX], log[PATH_MAX], first[160] = "", done[256];
 	int saved, fd, r;
 	FILE *f;
 
@@ -1751,7 +1751,7 @@ apply_all(void)
 	fd = open(log, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd >= 0)
 		dup2(fd, STDERR_FILENO);
-	r = front_apply(cfg);
+	r = front_apply(cfg, done, sizeof done);
 	fflush(stderr);
 	if (fd >= 0) {
 		dup2(saved, STDERR_FILENO);
@@ -1767,7 +1767,7 @@ apply_all(void)
 	if (r)
 		flash(first[0] ? first : "applied with errors");
 	else
-		flash("applied and saved");
+		flash(done);
 	dirty = 0;
 }
 

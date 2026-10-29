@@ -156,7 +156,11 @@ if command -v curl >/dev/null 2>&1; then
 	t "themer-web: page, state, styles, apply"
 	mkdir -p "$HOME/.config/themer/themes"
 	printf '[dark]\nbg=zz\n' > "$HOME/.config/themer/themes/000broken.theme"
-	./themer-web -p 7390 >"$HOME/web.log" 2>&1 &
+	# a stand-in xdg-open: Apply opens the stylus sites in the browser (stylus.open=apply)
+	mkdir -p "$HOME/bin"
+	printf '#!/bin/sh\necho "$1" >> "$HOME/opened"\n' > "$HOME/bin/xdg-open"; chmod +x "$HOME/bin/xdg-open"
+	rm -f "$HOME/opened"
+	PATH="$HOME/bin:$PWD:$PATH" ./themer-web -p 7390 >"$HOME/web.log" 2>&1 &
 	webpid=$!
 	sleep 1
 	w=http://127.0.0.1:7390
@@ -229,6 +233,14 @@ if command -v curl >/dev/null 2>&1; then
 	grep -q '"dirty":true' "$HOME/state.json" && bad "themer-web: a fresh server says it has unapplied changes"
 	post /api/apply '{}' | grep -q '"failures":0' || bad "themer-web: apply failed"
 	curl -s "$w/api/state" | grep -q '"dirty":false' || bad "themer-web: still unapplied after apply"
+	sleep 0.3
+	grep -q '/stylus/youtube.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open the stylus sites"
+	grep -q '/stylus/wikipedia.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open every stylus site"
+	./themer module option stylus open never >/dev/null 2>&1; rm -f "$HOME/opened"
+	post /api/apply '{}' | grep -q '"message":"applied and saved' || bad "themer-web: apply gives no status line"
+	sleep 0.3
+	[ -e "$HOME/opened" ] && bad "stylus.open=never still opened the sites"
+	./themer module option stylus open apply >/dev/null 2>&1
 	kill $webpid 2>/dev/null; wait $webpid 2>/dev/null
 	rm -f "$HOME/.config/themer/themes/000broken.theme"
 	grep -q '^theme=gruvbox' "$HOME/.config/themer/state" || bad "themer-web apply did not save the state"

@@ -674,10 +674,13 @@ handle(int fd, const char *method, const char *path, const char *body)
 			respond_json(fd, &b);
 		}
 	} else if (!strcmp(method, "POST") && !strcmp(path, "/api/apply")) {
-		int fails = front_apply(&cfg);
+		char msg[256];
+		int fails = front_apply(&cfg, msg, sizeof msg);
 
 		applied = cfg;
-		bprintf(&b, "{\"failures\":%d}", fails);
+		bprintf(&b, "{\"failures\":%d,\"message\":", fails);
+		jstr(&b, msg);
+		bprintf(&b, "}");
 		respond_json(fd, &b);
 	} else if (!strcmp(method, "POST") && !strncmp(path, "/api/scheme/", 12)) {
 		static char text[REQ_CAP];
@@ -1054,6 +1057,7 @@ main(int argc, char *argv[])
 		perror("themer-web: bind");
 		return 1;
 	}
+	front_web_serving(port);
 	if (detach) {
 		pid_t pid = fork();
 
