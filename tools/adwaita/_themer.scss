@@ -1,0 +1,153 @@
+// _themer.scss: compiles GTK's Adwaita with the theme's colors left open.
+//
+// Adwaita's SCSS works out every shade at compile time (darken, mix, ...). Here
+// the base colors are symbols instead: a GTK named color (@themer_bg) carrying
+// the Adwaita value it stands for. Each color function below is shadowed: on real
+// colors it does what Sass does; on a symbol it writes the GTK CSS expression that
+// does the same at run time (mix, alpha), working out the factor from the Adwaita
+// value, so Adwaita's own palette comes out as Adwaita and any other palette is
+// shaded the same way. The Adwaita value rides along as "@@#AARRGGBB" after the
+// expression and is cut off from the output by build.sh.
+//
+// darken and lighten become a mix with black or white: in RGB that moves the HSL
+// lightness by a share of the way there, which is how a step of Adwaita's
+// lightness is carried over to other colors (_step).
+@use "sass:color";
+@use "sass:math";
+@use "sass:map";
+@use "sass:string";
+@use "sass:meta";
+
+$_mark: "@@";
+$_defs: ();
+
+@function _is-sym($c) {
+  @return meta.type-of($c) == 'string' and string.index($c, $_mark) != null;
+}
+
+@function _hex($s, $i) {
+  $d: "0123456789abcdef";
+  @return (string.index($d, string.to-lower-case(string.slice($s, $i, $i))) - 1) * 16
+        + (string.index($d, string.to-lower-case(string.slice($s, $i + 1, $i + 1))) - 1);
+}
+
+// the Adwaita value of a color or symbol
+@function _ref($c) {
+  @if meta.type-of($c) == 'color' { @return $c; }
+  @if not _is-sym($c) { @error "not a color: #{$c}"; }
+  $h: string.slice($c, string.index($c, $_mark) + 3);   // AARRGGBB after "@@#"
+  @return color.change(black, $red: _hex($h, 3), $green: _hex($h, 5), $blue: _hex($h, 7),
+                       $alpha: math.div(_hex($h, 1), 255));
+}
+
+// the CSS for a color or symbol
+@function _ex($c) {
+  @if _is-sym($c) { @return string.slice($c, 1, string.index($c, $_mark) - 1); }
+  @return "#{$c}";
+}
+
+@function _r($n) { @return math.div(math.round($n * 1000), 1000); }
+
+@function sym($expr, $ref) {
+  @return string.unquote("#{$expr}#{$_mark}#{color.ie-hex-str($ref)}");
+}
+
+$themer_on_destructive_color: sym("@themer_on_destructive_color", white);
+
+// a variable of _colors.scss: a symbol becomes a GTK named color of its own,
+// defined once (themer-defs), so the expressions stay short
+@function named($name, $c) {
+  @if not _is-sym($c) { @return $c; }
+  $_defs: map.merge($_defs, ($name: _ex($c))) !global;
+  @return sym("@themer_#{$name}", _ref($c));
+}
+
+@mixin themer-defs {
+  @each $name, $expr in $_defs {
+    @if $expr != "@themer_#{$name}" {
+      @define-color themer_#{$name} #{$expr};
+    }
+  }
+}
+
+@function _lightness($c) { @return math.div(color.lightness($c), 100%); }
+
+// How far toward black (or white) a step of $amount lightness goes from a color
+// $room away from it: exact while the step fits. Where Adwaita's step runs into
+// white (its light background is nearly white already), the rest of the way would
+// be white for any color; a fixed share keeps a lighter shade instead.
+@function _step($amount, $room) {
+  $a: math.div($amount, 100%);
+  @if $room <= 0 { @return 0; }
+  @if $a >= $room { @return 0.6; }
+  @return math.div($a, $room);
+}
+
+@function darken($c, $amount) {
+  @if not _is-sym($c) { @return color.adjust($c, $lightness: -$amount); }
+  $ref: _ref($c);
+  $out: color.adjust($ref, $lightness: -$amount);
+  @return sym("mix(#{_ex($c)},black,#{_r(_step($amount, _lightness($ref)))})", $out);
+}
+
+@function lighten($c, $amount) {
+  @if not _is-sym($c) { @return color.adjust($c, $lightness: $amount); }
+  $ref: _ref($c);
+  $out: color.adjust($ref, $lightness: $amount);
+  @return sym("mix(#{_ex($c)},white,#{_r(_step($amount, 1 - _lightness($ref)))})", $out);
+}
+
+@function mix($a, $b, $weight: 50%) {
+  @if not _is-sym($a) and not _is-sym($b) { @return color.mix($a, $b, $weight); }
+  $out: color.mix(_ref($a), _ref($b), $weight);
+  // Sass weighs $a; GTK's mix(x, y, f) is x * (1 - f) + y * f
+  @return sym("mix(#{_ex($b)},#{_ex($a)},#{_r(math.div($weight, 100%))})", $out);
+}
+
+@function _alpha-to($c, $new) {
+  $ref: _ref($c);
+  $old: color.alpha($ref);
+  $new: math.max(0, math.min(1, $new));
+  $f: if($old == 0, 0, math.div($new, $old));
+  @return sym("alpha(#{_ex($c)},#{_r($f)})", color.change($ref, $alpha: $new));
+}
+
+@function transparentize($c, $amount) {
+  @if not _is-sym($c) { @return color.adjust($c, $alpha: -$amount); }
+  @return _alpha-to($c, color.alpha(_ref($c)) - $amount);
+}
+@function fade-out($c, $amount) { @return transparentize($c, $amount); }
+
+@function opacify($c, $amount) {
+  @if not _is-sym($c) { @return color.adjust($c, $alpha: $amount); }
+  @return _alpha-to($c, color.alpha(_ref($c)) + $amount);
+}
+@function fade-in($c, $amount) { @return opacify($c, $amount); }
+
+@function rgba($args...) {
+  @if length($args) == 4 {
+    @return color.change(black, $red: nth($args, 1), $green: nth($args, 2),
+                         $blue: nth($args, 3), $alpha: nth($args, 4));
+  }
+  $c: nth($args, 1);
+  @if not _is-sym($c) { @return color.change($c, $alpha: nth($args, 2)); }
+  @return _alpha-to($c, nth($args, 2));
+}
+
+// no GTK function takes the color out: toward the gray as light as Adwaita's color
+@function desaturate($c, $amount) {
+  @if not _is-sym($c) { @return color.adjust($c, $saturation: -$amount); }
+  $out: color.adjust(_ref($c), $saturation: -$amount);
+  $gray: color.grayscale(_ref($c));
+  @return sym("mix(#{_ex($c)},#{$gray},#{_r(math.div($amount, 100%))})", $out);
+}
+
+@function lightness($c) { @return color.lightness(_ref($c)); }
+
+// Adwaita inverts its blue for one thing, the info bars' tint (a sand color): here
+// they take the accent instead, so the bars follow the theme like the rest
+@function invert($c, $weight: 100%) {
+  @if not _is-sym($c) { @return color.invert($c, $weight); }
+  // the shades worked out from it still step from the inverted lightness
+  @return sym(_ex($c), color.invert(_ref($c), $weight));
+}

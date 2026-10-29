@@ -233,10 +233,11 @@ state_load(Config *c)
 		else if (!strcmp(line, "antialias")) c->antialias = atoi(v) != 0;
 		else if (!strcmp(line, "rgba") && v[0]) snprintf(c->rgba, sizeof c->rgba, "%s", v);
 		else if (!strcmp(line, "set") && v[0]) {
-			/* the built-in sets' names in earlier builds */
+			/* the names Themer Chicago had in earlier builds, when it was the
+			 * only built-in set */
 			if (!strcmp(v, "Themer Chicago") || !strcmp(v, "default") ||
 			    !strcmp(v, "Themer Chicago Mask") || !strcmp(v, "themer_chicago_mask"))
-				v = TM_DEFAULT_SET;
+				v = "themer_chicago";
 			snprintf(c->set, sizeof c->set, "%s", v);
 		}
 		else if (!strncmp(line, "color.", 6)) {

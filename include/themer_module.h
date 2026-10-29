@@ -160,7 +160,7 @@ typedef struct {
 	const TmModule *themer_module(void) { return &(m); }
 
 /* The template set used when a module's "template" option is unset. */
-#define TM_DEFAULT_SET "themer_chicago"
+#define TM_DEFAULT_SET "themer_default"
 
 /* The "mode" option the host gives every module that draws colors (not declared by
  * the module): which side of the theme it is rendered from. auto follows the
@@ -175,7 +175,7 @@ typedef struct {
  * the module's options. Its value is read with tm_opt(t, "<module>.template") and
  * passed to tm_render as the set. */
 #define TM_OPT_TEMPLATE \
-	{ "template", "the template set it is drawn from: unset, it follows the global set (Themer Chicago by default)", \
+	{ "template", "the template set it is drawn from: unset, it follows the global set (Themer Default by default)", \
 	  NULL, TM_DEFAULT_SET, 0, 0 }
 
 /* A template variable: {{name}} in a template is replaced by value. */
@@ -259,7 +259,7 @@ int tm_template_dir(const char *dir, const char *set, char *out, size_t n);
 int tm_template_names(const char *dir, char (*names)[TM_NAME_LEN], int max);
 
 /* A field of a set's set.conf (name, description, author, url): "name" is the
- * set's label, "Themer Chicago" for themer_chicago. Returns 0 with the value in
+ * set's label, "Themer Default" for themer_default. Returns 0 with the value in
  * out, or -1 when the set has no set.conf or no such field (use the set's name). */
 int tm_set_info(const char *set, const char *key, char *out, size_t n);
 

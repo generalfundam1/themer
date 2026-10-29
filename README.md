@@ -8,6 +8,11 @@ them: GTK 2/3/4, Qt 5/6, Firefox, Thunderbird, sway or i3, waybar, foot, nvim, f
 launchers, newt dialogs, the TTY — and YouTube and Wikipedia, through Stylus. Every write is recorded, so unloading a module puts
 the user's files back byte for byte.
 
+The look itself comes from a template set. Themer Default, the default, is GNOME's
+Adwaita in the theme's colours, with Firefox and the web sites left as they come and
+recoloured; Themer Chicago is flat, square and outlined everywhere. A set of your own
+is a directory of ordinary theme files with `{{variables}}` in them.
+
 It replaces nwg-look, qt5ct and qt6ct: icons, cursor, fonts and font rendering are
 applied from the same state, and Qt programs are themed through themer's own platform
 theme plugin.
@@ -25,13 +30,13 @@ themer theme gruvbox   # switch theme, apply everywhere
   <img src="screenshots/themer-gtk-dark.png" width="49%" alt="themer-gtk, gruvbox dark">
   <img src="screenshots/themer-gtk-light.png" width="49%" alt="themer-gtk, gruvbox light">
 </p>
-<p align="center"><sub>themer-gtk: the same theme in dark and light. The preview on the right is the GTK theme the gtk module writes, drawn by the window itself.</sub></p>
+<p align="center"><sub>themer-gtk with Themer Default: the same theme in dark and light. The window and the preview on the right are drawn with the GTK theme the gtk module writes: GTK's Adwaita in the theme's colours.</sub></p>
 
 <p align="center">
   <img src="screenshots/firefox-gruvbox-dark.png" width="100%" alt="Firefox chrome, gruvbox dark">
   <img src="screenshots/firefox-nord-light.png" width="100%" alt="Firefox chrome, nord light">
 </p>
-<p align="center"><sub>Firefox 140 with the firefox module: three flat rows, tabs like sway's, the URL bar in the terminal font.</sub></p>
+<p align="center"><sub>Firefox 140 with the firefox module and Themer Chicago: three flat rows, tabs like sway's, the URL bar in the terminal font.</sub></p>
 
 ## Contents
 
@@ -92,9 +97,10 @@ rebuilt after a Qt minor upgrade; a package makes that one command.
 | `gui/` | `themer-gtk` (GTK 3, C), `themer-qt` (Qt 5 or 6, C++) and `themer-web` (C, with its page in `web/index.html`); `common.c` is what they share; `qpa/` the Qt platform theme plugin |
 | `include/` | `themer_module.h`, the API modules are built against |
 | `modules/` | one `.c` per module; `wm.h`, `launcher.h`, `icons.h` are shared code |
-| `templates/` | `templates/<set>/<dir>/<file>`; a set is one directory (`themer_chicago` is built in), `<dir>` is named by the module |
+| `templates/` | `templates/<set>/<dir>/<file>`; a set is one directory (`themer_default` and `themer_chicago` are built in), `<dir>` is named by the module |
 | `themes/` | `<name>.theme`, a `[dark]` and a `[light]` section each |
 | `icons/` | Adwaita's symbolic icons, the fallback for the Firefox toolbar |
+| `tools/` | `adwaita/build.sh`, which makes the GTK files of `themer_default` from GTK's own Adwaita (see [Templates](#templates)) |
 | `test/` | `make check`, a shell script (its themer-web checks use `curl`, and are skipped without it); `firefox.sh` screenshots a real Firefox, by hand; `gogh-schemes.txt`, the Gogh collection the shipped schemes were imported from |
 
 ## Usage
@@ -262,7 +268,7 @@ The four front ends have the same pages in the same order, **Theme**, **Fonts**,
 sections), and draw the same control for the same kind of setting: on/off is a
 switch, a few short choices are buttons side by side with the chosen one in the
 accent (the mode, a module's font), a number in a range is a slider with its value,
-the template set is a list shown by its title (Themer Chicago; `themer_chicago` is its
+the template set is a list shown by its title (Themer Default; `themer_default` is its
 directory name). A font is a family and a size, set apart.
 
 **Modules**: the modules on the left with their state (on, off, not installed), the
@@ -319,7 +325,9 @@ theme* plugin, which is why qt5ct and qt6ct exist. themer brings its own:
 `~/.config/themer/qt/theme.conf` (style, icon theme, fonts, the palette) and
 `themer.qss`, and sets `QT_QPA_PLATFORMTHEME=themer` and `QT_PLUGIN_PATH` in its
 environment file. The plugin watches those files, so an apply restyles running Qt
-programs at once.
+programs at once. The style is Fusion under the set's stylesheet: Themer Default's draws
+after Adwaita (rounded controls, buttons in the `control` tints, views on `view`, the
+accent for selection and anything switched on), Themer Chicago's is flat and bevelled.
 
 Where the plugin is not installed for your Qt, the module falls back to qt5ct (and
 qt6ct) when they are installed; the `platformtheme` option forces either. Qt reads the
@@ -363,7 +371,7 @@ All on by default unless noted:
 
 | Module | Themes |
 |---|---|
-| **gtk** | a GTK 3/4 theme written to `~/.config/themer/gtk/`, reached by GTK through a link `~/.themes/<set>` named after the template set (`themer_chicago`, labelled "Themer Chicago"); no `GTK_THEME` is set, since that would override the file and go stale. Options `gtk2`, `gtk3`, `gtk4` turn each version off. Restarts the GTK file-chooser portal on apply so Firefox's file dialogs on Wayland follow without a logout. A GTK app keeps the theme it loaded at launch: restart it, or log out |
+| **gtk** | a GTK 3/4 theme written to `~/.config/themer/gtk/`, reached by GTK through a link `~/.themes/<set>` named after the template set (`themer_default`, labelled "Themer Default"); no `GTK_THEME` is set, since that would override the file and go stale. libadwaita programs, which load no named theme, get the set's `libadwaita.css` (or its whole `gtk.css`) through `~/.config/gtk-4.0/gtk.css`. Options `gtk2`, `gtk3`, `gtk4` turn each version off. Restarts the GTK file-chooser portal on apply so Firefox's file dialogs on Wayland follow without a logout. A GTK app keeps the theme it loaded at launch: restart it, or log out |
 | **qt** | Qt 5 and 6: palette, flat stylesheet, icons, fonts, through the platform theme plugin; where qt5ct/qt6ct are installed their configs are written too. Options `qt5`, `qt6`, `platformtheme` |
 | **cursor** | the mouse cursor theme and size: Xcursor default theme, `XCURSOR_*`, Xresources |
 | **fontconfig** | font rendering for everything that reads fontconfig |
@@ -372,7 +380,7 @@ All on by default unless noted:
 | **stylus** | userstyles for web sites, for the Stylus extension in Firefox or Chromium: `~/.config/themer/stylus/<site>.user.css`, one per `*.user.css` in the set (YouTube and Wikipedia ship). Installed once through the server (`themer server install`); Stylus then picks up every apply on its own |
 | **sway** | window and bar colours, the font, `$menu`, the seat cursor; loads only where sway is in use. Borders, gaps and titlebars stay in your own config |
 | **i3** | the same for i3 |
-| **waybar** | dwm-style bar; owns `style.css` (yours is kept in `~/.config/themer/originals/` and put back on unload); under sway it replaces sway's own bar. `config.jsonc` is not touched |
+| **waybar** | the bar's style; owns `style.css` (yours is kept in `~/.config/themer/originals/` and put back on unload); under sway it replaces sway's own bar. `config.jsonc` is not touched |
 | **foot** | font and colours in `foot.ini` (`[colors-dark]` and `[colors-light]`, foot 1.15+, plus `initial-color-theme`) |
 | **nvim** | a `themer` colorscheme, selected from the end of `init.lua` or `init.vim` |
 | **fcitx** | fcitx5 input-method variables and candidate-window theme |
@@ -411,7 +419,7 @@ go where each program reads them.
 ~/.config/themer/
   state            your settings: theme, mode, fonts, icons, modules, options, port
   themes/          your colour schemes (imported ones too); .removed: hidden built-ins
-  templates/       template sets (the built-in Themer Chicago mirrored here, to edit)
+  templates/       template sets (the built-in ones mirrored here, to edit)
   modules/         modules of your own (.so)
   undo/            what each module wrote, so it can be taken back
   originals/       your files as they were before a module edited them
@@ -433,7 +441,7 @@ module reset` puts one back to its default. Two options every module has:
   host renders the module from that side, so it works for third-party modules too.
   Modules that draw no colours (cursor, fontconfig) have none.
 - **`template`**: the template set it is drawn from. Unset, it follows the global set
-  (`themer_chicago` by default); set, it pins that module to a set of its own.
+  (`themer_default` by default); set, it pins that module to a set of its own.
 
 | Module | Option | Values | Default |
 |---|---|---|---|
@@ -483,10 +491,21 @@ example/      colors
 set.conf      name=, description=, author=, url=   (optional)
 ```
 
-The built-in set is **themer_chicago**. It is installed under
-`PREFIX/share/themer/templates`, and every start of themer mirrors it into
-`~/.config/themer/templates/themer_chicago/`, which is the copy that is used: edit it
-there. The mirror keeps itself current without losing your edits:
+Two sets are built in:
+
+- **themer_default** (Themer Default), the default: GNOME's Adwaita in the theme's
+  colours. GTK 3 and GTK 4 get GTK's own Adwaita (see below), libadwaita programs keep
+  libadwaita's look with its named colours set from the theme, Qt gets a stylesheet
+  drawn after Adwaita, and Firefox, Thunderbird, YouTube and Wikipedia stay as they
+  come, recoloured: only their colour variables are set, nothing is moved, resized or
+  rounded differently.
+- **themer_chicago** (Themer Chicago): flat, square and outlined everywhere, with a
+  Chicago bevel on controls and sway-style tabs, and the icon theme's icons in the
+  Firefox toolbar.
+
+They are installed under `PREFIX/share/themer/templates`, and every start of themer
+mirrors them into `~/.config/themer/templates/<set>/`, which is the copy that is used:
+edit it there. The mirror keeps itself current without losing your edits:
 
 - a file you have not touched follows the built-in when `make install` brings a new one;
 - a file you changed is yours and stays (themer says so once if the built-in moved on,
@@ -496,22 +515,42 @@ there. The mirror keeps itself current without losing your edits:
 - a mirrored file whose built-in is gone after an upgrade is removed again, unless you changed it.
 
 How it tells the two apart is `.seeded` in that directory, a hash of each file as
-themer last wrote it. Your own sets live next to it, with names of letters, digits,
-`-` and `_`.
+themer last wrote it. Your own sets live next to them, with names of letters, digits,
+`-` and `_` (not a built-in set's name).
 
 **Switching sets:** `themer set NAME` makes every module render from `NAME` and
-applies. A set need not cover every module: what it lacks comes from `themer_chicago`,
+applies. A set need not cover every module: what it lacks comes from `themer_default`,
 so a set that restyles only Firefox still applies to the whole desktop. One module can
-be pinned to another set with its `template` option.
+be pinned to another set with its `template` option: `themer module option firefox
+template themer_chicago` gives Firefox the Chicago chrome under Themer Default.
 
-To work on the look, edit `~/.config/themer/templates/themer_chicago/` and apply. For a
-second variant:
+To work on the look, edit `~/.config/themer/templates/<set>/` and apply. For a
+variant of your own:
 
 ```sh
-themer set copy themer_chicago mine
+themer set copy themer_default mine
 # edit ~/.config/themer/templates/mine/
 themer set mine
 ```
+
+**Themer Default's GTK files** are not written by hand. `tools/adwaita/build.sh`
+compiles the SCSS of GTK 3's Adwaita and GTK 4's default theme (from a GTK source tree)
+with every colour left open: where Adwaita works out a shade at build time (darken,
+mix, transparentize), the output has the GTK expression that works it out from the
+theme's colours when GTK loads the file (`mix()`, `alpha()`), scaled so that Adwaita's
+own palette comes out as Adwaita. The few base colours are named at the top of each
+file from the theme (`@define-color themer_bg_color #{{bg}};` and so on), so editing
+those recolours the whole theme. Re-run it to follow a new GTK release:
+
+```sh
+git clone --depth 1 -b gtk-3-24 https://gitlab.gnome.org/GNOME/gtk.git gtk3
+git clone --depth 1 -b gtk-4-24 https://gitlab.gnome.org/GNOME/gtk.git gtk4
+tools/adwaita/build.sh gtk3 gtk4 /path/to/dart-sass/sass
+```
+
+GTK 3 picks `gtk-dark.css` and GTK 4 its `gtk4-dark.css` in dark mode, as for any
+theme; the GTK 4 files avoid the relative colours GTK took in 4.16, so they load in
+older GTK 4 too.
 
 ## Writing a template set
 
@@ -544,8 +583,9 @@ What each module directory takes, and what becomes of it on apply:
 | Directory | File | On apply |
 |---|---|---|
 | `gtk/` | `gtk.css` | rendered to `~/.config/themer/gtk/gtk-3.0/gtk.css` and `gtk-4.0/gtk.css`. The set's `gtk.css` is the whole theme: there is no Adwaita underneath it |
-| | `gtk4.css` | optional: GTK 4's `gtk.css` instead of the shared one |
-| | `gtk-dark.css` | optional: what GTK 3 loads in dark mode |
+| | `gtk-dark.css` | optional: what GTK loads in dark mode |
+| | `gtk4.css`, `gtk4-dark.css` | optional: GTK 4's own `gtk.css` and `gtk-dark.css`, in place of the shared ones (which then go to GTK 3 only) |
+| | `libadwaita.css` | optional: what libadwaita programs get through `~/.config/gtk-4.0/gtk.css`, which they read instead of a named theme; without it they get the whole `gtk.css` (so the set restyles them), with it only what it says (Themer Default sets libadwaita's named colours) |
 | | any other `.css` / anything else | rendered / copied into both directories |
 | `qt/` | `qt.qss` | to `~/.config/themer/qt/themer.qss` (and qt5ct/qt6ct's copies). `{{qt_assets}}` is the directory it lands in: `url({{qt_assets}}/x.svg)` for images, since a Qt stylesheet's `url()` is not relative to the stylesheet |
 | | `*.svg` | rendered like templates (arrows, check marks in the theme's colours) and written beside the stylesheet |
@@ -569,7 +609,8 @@ on apply, so a typo cannot reach the output.
 | Shared variables | |
 |---|---|
 | roles | `bg fg surf acc accfg urg warn line on_urg on_warn` |
-| tones | `face light shade pressed field hover_bg hover_fg disabled bar input bar_text input_text tab_text tab_active_text tab_hover_text hover_text glyph_hover` |
+| Chicago tones | `face light shade pressed field hover_bg hover_fg disabled bar input bar_text input_text tab_text tab_active_text tab_hover_text hover_text glyph_hover` |
+| Adwaita tones | `view raised sidebar control control_hover control_active` |
 | terminal | `ansi0` … `ansi15` |
 | other | `mode` (dark/light), `theme`, `icons`, `cursor`, `cursor_size`, `hinting`, `antialias` (1/0), `rgba`, `ui_font`, `ui_size`, `mono_font`, `mono_size`, `tty_font`, `pad_control`, `pad_field`, `pad_cell`, `pad_surface`, `pad_tip` |
 
@@ -579,8 +620,8 @@ and shows up in `themer set list`.
 
 ## Design language
 
-The built-in set, themer_chicago, draws every module from the same roles (listed in
-`themer_module.h`), so GTK, Qt, Firefox, sway/i3 and waybar look like one design:
+Every set draws every module from the same roles (listed in `themer_module.h`), so GTK,
+Qt, Firefox, sway/i3 and waybar look like one design:
 
 | Role | Used for |
 |---|---|
@@ -588,16 +629,26 @@ The built-in set, themer_chicago, draws every module from the same roles (listed
 | `surf` | controls, inactive tabs, fields in the bar |
 | `acc`, `accfg` | the selected tab, focus rings, progress; text on acc |
 | `urg`, `warn` | urgent windows and tabs; modes and warnings (text: `on_urg`, `on_warn`) |
-| `line` | every 1px outline; outlines are square, never rounded |
+| `line` | every 1px outline |
 
-The tones are derived from the roles in `src/palette.c`: `light` and `shade` are the
-Chicago bevel (raised controls lit at top and left, shaded at bottom and right; sunken
-fields the other way round); `hover_bg`/`hover_fg` are the accent when it reads 3:1 on
-the background, otherwise the background moved toward the text until it does; `bar` and
-`input` are the browser bar and its search field a step lighter; `pad_*` is one spacing
-scale (4px 12px for buttons, tabs and menu items; 4px 6px for fields; 3px 6px for list
-cells; 2px 0 for menus; 4px 8px for tooltips). Tabs look like sway/i3 tabs in GTK
-notebooks, Firefox and sway's tabbed layout.
+The tones are derived from the roles in `src/palette.c`, two families, one per
+built-in set (any set may use either):
+
+- **Adwaita tones** (Themer Default): `view` is the colour of views and fields
+  (toward white on light themes, a little darker than the window on dark ones);
+  `raised` header bars, popovers, cards and menus (as light as a view on light themes,
+  a step toward the text on dark ones); `sidebar` a step toward the text; `control`,
+  `control_hover` and `control_active` the buttons, as libadwaita draws them: the text
+  over the window at 10%, 20% and 30%.
+- **Chicago tones** (Themer Chicago): `light` and `shade` are the Chicago bevel (raised
+  controls lit at top and left, shaded at bottom and right; sunken fields the other way
+  round); `hover_bg`/`hover_fg` are the accent when it reads 3:1 on the background,
+  otherwise the background moved toward the text until it does; `bar` and `input` are
+  the browser bar and its search field a step lighter; `pad_*` is one spacing scale
+  (4px 12px for buttons, tabs and menu items; 4px 6px for fields; 3px 6px for list
+  cells; 2px 0 for menus; 4px 8px for tooltips). Tabs look like sway/i3 tabs in GTK
+  notebooks, Firefox and sway's tabbed layout. `glyph_hover`, the accent made to read on
+  the bar, is Themer Default's link colour too.
 
 ## Readability
 
@@ -611,7 +662,17 @@ urgent colour and the warning colour is chosen per colour (`accfg`, `on_urg`,
 
 ## Firefox
 
-The chrome is three stacked rows at the top of the window, all the same height: the
+**Themer Default** leaves Firefox as it comes and sets only its colour variables: the
+tab strip on the window colour, the toolbars, the selected tab and the panels on
+`raised`, the URL field back on the window colour and on `view` with the accent
+around it while it has focus, buttons on the `control` tints, the primary button,
+selection and focus rings in the accent. Its layout, icons and animations are
+Firefox's own and follow its updates; the font option sets the tabs' and the URL
+field's family. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
+for sets that draw the toolbar icons, as Themer Chicago does; under Themer Default
+Firefox's own icons take the text colour.
+
+**Themer Chicago:** the chrome is three stacked rows at the top of the window, all the same height: the
 tabs, the navigation buttons with the URL bar, and the bookmarks. No rounded corners or
 shadows. Tabs are raised controls with the Chicago bevel, flush in one row, like GTK
 notebook tabs: the selected tab takes the accent, the others sit on the surface colour,
@@ -671,9 +732,9 @@ The firefox module themes the browser; the stylus module themes pages, through t
 the Chromium family. It renders every `<site>.user.css` of the template set into
 `~/.config/themer/stylus/`, as UserCSS: the metadata header Stylus reads, then the
 rules under `@-moz-document domain("...")`. YouTube ships: its `--yt-spec-*`
-variables set to the roles on both of YouTube's own modes, square corners, the
-Chicago bevel on buttons and chips, the accent on the selected chip and guide entry
-and on the player's progress bar, menus and dialogs flat and outlined.
+variables set to the roles on both of YouTube's own modes, the accent on the selected
+chip and guide entry and on the player's progress bar; Themer Default keeps YouTube's
+own shapes, Themer Chicago squares the corners and gives buttons and chips the bevel.
 
 Wikipedia ships too, for every language and for desktop and mobile: the Codex
 design tokens Wikipedia's skins draw from set to the roles, on its day, night and
@@ -701,10 +762,12 @@ Thunderbird (115 and newer) draws its interface from design tokens much like Fir
 The set's `thunderbird/tokens.css` sets them all to the theme's roles, on every element,
 so the shadow trees of Thunderbird's custom elements follow too. The folder pane,
 message list and message header are content documents since 115, so the tokens go into
-`userContent.css` as well. Mapping: content and lists on the field colour; panes,
-sidebars and windows on `bg`; toolbars, the spaces bar and the message header on the
-bar colour; controls raised on `face` with the bevel; the selected folder, message, tab
-and space the accent.
+`userContent.css` as well. Themer Default sets only the colours: content and lists on
+`view`, panes and windows on `bg`, toolbars and the message header on `raised`, buttons
+on the `control` tints, the selected folder, message and space in the accent; sizes,
+corners and shadows stay Thunderbird's. Themer Chicago maps content and lists to the
+field colour, toolbars and the spaces bar to the bar colour, raises controls on `face`
+with the bevel and squares the corners.
 
 The profile is found as for Firefox. It needs
 `toolkit.legacyUserProfileCustomizations.stylesheets = true` in the config editor, and
@@ -764,7 +827,7 @@ The pieces, in the order you meet them:
 |---|---|
 | `include/themer_module.h` | the whole API, every field and helper commented (installed as `PREFIX/include/themer/themer_module.h`) |
 | `modules/example.c` | a working module that renders a template: copy it |
-| `templates/themer_chicago/example/colors` | its template |
+| `templates/themer_default/example/colors` | its template |
 | `modules/*.c` | the shipped modules, from the small (`newt.c`, `cursor.c`) to the large (`firefox.c`) |
 
 ### 1. Write it
@@ -942,8 +1005,8 @@ selection  = #{{acc}}
 
 Variables of the module's own are exported with `TM_VARS`, so `themer template render`
 and `themer set check` see them too; `modules/example.c` shows one. Ship the template in
-your set's directory, or in `~/.config/themer/templates/themer_chicago/myapp/` to add it
-to the built-in set.
+your set's directory, or in `~/.config/themer/templates/themer_default/myapp/` to add it
+to the default set.
 
 ### Helpers
 
@@ -1003,8 +1066,12 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
   read the named colours); delete the copy once nothing is missed.
 - From a build whose templates were `~/.config/themer/templates/<dir>/<set>/`: the
   layout is `<set>/<dir>/` now; the old directories are not read, delete them. A saved
-  set name "Themer Chicago" is read as `themer_chicago`; a saved template option of
-  `default` falls back to it.
+  set name "Themer Chicago" is read as `themer_chicago`, and so is a saved template
+  option of `default`.
+- From a build before Themer Default: your state file names the set you used, so
+  nothing changes on its own; `themer set themer_default` switches to the new
+  default. GTK 4 programs now get the set's theme by name too (`gtk-theme-name` in
+  `~/.config/gtk-4.0/settings.ini`), as GTK 3 ones do.
 - From a build with the single `wm` module: `themer module unload wm` with that build
   first. From a build whose waybar module used a marked block: `themer module unload
   waybar` with that build.

@@ -27,11 +27,11 @@
 
 static const TmOption opts[] = {
 	{ "font", "font for the Firefox interface: tabs, URL bar, bookmarks, menus", "ui|terminal", "ui", 0, 0 },
-	{ "icons", "icon glyph size, in points above the text size", NULL, "2", 0, 8 },
+	{ "icons", "icon glyph size, in points above the text size (sets that size the icons, as Themer Chicago does)", NULL, "2", 0, 8 },
 	{ "size", "icon size in pixels; 0 follows the text size plus the icons option", NULL, "0", 0, 48 },
 	{ "recolor", "icons in the bar's ink: all (every SVG; bitmaps keep their colors) or symbolic only", "all|symbolic", "all", 0, 0 },
 	{ "raster", "bitmap icons (PNG): color keeps their own colors; ink draws their shape in the bar ink", "color|ink", "color", 0, 0 },
-	{ "style", "firefox: Firefox's own icons; image: the icon theme's icons, recolored; mask: the icon theme's shapes in the bar ink", "firefox|image|mask", "image", 0, 0 },
+	{ "style", "for sets that draw the toolbar icons (Themer Chicago): firefox: Firefox's own icons; image: the icon theme's icons, recolored; mask: the icon theme's shapes in the bar ink", "firefox|image|mask", "image", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
 
@@ -275,7 +275,7 @@ load(const TmTheme *t)
 
 static const TmModule mod = {
 	.name = "firefox",
-	.desc = "Firefox: one flat bar with the tabs above the URL bar (userChrome.css)",
+	.desc = "Firefox: the window (userChrome.css) and its own pages (userContent.css)",
 	.templates = "firefox",
 	.default_on = 1,
 	.present = present,

@@ -118,7 +118,7 @@ reload(void)
 
 static const TmModule mod = {
 	.name = "waybar",
-	.desc = "Waybar: a dwm-style bar; under sway it takes the place of sway's own bar",
+	.desc = "Waybar: the bar's style; under sway it takes the place of sway's own bar",
 	.templates = "waybar",
 	.default_on = 1,
 	.present = present,

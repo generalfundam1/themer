@@ -1,5 +1,5 @@
 /* template.c: template sets. A set is one directory, templates/<set>/<dir>/<file>:
- * <set> is its name (an identifier: themer_chicago, mine), <dir> the module's
+ * <set> is its name (an identifier: themer_default, mine), <dir> the module's
  * template directory (its TmModule.templates; modules can share one), <file> one
  * output. A module picks a set with its "template" option and renders each of its
  * files with tm_render, which replaces {{name}} placeholders with values: the
@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include "themer.h"
 
-#define SRC_MAX   (256 * 1024)   /* largest template file read */
+#define SRC_MAX   (1024 * 1024)  /* largest template file read */
 #define SEEDED    ".seeded"      /* in the user's template directory: path TAB hash lines */
 #define MAX_ROOTS 3
 
@@ -58,15 +58,18 @@ valid_set(const char *s)
 	return 1;
 }
 
-/* Earlier builds named the built-in set "Themer Chicago" (and before that "default")
- * and had a "Themer Chicago Mask" set, now the firefox module's style=mask option;
- * state files and module options may still say so. */
+/* No set is the default one. Earlier builds named Themer Chicago, then the only
+ * built-in set, "Themer Chicago" (and before that "default") and had a "Themer
+ * Chicago Mask" set, now the firefox module's style=mask option; state files and
+ * module options may still say so. */
 static const char *
 set_alias(const char *set)
 {
-	if (!set || !*set || !strcmp(set, "default") || !strcmp(set, "Themer Chicago") ||
-	    !strcmp(set, "Themer Chicago Mask") || !strcmp(set, "themer_chicago_mask"))
+	if (!set || !*set)
 		return TM_DEFAULT_SET;
+	if (!strcmp(set, "default") || !strcmp(set, "Themer Chicago") ||
+	    !strcmp(set, "Themer Chicago Mask") || !strcmp(set, "themer_chicago_mask"))
+		return "themer_chicago";
 	return set;
 }
 
@@ -91,6 +94,23 @@ join(char *out, size_t n, const char *root, const char *set, const char *dir, co
 	               : snprintf(out, n, "%s/%s", root, set);
 
 	return len < 0 || (size_t)len >= n ? -1 : 0;
+}
+
+/* 1 if set is a built-in set (one the system directory, or $THEMER_TEMPLATES,
+ * has): its name is taken, so a copy or an import needs another */
+int
+template_builtin(const char *set)
+{
+	char p[PATH_MAX];
+	Roots r;
+
+	if (!set || !valid_set(set))
+		return 0;
+	roots(&r);
+	for (int i = r.user + 1; i < r.n; i++)
+		if (join(p, sizeof p, r.dir[i], set, NULL, NULL) == 0 && !access(p, F_OK))
+			return 1;
+	return 0;
 }
 
 /* Finds <set>/<dir>/<file> in the first root that has it. */

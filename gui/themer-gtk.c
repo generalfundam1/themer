@@ -1342,7 +1342,7 @@ page_theme(void)
 	gtk_box_pack_start(GTK_BOX(box), grid, FALSE, FALSE, 4);
 	gtk_box_pack_start(GTK_BOX(box), caption("A template set is the look: the widgets, bars, and "
 	                                        "chrome every module draws. What a set lacks comes "
-	                                        "from Themer Chicago."), FALSE, FALSE, 0);
+	                                        "from Themer Default."), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(box), heading("Colors"), FALSE, FALSE, 0);
 	colors_grid = grid_new();
 	gtk_grid_set_row_spacing(GTK_GRID(colors_grid), 2);

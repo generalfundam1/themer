@@ -90,7 +90,7 @@ static QString utf8(const char *s)
 }
 
 /* a theme's swatch: bg, surf, acc, and a stroke of fg, for the list */
-/* a template set as people read it (Themer Chicago); the directory name is the id */
+/* a template set as people read it (Themer Default); the directory name is the id */
 static QString setTitle(const char *set)
 {
 	char t[NAME_LEN];
@@ -1071,7 +1071,7 @@ private:
 		}
 		v->addLayout(g);
 		v->addWidget(caption("A template set is the look: the widgets, bars, and chrome every "
-		                     "module draws. What a set lacks comes from Themer Chicago."));
+		                     "module draws. What a set lacks comes from Themer Default."));
 		v->addWidget(heading("Colors"));
 		colorsGrid = new QGridLayout;
 		colorsGrid->setVerticalSpacing(2);

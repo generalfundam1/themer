@@ -1,6 +1,6 @@
 /* palette.c: the shared template variables. Every template, whichever module
- * renders it, sees the same names: the theme's roles, the Chicago tones derived
- * from them, the fonts, the terminal colors, and the padding scale. The derived
+ * renders it, sees the same names: the theme's roles, the Chicago and Adwaita tones
+ * derived from them, the fonts, the terminal colors, and the padding scale. The derived
  * tones are what make GTK, Qt, Firefox, and sway look like one design.
  *
  * Chicago tones, each from the theme's roles. The bevel is light on dark themes
@@ -19,7 +19,17 @@
  *   bar_text, input_text, tab_text, tab_active_text, tab_hover_text, hover_text
  *                 text chosen for each of those surfaces
  *   glyph_hover   the accent as a glyph on the bar, moved toward the text only until
- *                 it reads 3:1 on both the bar and the field */
+ *                 it reads 3:1 on both the bar and the field
+ *
+ * Adwaita tones, for sets drawn after GNOME's Adwaita (themer_default):
+ *   view          views and fields (Adwaita's base color): toward white on light
+ *                 themes, a little darker than the window on dark ones
+ *   raised        header bars, popovers, cards, dialogs: as light as a view on light
+ *                 themes, a step toward the text on dark ones
+ *   sidebar       sidebars: a step toward the text
+ *   control, control_hover, control_active
+ *                 buttons and other controls, as libadwaita draws them: the text
+ *                 color over the window at 10%, 20% and 30% */
 #include <stdio.h>
 #include <string.h>
 #include "themer.h"
@@ -34,8 +44,12 @@
 enum {
 	K_FACE, K_LIGHT, K_SHADE, K_PRESSED, K_FIELD, K_HOVER_BG, K_HOVER_FG, K_DISABLED,
 	K_BAR, K_INPUT, K_BAR_TEXT, K_INPUT_TEXT, K_TAB_TEXT, K_TAB_ACTIVE_TEXT,
-	K_TAB_HOVER_TEXT, K_HOVER_TEXT, K_GLYPH_HOVER, K_N
+	K_TAB_HOVER_TEXT, K_HOVER_TEXT, K_GLYPH_HOVER, K_VIEW, K_RAISED, K_SIDEBAR,
+	K_CONTROL, K_CONTROL_HOVER, K_CONTROL_ACTIVE, K_N
 };
+
+_Static_assert(K_N <= (int)(sizeof ((SharedStore *)0)->color / sizeof ((SharedStore *)0)->color[0]),
+               "SharedStore.color holds every derived tone");
 
 static void
 derive(char c[][TM_COLOR_LEN], const TmTheme *t)
@@ -76,6 +90,18 @@ derive(char c[][TM_COLOR_LEN], const TmTheme *t)
 	/* the glyph sits on the bar and on the search field, so it must read on both */
 	tm_ensure_contrast(step, sizeof step, t->acc, t->surf, t->fg, 3.0);
 	tm_ensure_contrast(c[K_GLYPH_HOVER], TM_COLOR_LEN, step, c[K_BAR], t->fg, 3.0);
+	/* the Adwaita tones */
+	if (t->dark) {
+		tm_mix(c[K_VIEW], TM_COLOR_LEN, t->bg, "000000", 2);
+		tm_mix(c[K_RAISED], TM_COLOR_LEN, t->bg, t->fg, 1);
+	} else {
+		tm_mix(c[K_VIEW], TM_COLOR_LEN, t->bg, "ffffff", 6);
+		snprintf(c[K_RAISED], TM_COLOR_LEN, "%s", c[K_VIEW]);
+	}
+	tm_mix(c[K_SIDEBAR], TM_COLOR_LEN, t->bg, t->fg, 1);
+	tm_mix(c[K_CONTROL], TM_COLOR_LEN, t->bg, t->fg, 1);
+	tm_mix(c[K_CONTROL_HOVER], TM_COLOR_LEN, t->bg, t->fg, 2);
+	tm_mix(c[K_CONTROL_ACTIVE], TM_COLOR_LEN, t->bg, t->fg, 3);
 }
 
 /* Fills v with every shared name and its value, and returns how many. The values
@@ -107,6 +133,10 @@ shared_vars(const TmTheme *t, SharedStore *st, TmVar *v, int max)
 	SV(bar_text, c[K_BAR_TEXT]); SV(input_text, c[K_INPUT_TEXT]); SV(tab_text, c[K_TAB_TEXT]);
 	SV(tab_active_text, c[K_TAB_ACTIVE_TEXT]); SV(tab_hover_text, c[K_TAB_HOVER_TEXT]);
 	SV(hover_text, c[K_HOVER_TEXT]); SV(glyph_hover, c[K_GLYPH_HOVER]);
+	/* the Adwaita tones */
+	SV(view, c[K_VIEW]); SV(raised, c[K_RAISED]); SV(sidebar, c[K_SIDEBAR]);
+	SV(control, c[K_CONTROL]); SV(control_hover, c[K_CONTROL_HOVER]);
+	SV(control_active, c[K_CONTROL_ACTIVE]);
 	/* the rest of the theme */
 	SV(mode, t->dark ? "dark" : "light"); SV(theme, t->theme); SV(icons, t->icons);
 	SV(ui_font, t->ui_font); SV(ui_size, st->num[0]);

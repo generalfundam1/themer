@@ -153,6 +153,7 @@ int  template_files(const char *dir, const char *set, char names[][NAME_LEN], in
 int  template_dirs(char names[][NAME_LEN], int max);
 int  template_all_sets(char names[][NAME_LEN], int max);
 int  template_has(const char *dir, const char *set);
+int  template_builtin(const char *set);
 int  template_copy(const char *dir, const char *from, const char *to);
 /* mirrors the built-in sets into ~/.config/themer/templates (see template.c) */
 int  template_sync(void);
@@ -160,7 +161,7 @@ int  template_sync(void);
 /* palette.c: the shared template variables, derived from a theme */
 #define MAX_SHARED 96
 typedef struct {
-	char color[20][TM_COLOR_LEN];   /* storage the derived colors point into */
+	char color[24][TM_COLOR_LEN];   /* storage the derived colors point into */
 	char num[5][16];
 	char ansi_name[16][8];
 } SharedStore;

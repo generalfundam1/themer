@@ -400,7 +400,7 @@ set_import(const Config *c, const char *set, const char *module, const char *pat
 		fprintf(stderr, "themer: %s is not a module that renders templates\n", module);
 		return -1;
 	}
-	if (!valid_name(set) || !strcmp(set, TM_DEFAULT_SET)) {
+	if (!valid_name(set) || template_builtin(set)) {
 		fprintf(stderr, "themer: the set needs a name of its own (letters, digits, - and _)\n");
 		return -1;
 	}

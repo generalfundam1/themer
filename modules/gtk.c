@@ -2,15 +2,17 @@
  *
  * The set's gtk/ directory becomes a GTK theme, written to ~/.config/themer/gtk/ like
  * the qt module's files; ~/.themes/<set> is a link to it, so GTK finds it under the
- * set's name (themer_chicago, labelled "Themer Chicago" from set.conf): every top-level
- * .css file is rendered into gtk-3.0/ and gtk-4.0/ (gtk.css serves both; a
- * gtk4.css, if the set has one, is GTK 4's gtk.css instead; a gtk-dark.css is what
- * GTK 3 loads in dark mode, as in any theme), and everything else in the directory
- * (assets/, images, fonts) is copied beside them as it is, so a theme converted
- * from an existing one keeps its url() references. GTK 3 selects the theme through
- * settings.ini (gtk-theme-name), never GTK_THEME: that variable overrides the file
- * and goes stale when the set changes. GTK 4 ignores ~/.themes, so a
- * marked block at the top of ~/.config/gtk-4.0/gtk.css imports the theme's file.
+ * set's name (themer_default, labelled "Themer Default" from set.conf): every
+ * top-level .css file is rendered into gtk-3.0/ and gtk-4.0/ (gtk.css serves both; a
+ * gtk-dark.css is what GTK loads in dark mode, as in any theme; a gtk4.css or
+ * gtk4-dark.css is GTK 4's own instead of the shared one), and everything else in
+ * the directory (assets/, images, fonts) is copied beside them as it is, so a theme
+ * converted from an existing one keeps its url() references. GTK 3 and GTK 4 select
+ * the theme through settings.ini (gtk-theme-name), never GTK_THEME: that variable
+ * overrides the file and goes stale when the set changes. libadwaita programs load
+ * no named theme, only ~/.config/gtk-4.0/gtk.css: a marked block at its top imports
+ * the set's libadwaita.css (colors for libadwaita's own look) or, without one, its
+ * whole gtk.css.
  *
  * The settings (theme, icon theme, cursor theme and size, font, dark mode, and
  * the font rendering: antialiasing, hinting, subpixel order) go everywhere GTK
@@ -28,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "themer_module.h"
 
 static const TmOption opts[] = {
@@ -68,13 +71,12 @@ theme_name(const TmTheme *t)
 }
 
 static void
-settings_ini(const TmTheme *t, const char *rel, const char *font, int theme_key)
+settings_ini(const TmTheme *t, const char *rel, const char *font)
 {
 	char p[PATH_MAX], num[16];
 
 	tm_path(p, sizeof p, t, rel);
-	if (theme_key)
-		tm_ini(p, "Settings", "gtk-theme-name", theme_name(t));
+	tm_ini(p, "Settings", "gtk-theme-name", theme_name(t));
 	tm_ini(p, "Settings", "gtk-icon-theme-name", t->icons);
 	tm_ini(p, "Settings", "gtk-cursor-theme-name", t->cursor);
 	snprintf(num, sizeof num, "%d", t->cursor_size);
@@ -178,17 +180,39 @@ retire_old_css(const TmTheme *t)
 		fprintf(stderr, "themer: gtk: moved an old themer gtk.css aside: %s\n", old);
 }
 
+/* Where a top-level .css of the set's gtk/ goes: GTK 3 and GTK 4 (0), GTK 3 only
+ * (3), or GTK 4 only (4), and under which name. A "gtk4" file is GTK 4's version of
+ * the "gtk" file of the same name (gtk4.css is GTK 4's gtk.css, gtk4-dark.css its
+ * gtk-dark.css) and keeps the shared one out of gtk-4.0; libadwaita.css is GTK 4's
+ * alone. */
+static int
+css_target(const char *name, char *out, size_t n, char *const *all, int nall)
+{
+	if (!strncmp(name, "gtk4", 4)) {
+		snprintf(out, n, "gtk%s", name + 4);
+		return 4;
+	}
+	snprintf(out, n, "%s", name);
+	if (!strcmp(name, "libadwaita.css"))
+		return 4;
+	if (!strncmp(name, "gtk", 3))
+		for (int k = 0; k < nall; k++)
+			if (!strncmp(all[k], "gtk4", 4) && !strcmp(all[k] + 4, name + 3))
+				return 3;
+	return 0;
+}
+
 /* The theme directories: every top-level .css of the set's gtk/ rendered into
- * gtk-3.0/ and gtk-4.0/, the rest of the directory copied into both. */
+ * gtk-3.0/ and gtk-4.0/ (css_target), the rest of the directory copied into both. */
 static int
 theme_dirs(const TmTheme *t)
 {
-	static char css[256 * 1024];
+	static char css[1024 * 1024];
 	static const char *const versions[] = { "gtk-3.0", "gtk-4.0" };
 	const char *set = tm_opt(t, "gtk.template");
 	char dir[PATH_MAX], p[PATH_MAX], dst[PATH_MAX];
-	const char *skip[64];
-	int nskip = 0;
+	char *names[64];
+	int nnames = 0, r = -1;
 	DIR *d;
 	struct dirent *e;
 
@@ -199,44 +223,30 @@ theme_dirs(const TmTheme *t)
 	}
 	if (!(d = opendir(dir)))
 		return -1;
-	while ((e = readdir(d)) && nskip < 63) {
+	while ((e = readdir(d)) && nnames < 63) {
 		size_t len = strlen(e->d_name);
 
 		if (e->d_name[0] == '.' || len < 5 || strcmp(e->d_name + len - 4, ".css"))
 			continue;
-		skip[nskip++] = strdup(e->d_name);
+		if (!(names[nnames] = strdup(e->d_name)))
+			break;
+		nnames++;
 	}
 	closedir(d);
-	skip[nskip] = NULL;
-	for (int i = 0; i < nskip; i++) {
-		const char *name = skip[i];
-		int gtk4_only = !strcmp(name, "gtk4.css");
+	names[nnames] = NULL;
+	for (int i = 0; i < nnames; i++) {
+		char out[NAME_MAX + 1];
+		int only = css_target(names[i], out, sizeof out, names, nnames);
 
-		if (tm_render(css, sizeof css, "gtk", set, name, t, NULL, 0) < 0)
-			return -1;
+		if (tm_render(css, sizeof css, "gtk", set, names[i], t, NULL, 0) < 0)
+			goto done;
 		for (int v = 0; v < 2; v++) {
-			const char *out = name;
-
-			if (!on(t, v ? "gtk.gtk4" : "gtk.gtk3"))
+			if (!on(t, v ? "gtk.gtk4" : "gtk.gtk3") || only == (v ? 3 : 4))
 				continue;
-			if (gtk4_only) {
-				if (v == 0)
-					continue;
-				out = "gtk.css";
-			} else if (v == 1 && !strcmp(name, "gtk.css")) {
-				/* gtk4.css, when the set has one, is GTK 4's gtk.css */
-				int has4 = 0;
-
-				for (int k = 0; k < nskip; k++)
-					if (!strcmp(skip[k], "gtk4.css"))
-						has4 = 1;
-				if (has4)
-					continue;
-			}
 			snprintf(p, sizeof p, ".config/themer/gtk/%s/%s", versions[v], out);
 			tm_path(dst, sizeof dst, t, p);
 			if (tm_writef(dst, "%s", css) < 0)
-				return -1;
+				goto done;
 		}
 	}
 	for (int v = 0; v < 2; v++) {
@@ -244,12 +254,26 @@ theme_dirs(const TmTheme *t)
 			continue;
 		snprintf(p, sizeof p, ".config/themer/gtk/%s", versions[v]);
 		tm_path(dst, sizeof dst, t, p);
-		if (tm_copy_tree(dir, dst, skip) < 0)
-			return -1;
+		if (tm_copy_tree(dir, dst, (const char *const *)names) < 0)
+			goto done;
 	}
-	for (int i = 0; i < nskip; i++)
-		free((char *)skip[i]);
-	return 0;
+	r = 0;
+done:
+	for (int i = 0; i < nnames; i++)
+		free(names[i]);
+	return r;
+}
+
+/* What ~/.config/gtk-4.0/gtk.css imports: libadwaita.css when the set has one (a
+ * set that leaves libadwaita's look alone and only recolors it), else the whole
+ * gtk.css, so libadwaita programs, which never load a named theme, follow the set. */
+static const char *
+gtk4_user_css(const TmTheme *t)
+{
+	char p[PATH_MAX];
+
+	tm_path(p, sizeof p, t, ".config/themer/gtk/gtk-4.0/libadwaita.css");
+	return access(p, R_OK) == 0 ? "libadwaita.css" : "gtk.css";
 }
 
 static int
@@ -288,7 +312,8 @@ load(const TmTheme *t)
 	tm_path(p, sizeof p, t, ".config/gtk-4.0/gtk.css");
 	if (on(t, "gtk.gtk4") &&
 	    tm_blockf(p, "gtk", "/*", " */", 1,
-	              "@import url(\"file://%s/.config/themer/gtk/gtk-4.0/gtk.css\");\n", t->home) < 0)
+	              "@import url(\"file://%s/.config/themer/gtk/gtk-4.0/%s\");\n", t->home,
+	              gtk4_user_css(t)) < 0)
 		return -1;
 
 	tm_font_for(t, "gtk.font", fam, sizeof fam, &size);
@@ -296,9 +321,9 @@ load(const TmTheme *t)
 		return -1;
 
 	if (on(t, "gtk.gtk3"))
-		settings_ini(t, ".config/gtk-3.0/settings.ini", font, 1);
+		settings_ini(t, ".config/gtk-3.0/settings.ini", font);
 	if (on(t, "gtk.gtk4"))
-		settings_ini(t, ".config/gtk-4.0/settings.ini", font, 0);
+		settings_ini(t, ".config/gtk-4.0/settings.ini", font);
 
 	/* GTK 2 has no themer theme; it gets the icons, cursor, font, and rendering */
 	tm_path(p, sizeof p, t, ".gtkrc-2.0");

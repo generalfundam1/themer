@@ -1618,7 +1618,7 @@ set_pick(void)
 			if (!strcmp(names[i], cfg->set))
 				sel = i;
 		}
-		r = pick("template sets", "the look every module renders; what a set lacks comes from Themer Chicago",
+		r = pick("template sets", "the look every module renders; what a set lacks comes from Themer Default",
 		         items, n, &sel, "enter select   n new (copy)   i import a theme   c check   esc back");
 		if (r == -1)
 			return;

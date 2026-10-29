@@ -26,8 +26,8 @@ front_set_theme(Config *c, const char *name)
 	return 0;
 }
 
-/* a template set as people read it: its set.conf name= (Themer Chicago), or the
- * directory name when it has none. The directory name (themer_chicago) is what
+/* a template set as people read it: its set.conf name= (Themer Default), or the
+ * directory name when it has none. The directory name (themer_default) is what
  * files, options and the state hold. */
 const char *
 front_set_title(const char *set, char *out, size_t n)
@@ -127,7 +127,7 @@ front_set_copy(const char *from, const char *to, FILE *report)
 	char dirs[MAX_NAMES][NAME_LEN];
 	int nd = template_dirs(dirs, MAX_NAMES), total = 0;
 
-	if (!strcmp(from, to) || !valid_name(to) || !strcmp(to, TM_DEFAULT_SET))
+	if (!strcmp(from, to) || !valid_name(to) || template_builtin(to))
 		return -2;
 	for (int k = 0; k < nd; k++) {
 		int n;
