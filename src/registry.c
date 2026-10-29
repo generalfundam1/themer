@@ -483,7 +483,6 @@ themer_apply(const Config *c)
 	static const Target targets[] = {
 		{ "env",  gen_env },
 		{ "tty",  gen_tty },
-		{ "grub", gen_grub },
 	};
 	Scheme s;
 	TmTheme t;

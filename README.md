@@ -93,7 +93,7 @@ rebuilt after a Qt minor upgrade; a package makes that one command.
 
 | Directory | Contents |
 |---|---|
-| `src/` | the host: one binary. `main.c` the command line; `state.c` the state file; `registry.c` finds modules and runs apply; `manifest.c` the `tm_*` helpers modules write with, and the undo log; `template.c` and `palette.c` the templates and shared variables; `theme.c` the theme files and readability rules; `targets.c` the env, tty, and grub targets; `front.c` the layer every front end calls; `tui.c`, `fonts.c`, `preview.c` the interactive parts |
+| `src/` | the host: one binary. `main.c` the command line; `state.c` the state file; `registry.c` finds modules and runs apply; `manifest.c` the `tm_*` helpers modules write with, and the undo log; `template.c` and `palette.c` the templates and shared variables; `theme.c` the theme files and readability rules; `targets.c` the env and tty targets; `front.c` the layer every front end calls; `tui.c`, `fonts.c`, `preview.c` the interactive parts |
 | `gui/` | `themer-gtk` (GTK 3, C), `themer-qt` (Qt 5 or 6, C++) and `themer-web` (C, with its page in `web/index.html`); `common.c` is what they share; `qpa/` the Qt platform theme plugin |
 | `include/` | `themer_module.h`, the API modules are built against |
 | `modules/` | one `.c` per module; `wm.h`, `launcher.h`, `icons.h` are shared code |
@@ -158,8 +158,8 @@ themer template list DIR [SET]      list template sets, or the files in SET
 themer template render MODULE SET FILE [OUT]
                                     render one template with the current theme
 themer system install|remove|sync|watch|status [USER]
-                                    as root: the console, GRUB and ly in the theme (see
-                                    ly, the console and GRUB)
+                                    as root: the console and ly in the theme (see
+                                    ly and the console)
 themer -v                           version
 ```
 
@@ -452,8 +452,8 @@ All on by default unless noted:
 | **example** *(off)* | the template module to copy |
 
 Built-in targets, not modules: **env** (`environment.d/50-themer.conf` and `env.sh`),
-**tty** (the console's palette and font) and **grub** (GRUB's colors). Their system side
-needs root: see [ly, the console and GRUB](#ly-the-console-and-grub).
+and **tty** (the console's palette and font). Its system side needs root: see
+[ly and the console](#ly-and-the-console).
 
 **How modules change files.** Every write goes through the `tm_*` helpers in
 `themer_module.h` and is recorded in `~/.config/themer/undo/<module>.manifest`. Before
@@ -707,12 +707,12 @@ next login.
 
 **kde**. KDE programs take their palette from `kdeglobals`. The module writes the theme as a full KDE color scheme to `~/.local/share/color-schemes/Themer.colors` (so System Settings lists it) and sets the same keys in `~/.config/kdeglobals` with `tm_ini`, each restored on unload: the Window, View, Button, Selection, Tooltip, Complementary and Header sets (views in the `view` tone, buttons and headers in `raised`, selection in the accent; links in ansi4, visited ansi5, negative/neutral/positive text in the urgent color, the warning color and ansi2, each moved until it reads 4.5:1), KWin's title bar colors under `[WM]`, `[General] ColorScheme=Themer`, the fonts (`font`, `menuFont`, `toolBarFont`, `smallestReadableFont`, `fixed`, `[WM] activeFont`) and the icon theme. Plasma tells running programs; outside Plasma, restart them. Loadable when KDE Frameworks are installed (`libKF6ConfigCore` or `libKF5ConfigCore`, or `kreadconfig6`/`kreadconfig5`).
 
-### ly, the console and GRUB
+### ly and the console
 
-ly, the console's palette and font, and GRUB's colors are system settings that only
-root can change. Every apply, as you, writes what they should be into
-`~/.config/themer/system/` (`tty.palette` in setvtrgb's format, `console.conf`,
-`grub.conf`, and `ly.conf` while the ly module is on). Once, as root,
+ly and the console's palette and font are system settings that only root can
+change. Every apply, as you, writes what they should be into
+`~/.config/themer/system/` (`tty.palette` in setvtrgb's format, `console.conf`, and
+`ly.conf` while the ly module is on). Once, as root,
 
 ```
 sudo themer system install
@@ -738,9 +738,8 @@ your home is not there yet (mounted or decrypted after boot). With none of these
 install syncs once and tells you the command for your init to run.
 
 The sync puts the palette in with setvtrgb (kept in `/etc/themer/tty.palette` for boot),
-the font in `/etc/vconsole.conf`, GRUB's colors in `/etc/default/grub` (and runs
-`grub-mkconfig` when they changed), ly's colors in `/etc/ly/config.lua` (or
-`config.ini`). It changes these key by key: for each key, `/etc/themer/backup/` records
+the font in `/etc/vconsole.conf`, ly's colors in `/etc/ly/config.lua` (or
+`config.ini`). It does not touch GRUB. It changes these key by key: for each key, `/etc/themer/backup/` records
 the line that was there (or that there was none) and the line themer wrote. When your
 file goes away (Remove all styles, the ly module off), and on `sudo themer system
 remove`, only the lines that still read as themer wrote them go back, so whatever else
@@ -750,7 +749,7 @@ was changed in those files in the meantime stays. Remove also takes the service 
 The sync runs as root on files you can write, so it trusts nothing in them: it reads
 them as you (never through a link, only regular files of yours, a few kilobytes at
 most), and takes only what each may hold (sixteen palette lines of 0–255, a font name,
-GRUB's sixteen color names, ly's ten color keys with `0x` values). A file holding
+ly's ten color keys with `0x` values). A file holding
 anything else is refused and the setting is left as it was.
 
 Without root, a console you log in to still gets the palette at once: `env.sh`, sourced
