@@ -584,7 +584,7 @@ What each module directory takes, and what becomes of it on apply:
 |---|---|---|
 | `gtk/` | `gtk.css` | rendered to `~/.config/themer/gtk/gtk-3.0/gtk.css` and `gtk-4.0/gtk.css`. The set's `gtk.css` is the whole theme: there is no Adwaita underneath it |
 | | `gtk-dark.css` | optional: what GTK loads in dark mode |
-| | `gtk4.css`, `gtk4-dark.css` | optional: GTK 4's own `gtk.css` and `gtk-dark.css`, in place of the shared ones (which then go to GTK 3 only) |
+| | `gtk4.css`, `gtk4-dark.css` | optional: GTK 4's own `gtk.css` and `gtk-dark.css`, in place of the shared ones (which then go to GTK 3 only). A set with them is a whole GTK 4 theme and is named for GTK 4; without them GTK 4 keeps its own theme beneath the set's `gtk.css` |
 | | `libadwaita.css` | optional: what libadwaita programs get through `~/.config/gtk-4.0/gtk.css`, which they read instead of a named theme; without it they get the whole `gtk.css` (so the set restyles them), with it only what it says (Themer Default sets libadwaita's named colours) |
 | | any other `.css` / anything else | rendered / copied into both directories |
 | `qt/` | `qt.qss` | to `~/.config/themer/qt/themer.qss` (and qt5ct/qt6ct's copies). `{{qt_assets}}` is the directory it lands in: `url({{qt_assets}}/x.svg)` for images, since a Qt stylesheet's `url()` is not relative to the stylesheet |
@@ -662,13 +662,15 @@ urgent colour and the warning colour is chosen per colour (`accfg`, `on_urg`,
 
 ## Firefox
 
-**Themer Default** leaves Firefox as it comes and sets only its colour variables: the
-tab strip on the window colour, the toolbars, the selected tab and the panels on
-`raised`, the URL field back on the window colour and on `view` with the accent
-around it while it has focus, buttons on the `control` tints, the primary button,
-selection and focus rings in the accent. Its layout, icons and animations are
-Firefox's own and follow its updates; the font option sets the tabs' and the URL
-field's family. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
+**Themer Default** leaves Firefox as it comes, in the theme's colours: it sets only the
+colours Firefox's own theme starts from — the tab strip on the window colour, the
+toolbars, the selected tab and the panels a step raised (`raised`), the URL field a
+little toward the text and a step lighter (`input`) while it has focus, the text, and
+the accent for focus rings, the selected suggestion, links and the primary button.
+The tints Firefox works out from those (hovers, presses, the boxes in the URL bar,
+separators) it still works out itself, as for any theme; its layout, icons, corners
+and animations are its own and follow its updates. The font option sets the tabs' and
+the URL field's family. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
 for sets that draw the toolbar icons, as Themer Chicago does; under Themer Default
 Firefox's own icons take the text colour.
 
@@ -1070,8 +1072,10 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
   option of `default`.
 - From a build before Themer Default: your state file names the set you used, so
   nothing changes on its own; `themer set themer_default` switches to the new
-  default. GTK 4 programs now get the set's theme by name too (`gtk-theme-name` in
-  `~/.config/gtk-4.0/settings.ini`), as GTK 3 ones do.
+  default. Under a set with GTK 4 files of its own (`gtk4.css`, as Themer Default
+  has), GTK 4 programs get the set's theme by name too (`gtk-theme-name` in
+  `~/.config/gtk-4.0/settings.ini`), as GTK 3 ones do; under any other set GTK 4
+  keeps its own theme beneath the set's `gtk.css`, as before.
 - From a build with the single `wm` module: `themer module unload wm` with that build
   first. From a build whose waybar module used a marked block: `themer module unload
   waybar` with that build.

@@ -272,6 +272,9 @@ int  front_module_order(int *order, int max);
  * named module's own variables. Returns 0, or -1 with a message on stderr. */
 int  front_render(const Config *c, const char *module, const char *dir, const char *file,
                   char *out, size_t n);
+const char *front_template_set(const Config *c, const char *module);
+int  front_module_has(const Config *c, const char *module, const char *dir, const char *file);
+int  front_module_dark(const Config *c, const char *module);
 
 int  front_scheme_remove(Config *c, const char *name, char *msg, size_t n);
 

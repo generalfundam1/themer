@@ -126,7 +126,7 @@ static QIcon themeSwatch(const Theme &t, int mode)
 
 static void restyle()
 {
-	static char qss[65536];
+	static char qss[256 * 1024];
 	Scheme s;
 
 	gui_scheme(&cfg, &s);
@@ -156,7 +156,11 @@ static void restyle()
 	                       : !strcmp(cfg.hinting, "full") ? QFont::PreferFullHinting
 	                       : QFont::PreferVerticalHinting);
 	qApp->setFont(f);
-	if (front_render(&cfg, "qt", "qt", "qt.qss", qss, sizeof qss) == 0) {
+	/* what the qt module renders: from its own set (its template option) */
+	static Config view;
+	view = cfg;
+	snprintf(view.set, sizeof view.set, "%s", front_template_set(&cfg, "qt"));
+	if (front_render(&view, "qt", "qt", "qt.qss", qss, sizeof qss) == 0) {
 		/* the window's own rule: the chosen one of a row of buttons in the accent */
 		Scheme sc;
 		gui_scheme(&cfg, &sc);
@@ -469,7 +473,7 @@ private:
 			if (!strcmp(theme_names[i], cfg.th.name))
 				themeList->setCurrentRow(i);
 		(cfg.mode == MODE_DARK ? dark : light)->setChecked(true);
-		sets->setCurrentIndex(sets->findData(utf8(cfg.set)));
+		fillSets(sets, cfg.set);   /* refilled: a set may have been made elsewhere */
 		fontLabel(uiFont, cfg.ui_font, cfg.ui_size);
 		fontLabel(monoFont, cfg.mono_font, cfg.mono_size);
 		uiSize->setValue(cfg.ui_size);

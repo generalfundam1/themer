@@ -49,11 +49,20 @@ static char cursors_for[NAME_LEN];
 static void
 restyle(void)
 {
-	static char css[65536];
+	/* a whole theme: Themer Default's is GTK's Adwaita, a few hundred KB */
+	static char css[1024 * 1024];
 	GtkSettings *settings = gtk_settings_get_default();
 	char font[160];
 
-	if (front_render(&cfg, "gtk", "gtk", "gtk.css", css, sizeof css) == 0) {
+	static Config view;
+	int dark = front_module_dark(&cfg, "gtk");
+
+	/* what the gtk module renders: from its own set (its template option), and the
+	 * file GTK itself loads, gtk-dark.css on the dark side where the set has one */
+	view = cfg;
+	snprintf(view.set, sizeof view.set, "%s", front_template_set(&cfg, "gtk"));
+	if (front_render(&view, "gtk", "gtk", dark && front_module_has(&cfg, "gtk", "gtk", "gtk-dark.css") ?
+	                 "gtk-dark.css" : "gtk.css", css, sizeof css) == 0) {
 		/* the window's own rule: the chosen side of a mode switch in the accent */
 		Scheme sc;
 		size_t len = strlen(css);
@@ -64,7 +73,10 @@ restyle(void)
 		         sc.hex[C_ACC], sc.hex[C_ACCFG]);
 		gtk_css_provider_load_from_data(provider, css, -1, NULL);
 	}
-	g_object_set(settings, "gtk-application-prefer-dark-theme", cfg.mode == MODE_DARK, NULL);
+	g_object_set(settings, "gtk-application-prefer-dark-theme", dark, NULL);
+	/* the theme underneath is the set's too (~/.themes/<set>, once applied), so a set
+	 * that is a whole theme (Themer Chicago) does not show another one through it */
+	g_object_set(settings, "gtk-theme-name", view.set, NULL);
 	snprintf(font, sizeof font, "%s %d", cfg.ui_font, cfg.ui_size);
 	g_object_set(settings, "gtk-font-name", font, NULL);
 	/* the font rendering, as the GTK settings would carry it after Apply */
@@ -2026,6 +2038,7 @@ set_controls_from_cfg(void)
 		if (!strcmp(rgba_values[i], cfg.rgba))
 			gtk_combo_box_set_active(GTK_COMBO_BOX(rgba_combo), i);
 	gtk_entry_set_text(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(tty_combo))), cfg.tty_font);
+	fill_set_combo(set_combo, cfg.set);   /* refilled: a set may have been made elsewhere */
 	colors_fill();
 	env_fill();
 	refresh_module_states();

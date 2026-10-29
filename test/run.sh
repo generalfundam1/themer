@@ -417,6 +417,7 @@ grep -q '^Name=Themer Chicago$' "$HOME/.config/themer/gtk/index.theme" || bad "G
 [ -e "$HOME/.config/themer/gtk/gtk-4.0/libadwaita.css" ] && bad "Themer Default's libadwaita.css left under Themer Chicago"
 grep -q 'gtk-4.0/gtk.css' "$HOME/.config/gtk-4.0/gtk.css" || bad "Themer Chicago: libadwaita programs do not get the whole gtk.css"
 [ -L "$HOME/.themes/themer_default" ] && bad "Themer Default's theme link left under Themer Chicago"
+grep -q '^gtk-theme-name=' "$HOME/.config/gtk-4.0/settings.ini" && bad "GTK 4 given Themer Chicago by name (it has no GTK 4 files: GTK 4's own theme stays beneath)"
 ./themer set themer_default >/dev/null 2>&1
 grep -q '^Name=Themer Default$' "$HOME/.config/themer/gtk/index.theme" || bad "GTK theme label (Themer Default)"
 grep -q 'gtk-4.0/libadwaita.css' "$HOME/.config/gtk-4.0/gtk.css" || bad "back on Themer Default: libadwaita.css not imported"

@@ -362,6 +362,43 @@ front_render(const Config *c, const char *module, const char *dir, const char *f
 	return tm_render(out, n, dir, c->set, file, &t, v, nv);
 }
 
+/* the template set a module renders from: its template option, else the global set */
+const char *
+front_template_set(const Config *c, const char *module)
+{
+	int i = module ? themer_module_find(module) : -1;
+	int j = i < 0 ? -1 : themer_option_find(i, "template");
+
+	return j < 0 ? c->set : themer_option_value(c, i, j);
+}
+
+/* 1 if the set a module renders from has dir/file of its own (not by falling back
+ * to the default set) */
+int
+front_module_has(const Config *c, const char *module, const char *dir, const char *file)
+{
+	char d[PATH_MAX], p[PATH_MAX];
+
+	if (tm_template_dir(dir, front_template_set(c, module), d, sizeof d) < 0 ||
+	    snprintf(p, sizeof p, "%s/%s", d, file) >= (int)sizeof p)
+		return 0;
+	return access(p, R_OK) == 0;
+}
+
+/* 1 if a module draws the dark side: its mode option, else the global mode */
+int
+front_module_dark(const Config *c, const char *module)
+{
+	Scheme s;
+	TmTheme t;
+	int i = themer_module_find(module);
+
+	if (i < 0)
+		return c->mode == MODE_DARK;
+	themer_module_view(c, i, &s, &t);
+	return t.dark;
+}
+
 /* ---- themer-web, the server the stylus module and the web front end use ---- */
 
 int

@@ -9,7 +9,8 @@
  * the directory (assets/, images, fonts) is copied beside them as it is, so a theme
  * converted from an existing one keeps its url() references. GTK 3 and GTK 4 select
  * the theme through settings.ini (gtk-theme-name), never GTK_THEME: that variable
- * overrides the file and goes stale when the set changes. libadwaita programs load
+ * overrides the file and goes stale when the set changes (GTK 4 only for a set with
+ * GTK 4 files of its own; see has_gtk4). libadwaita programs load
  * no named theme, only ~/.config/gtk-4.0/gtk.css: a marked block at its top imports
  * the set's libadwaita.css (colors for libadwaita's own look) or, without one, its
  * whole gtk.css.
@@ -71,12 +72,13 @@ theme_name(const TmTheme *t)
 }
 
 static void
-settings_ini(const TmTheme *t, const char *rel, const char *font)
+settings_ini(const TmTheme *t, const char *rel, const char *font, int theme_key)
 {
 	char p[PATH_MAX], num[16];
 
 	tm_path(p, sizeof p, t, rel);
-	tm_ini(p, "Settings", "gtk-theme-name", theme_name(t));
+	if (theme_key)
+		tm_ini(p, "Settings", "gtk-theme-name", theme_name(t));
 	tm_ini(p, "Settings", "gtk-icon-theme-name", t->icons);
 	tm_ini(p, "Settings", "gtk-cursor-theme-name", t->cursor);
 	snprintf(num, sizeof num, "%d", t->cursor_size);
@@ -180,6 +182,13 @@ retire_old_css(const TmTheme *t)
 		fprintf(stderr, "themer: gtk: moved an old themer gtk.css aside: %s\n", old);
 }
 
+/* Whether the set has GTK 4 files of its own (gtk4*.css), set by theme_dirs. Only
+ * then is GTK 4 given the set by name: a gtk.css written for both versions leaves
+ * things to the theme beneath it (GTK 4 has no built-in check marks, as GTK 3 has),
+ * so there GTK 4 keeps its default theme and takes the set's gtk.css on top, through
+ * gtk-4.0/gtk.css. */
+static int has_gtk4;
+
 /* Where a top-level .css of the set's gtk/ goes: GTK 3 and GTK 4 (0), GTK 3 only
  * (3), or GTK 4 only (4), and under which name. A "gtk4" file is GTK 4's version of
  * the "gtk" file of the same name (gtk4.css is GTK 4's gtk.css, gtk4-dark.css its
@@ -234,6 +243,9 @@ theme_dirs(const TmTheme *t)
 	}
 	closedir(d);
 	names[nnames] = NULL;
+	has_gtk4 = 0;
+	for (int i = 0; i < nnames; i++)
+		has_gtk4 |= !strncmp(names[i], "gtk4", 4);
 	for (int i = 0; i < nnames; i++) {
 		char out[NAME_MAX + 1];
 		int only = css_target(names[i], out, sizeof out, names, nnames);
@@ -321,9 +333,9 @@ load(const TmTheme *t)
 		return -1;
 
 	if (on(t, "gtk.gtk3"))
-		settings_ini(t, ".config/gtk-3.0/settings.ini", font);
+		settings_ini(t, ".config/gtk-3.0/settings.ini", font, 1);
 	if (on(t, "gtk.gtk4"))
-		settings_ini(t, ".config/gtk-4.0/settings.ini", font);
+		settings_ini(t, ".config/gtk-4.0/settings.ini", font, has_gtk4);
 
 	/* GTK 2 has no themer theme; it gets the icons, cursor, font, and rendering */
 	tm_path(p, sizeof p, t, ".gtkrc-2.0");
