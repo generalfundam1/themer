@@ -923,6 +923,8 @@ expect .config/sway/themer.conf
 grep -q '^[0-9]*,[0-9]*,' "$HOME/.config/themer/system/tty.palette" || bad "tty.palette is not in setvtrgb's format"
 [ "$(wc -l < "$HOME/.config/themer/system/tty.palette")" = 3 ] || bad "tty.palette is not three lines"
 grep -q 'TERM.*linux' "$HOME/.config/themer/env.sh" || bad "env.sh does not set the console palette"
+[ -n "$(env -i HOME="$HOME" TERM=linux sh -c '. "$HOME/.config/themer/env.sh"')" ] || bad "env.sh prints no palette on the console"
+[ -z "$(env -i HOME="$HOME" TERM=linux SSH_TTY=/dev/pts/1 sh -c '. "$HOME/.config/themer/env.sh"')" ] || bad "env.sh repaints the palette over ssh"
 ./themer system status >/dev/null 2>&1 || bad "themer system status failed"
 if [ "$(id -u)" != 0 ]; then
 	./themer system install >/dev/null 2>&1 && bad "themer system install ran without root"
@@ -949,6 +951,17 @@ left=$(cd "$HOME" && find .config .themes .local -type f 2>/dev/null |
 $left"
 [ ! -e "$HOME/.local/state/themer" ] || [ -z "$(ls -A "$HOME/.local/state/themer")" ] ||
 	bad "manifests left: $(ls "$HOME/.local/state/themer")"
+
+# a config that arrives with a block of ours in it (a dotfile from a machine where
+# themer ran): unload takes the block out and keeps the rest
+H2=$(mktemp -d)
+mkdir -p "$H2/bin" "$H2/.config/sway"; printf '#!/bin/sh\n' > "$H2/bin/sway"; chmod +x "$H2/bin/sway"
+printf 'set $mod Mod4\n# themer:wm begin\ninclude /old/machine/themer.conf\n# themer:wm end\nbindsym $mod+Return exec foot\n' > "$H2/.config/sway/config"
+HOME=$H2 PATH="$H2/bin:$PATH" ./themer module load sway >/dev/null 2>&1
+HOME=$H2 PATH="$H2/bin:$PATH" ./themer module unload sway >/dev/null 2>&1
+grep -q 'themer:wm\|/old/machine' "$H2/.config/sway/config" && bad "a block of ours from elsewhere stayed after unload"
+grep -q '^bindsym $mod+Return exec foot$' "$H2/.config/sway/config" || bad "the user's sway config lost a line"
+rm -rf "$H2"
 
 if [ "$fail" = 0 ]; then
 	t "ok"

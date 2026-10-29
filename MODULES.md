@@ -185,7 +185,7 @@ _No screenshot: the program could not be run here._
 
 ### dunst
 
-✔ **dunst 1.13.2, built from source.** No warnings; after a live reload the next notification matched in all 16 combinations.
+✔ **dunst 1.13.2, built from source.** No warnings; after a live reload the next notification matched in all 16 combinations. Without a dunstrc of your own, the system's settings now still apply while themed.
 
 | Themer Default · hax0r-r3d, light | Themer Chicago · desert, dark |
 |---|---|
@@ -439,7 +439,7 @@ _No screenshot: the program could not be run here._
 
 ### tty
 
-◐ **kbd's setvtrgb parser and the kernel's palette escapes (no console here).** The palette file passes setvtrgb's own parser; env.sh's escapes set the same 16 colours. The pictures are terminal captures in the console palette, not photos of a console.
+◐ **kbd's setvtrgb parser and the kernel's palette escapes (no console here).** The palette file passes setvtrgb's own parser; env.sh's escapes set the same 16 colours (no longer over ssh). The font now goes where each system reads it (vconsole.conf, Debian's console-setup, OpenRC, Void). The pictures are terminal captures in the console palette, not photos of a console.
 
 | Themer Default · hipstergreen, dark | Themer Chicago · gooey, light |
 |---|---|

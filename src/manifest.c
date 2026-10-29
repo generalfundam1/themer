@@ -1606,8 +1606,13 @@ undo_block(const Rec *r)
 	if (lines_read(r->path, &L) < 0)
 		return;
 	block_marks(b, e, sizeof b, r->s[0], r->s[1], r->s[2]);
-	block_remove_all(&L, b, e);
-	lines_write(r->path, &L);
+	{
+		int n = L.n;
+
+		block_remove_all(&L, b, e);
+		if (L.n != n)           /* only when there was a block: else the file stays */
+			lines_write(r->path, &L);
+	}
 	lines_free(&L);
 }
 
@@ -1737,8 +1742,10 @@ undo_all(void)
 	for (int i = nrecs - 1; i >= 0; i--) {
 		const Rec *r = &recs[i];
 
+		/* a file put back from its copy is done with, but for a block of ours that was
+		 * in it already (a dotfile brought from a machine where themer ran): that goes */
 		if (r->kind != R_FILE && r->kind != R_ASSET && r->kind != R_DIR && r->kind != R_LINK &&
-		    restored(r->path))
+		    r->kind != R_BLOCK && restored(r->path))
 			continue;
 		switch (r->kind) {
 		case R_FILE:

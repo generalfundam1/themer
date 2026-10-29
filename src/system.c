@@ -776,6 +776,64 @@ ly_config(Style *st)
 	return exists("/etc/ly/config.ini") ? "/etc/ly/config.ini" : NULL;
 }
 
+/* Where the boot reads the console font, by the system:
+ *   systemd with its vconsole setup (Arch, Fedora, openSUSE...): /etc/vconsole.conf,
+ *     FONT=<name>
+ *   Debian, Ubuntu (systemd without it, console-setup instead):
+ *     /etc/default/console-setup, FONT="<the font's file>"
+ *   OpenRC (Gentoo, Alpine, Artix): /etc/conf.d/consolefont, consolefont="<name>"
+ *   Void (runit): /etc/rc.conf, FONT="<name>"
+ * The file it goes in, with *want filled; NULL when console-setup wants a file that
+ * is not installed. */
+static const char *const font_places[] = {
+	"/etc/vconsole.conf", "/etc/default/console-setup", "/etc/conf.d/consolefont", "/etc/rc.conf",
+};
+
+static const char *
+console_font_place(const char *font, Want *want)
+{
+	static const char *const vsetup[] = { "/usr/lib/systemd/systemd-vconsole-setup",
+		"/lib/systemd/systemd-vconsole-setup" };
+
+	for (size_t i = 0; i < TM_COUNT(vsetup); i++)
+		if (exists(vsetup[i])) {
+			want->key = "FONT";
+			snprintf(want->val, sizeof want->val, "%s", font);
+			return font_places[0];
+		}
+	if (exists(font_places[1])) {
+		static const char *const dirs[] = { "/usr/share/consolefonts", "/usr/share/kbd/consolefonts" };
+		static const char *const ext[] = { ".psf.gz", ".psfu.gz", ".psf", ".psfu" };
+		char p[PATH_MAX];
+
+		for (size_t d = 0; d < TM_COUNT(dirs); d++)
+			for (size_t e = 0; e < TM_COUNT(ext); e++) {
+				snprintf(p, sizeof p, "%s/%s%s", dirs[d], font, ext[e]);
+				if (exists(p)) {
+					want->key = "FONT";
+					snprintf(want->val, sizeof want->val, "\"%.64s%s\"", font, d ? "" : ext[e]);
+					if (d)          /* outside console-setup's own directory: the path */
+						snprintf(want->val, sizeof want->val, "\"%.80s\"", p);
+					return font_places[1];
+				}
+			}
+		return NULL;
+	}
+	if (exists(font_places[2])) {
+		want->key = "consolefont";
+		snprintf(want->val, sizeof want->val, "\"%.64s\"", font);
+		return font_places[2];
+	}
+	if (exists(font_places[3]) && (exists("/etc/runit") || exists("/etc/sv"))) {
+		want->key = "FONT";
+		snprintf(want->val, sizeof want->val, "\"%.64s\"", font);
+		return font_places[3];
+	}
+	want->key = "FONT";
+	snprintf(want->val, sizeof want->val, "%s", font);
+	return font_places[0];
+}
+
 /* ---- the sync ---- */
 
 /* the user it was installed for, or "" */
@@ -836,23 +894,31 @@ sync_who(const Who *w)
 		bad = 1;
 	}
 
-	/* the console font */
+	/* the console font, where this system's boot reads it */
 	snprintf(f, sizeof f, "%s/console.conf", dir);
 	got = user_read(w, f, text, sizeof text);
 	if (got >= 0 && text_value(text, "FONT", v, sizeof v) == 0 && v[0]) {
-		Want want = { "FONT", "" };
+		Want want;
+		const char *file;
 
-		if (valid_font(v)) {
-			snprintf(want.val, sizeof want.val, "%s", v);
-			if (etc_apply("/etc/vconsole.conf", ST_SH, &want, 1) < 0)
-				bad = 1;
-		} else {
+		if (!valid_font(v)) {
 			fprintf(stderr, "themer: %s: FONT is not a font's name, left as it was\n", f);
 			bad = 1;
+		} else if (!(file = console_font_place(v, &want))) {
+			fprintf(stderr, "themer: the console font %s is not installed here (/usr/share/consolefonts), "
+			        "left as it was\n", v);
+		} else {
+			/* the other places, from a system that changed (or an earlier build) */
+			for (size_t k = 0; k < TM_COUNT(font_places); k++)
+				if (strcmp(font_places[k], file) && etc_restore(font_places[k], ST_SH) < 0)
+					bad = 1;
+			if (etc_apply(file, ST_SH, &want, 1) < 0)
+				bad = 1;
 		}
 	} else if (got == UR_ABSENT || got >= 0) {
-		if (etc_restore("/etc/vconsole.conf", ST_SH) < 0)
-			bad = 1;
+		for (size_t k = 0; k < TM_COUNT(font_places); k++)
+			if (etc_restore(font_places[k], ST_SH) < 0)
+				bad = 1;
 	} else {
 		bad = 1;
 	}
@@ -1359,8 +1425,9 @@ uninstall(const char *user)
 		return 1;
 	}
 	service_remove(exists(ETC_DIR "/init") ? init_installed() : INIT_SYSTEMD, user);
-	if (etc_restore("/etc/vconsole.conf", ST_SH) < 0)
-		bad = 1;
+	for (size_t k = 0; k < TM_COUNT(font_places); k++)
+		if (etc_restore(font_places[k], ST_SH) < 0)
+			bad = 1;
 	if (ly && etc_restore(ly, lst) < 0)
 		bad = 1;
 	if (exists(ETC_DIR "/tty.palette")) {

@@ -741,8 +741,12 @@ your home is not there yet (mounted or decrypted after boot). With none of these
 install syncs once and tells you the command for your init to run.
 
 The sync puts the palette in with setvtrgb (kept in `/etc/themer/tty.palette` for boot),
-the font in `/etc/vconsole.conf`, ly's colors in `/etc/ly/config.lua` (or
-`config.ini`). It does not touch GRUB. It changes these key by key: for each key, `/etc/themer/backup/` records
+the font where the system's boot reads it (`FONT=` in `/etc/vconsole.conf` under systemd's
+console setup; on Debian and Ubuntu `FONT=` in `/etc/default/console-setup`, naming the
+font's file, and only when that font is installed; `consolefont=` in
+`/etc/conf.d/consolefont` under OpenRC; `FONT=` in `/etc/rc.conf` on Void), ly's colors in
+`/etc/ly/config.lua` (or `config.ini`). It does not touch GRUB. It changes these key by
+key: for each key, `/etc/themer/backup/` records
 the line that was there (or that there was none) and the line themer wrote. When your
 file goes away (Restore originals, the ly module off), and on `sudo themer system
 remove`, only the lines that still read as themer wrote them go back, so whatever else
@@ -1466,6 +1470,12 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
 
 ## Upgrading
 
+In 1.1.1: the console font goes where each system's boot reads it (Debian and Ubuntu's
+console-setup, OpenRC's conf.d/consolefont and Void's rc.conf as well as vconsole.conf);
+`env.sh` no longer repaints a console's palette over ssh; dunst keeps the system's dunstrc
+settings when you have none of your own; unload also takes out a block of themer's that
+was already in a config brought from another machine.
+
 From 0.1 to 1.1:
 
 - **Remove all styles is Restore originals** (`themer originals`; `themer remove` still
@@ -1523,7 +1533,7 @@ From older builds:
 
 ## Status and license
 
-**1.1.** Every module tested against its real program (built from source or taken from
+**1.1.1.** Every module tested against its real program (built from source or taken from
 its release) in both sets, both modes, several schemes and every option, and unloaded
 back to the user's config byte for byte: see [MODULES.md](MODULES.md). Hyprland,
 hyprlock, river, swaync and ly could not be built in the test environment and were

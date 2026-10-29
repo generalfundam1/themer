@@ -5,8 +5,10 @@
  * colors of each urgency. Dunst reads the drop-ins next to the dunstrc it uses, after
  * it, so the user's dunstrc is never edited. Dunst only reads the drop-ins of the
  * directory its dunstrc is in: without a ~/.config/dunst/dunstrc of the user's own
- * (dunst then uses the system's), one is created holding nothing but a marked
- * comment, and removed on unload. A running dunst re-reads both (dunstctl reload).
+ * (dunst then uses the system's), one is created, holding a copy of the system's
+ * dunstrc (/etc/xdg/dunst/dunstrc, or the first in $XDG_CONFIG_DIRS) so a
+ * distribution's own settings still apply while themed, and removed on unload. A
+ * running dunst re-reads both (dunstctl reload).
  *
  * Options (after the host's mode):
  *   font      ui (the default) or terminal
@@ -14,6 +16,8 @@
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include "themer_module.h"
 
@@ -47,6 +51,33 @@ present(const TmTheme *t)
 	return tm_have("dunst");
 }
 
+/* the dunstrc dunst would read without one of the user's: the first dunst/dunstrc
+ * in $XDG_CONFIG_DIRS (default /etc/xdg), its text in out ("" when there is none or
+ * it is too large) */
+static void
+system_dunstrc(char *out, size_t n)
+{
+	const char *dirs = getenv("XDG_CONFIG_DIRS");
+	char list[PATH_MAX], path[PATH_MAX + 32], *save = NULL;
+	FILE *f;
+
+	out[0] = '\0';
+	snprintf(list, sizeof list, "%s", dirs && *dirs ? dirs : "/etc/xdg");
+	for (char *d = strtok_r(list, ":", &save); d; d = strtok_r(NULL, ":", &save)) {
+		size_t len;
+
+		snprintf(path, sizeof path, "%s/dunst/dunstrc", d);
+		if (!(f = fopen(path, "r")))
+			continue;
+		len = fread(out, 1, n - 1, f);
+		out[len] = '\0';
+		if (!feof(f))
+			out[0] = '\0';         /* too large to copy: dunst's defaults then */
+		fclose(f);
+		return;
+	}
+}
+
 static int
 load(const TmTheme *t)
 {
@@ -57,10 +88,17 @@ load(const TmTheme *t)
 	if (tm_render(text, sizeof text, "dunst", tm_opt(t, "dunst.template"), "themer.conf", t, v, nv) < 0)
 		return -1;
 	tm_path(p, sizeof p, t, ".config/dunst/dunstrc");
-	if (access(p, F_OK) && tm_blockf(p, "dunst", "#", "", 0,
-	                                 "# no dunstrc of your own: this one is here so that dunst reads\n"
-	                                 "# dunstrc.d/90-themer.conf; dunst's defaults apply to the rest") < 0)
-		return -1;
+	if (access(p, F_OK)) {
+		static char sys[65536];
+
+		system_dunstrc(sys, sizeof sys);
+		if (tm_blockf(p, "dunst", "#", "", 0,
+		              "# no dunstrc of your own: this one is here so that dunst reads\n"
+		              "# dunstrc.d/90-themer.conf. %s\n%s",
+		              sys[0] ? "Below, a copy of the system's, so its settings still apply." :
+		                       "dunst's defaults apply to the rest.", sys) < 0)
+			return -1;
+	}
 	tm_path(p, sizeof p, t, ".config/dunst/dunstrc.d/90-themer.conf");
 	return tm_writef(p, "%s", text);
 }

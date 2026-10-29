@@ -11,7 +11,7 @@
 #   icons/      fallback toolbar icons for the Firefox chrome (Adwaita's)
 #   test/       make check
 
-VERSION  = 1.1
+VERSION  = 1.1.1
 CC      ?= cc
 PREFIX  ?= /usr/local
 CPPFLAGS += -Iinclude -I. -D_DEFAULT_SOURCE -DVERSION='"$(VERSION)"' \
