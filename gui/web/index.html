@@ -408,6 +408,8 @@ function openHash() {
 document.querySelectorAll('nav a').forEach(a => a.onclick = () => { location.hash = a.dataset.page; });
 window.addEventListener('hashchange', openHash);
 document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); apply(); } });
+// leaving with unapplied changes asks first, as closing the other front ends does
+window.addEventListener('beforeunload', e => { if (S && S.dirty) { e.preventDefault(); e.returnValue = T.quit_ask; } });
 loadText().then(() => { openHash(); if (!location.hash) showPage(PAGES[0].id); return load(); })
   .catch(e => status('could not reach themer-web: ' + e));
 </script>

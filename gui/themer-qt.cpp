@@ -1299,7 +1299,7 @@ private:
 		QHBoxLayout *row = new QHBoxLayout;
 		row->addWidget(new QLabel(up ? front_text(FT_SERVER_UP) : front_text(FT_SERVER_DOWN)), 1);
 		if (up) {
-			QLabel *open = new QLabel(QString("<a href=\"http://localhost:%1/\">Open in the browser</a>").arg(port));
+			QLabel *open = new QLabel(QString("<a href=\"http://localhost:%1/\">%2</a>").arg(port).arg(front_text(FT_SERVER_OPEN)));
 			open->setOpenExternalLinks(true);
 			row->addWidget(open);
 		}

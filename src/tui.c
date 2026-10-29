@@ -1848,29 +1848,28 @@ server_menu(void)
 
 	for (;;) {
 		int port = front_web_port(cfg), up = front_web_running(port);
-		char run[128], portl[64], url[96];
+		char run[128], portl[64], url[96], open[96];
 		const char *items[3];
 		int nrow = up ? 3 : 2;
 
-		snprintf(run, sizeof run, "  %s", up ? "Stop the server" : "Start the server");
-		snprintf(portl, sizeof portl, "  Port           %d", port);
+		snprintf(run, sizeof run, "  %s", front_text(up ? FT_SERVER_STOP : FT_SERVER_START));
+		snprintf(portl, sizeof portl, "  %-15s%d", front_text(FT_PORT), port);
 		snprintf(url, sizeof url, "http://localhost:%d/", port);
 		items[0] = run;
 		items[1] = portl;
 		if (sel >= nrow)
 			sel = nrow - 1;
-		items[2] = "  Open it in the browser";
+		snprintf(open, sizeof open, "  %s", front_text(FT_SERVER_OPEN));
+		items[2] = open;
 		frame_begin("j/k move   enter select   q back");
 		pbegin("server", 11, PANEL_W);
-		pline(ST_DIM, up ? "themer-web is running:" : "themer-web is stopped.");
+		pline(ST_DIM, front_text(up ? FT_SERVER_UP : FT_SERVER_DOWN));
 		pline(ST_NORM, up ? url : "");
 		pline(ST_NORM, "");
 		for (int i = 0; i < nrow; i++)
 			pline(i == sel ? ST_SEL : ST_NORM, items[i]);
 		pline(ST_NORM, "");
-		pline(ST_DIM, "The web front end, and where Stylus gets the userstyles");
-		pline(ST_DIM, "(Modules, stylus: i installs a site). It stops by itself");
-		pline(ST_DIM, "when no browser module (firefox, stylus) is on.");
+		note_lines(front_text(FT_SERVER_NOTE), 3, PANEL_W - 4 > cols - 10 ? cols - 10 : PANEL_W - 4);
 		pbottom();
 		frame_end();
 		k = readkey();
