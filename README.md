@@ -1470,12 +1470,6 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
 
 ## Upgrading
 
-In 1.1.1: the console font goes where each system's boot reads it (Debian and Ubuntu's
-console-setup, OpenRC's conf.d/consolefont and Void's rc.conf as well as vconsole.conf);
-`env.sh` no longer repaints a console's palette over ssh; dunst keeps the system's dunstrc
-settings when you have none of your own; unload also takes out a block of themer's that
-was already in a config brought from another machine.
-
 From 0.1 to 1.1:
 
 - **Remove all styles is Restore originals** (`themer originals`; `themer remove` still
@@ -1499,6 +1493,11 @@ From 0.1 to 1.1:
   again after upgrading so the service is the new one.
 - Unloading a module now leaves a line you changed while themed as you made it, and
   only programs whose module was loaded or unloaded are told to reload.
+- The console font goes where each system's boot reads it (vconsole.conf, Debian and
+  Ubuntu's console-setup, OpenRC's conf.d/consolefont, Void's rc.conf); `env.sh` no
+  longer repaints a console's palette over ssh; dunst keeps the system's dunstrc
+  settings when you have none of your own; unload also takes out a block of themer's
+  that was already in a config brought from another machine.
 
 From older builds:
 
@@ -1533,7 +1532,7 @@ From older builds:
 
 ## Status and license
 
-**1.1.1.** Every module tested against its real program (built from source or taken from
+**1.1.** Every module tested against its real program (built from source or taken from
 its release) in both sets, both modes, several schemes and every option, and unloaded
 back to the user's config byte for byte: see [MODULES.md](MODULES.md). Hyprland,
 hyprlock, river, swaync and ly could not be built in the test environment and were
