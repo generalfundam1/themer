@@ -9,13 +9,27 @@
 #include <unistd.h>
 #include "themer.h"
 
+/* writes ~/rel; the directories it has to make are noted, so Remove all styles
+ * takes them away again once empty */
 static int
 gen_at(const char *rel, EmitFn fn, const Config *c, const Scheme *s)
 {
-	char p[PATH_MAX];
+	char p[PATH_MAX], d[PATH_MAX], *slash;
+	char made[8][PATH_MAX];
+	int nmade = 0;
 
 	if (path_under_home(p, sizeof p, rel) < 0)
 		return -1;
+	/* the missing parents, outermost first */
+	snprintf(d, sizeof d, "%s", p);
+	while ((slash = strrchr(d, '/')) && slash > d && nmade < 8) {
+		*slash = '\0';
+		if (!access(d, F_OK))
+			break;
+		snprintf(made[nmade++], PATH_MAX, "%s", d);
+	}
+	for (int i = 0; i < nmade; i++)
+		dirs_note(made[i]);
 	return write_gen(p, fn, c, s);
 }
 

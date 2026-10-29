@@ -103,7 +103,7 @@ backup(const char *path)
 	backup_name(path, a, sizeof a, 1);
 	if (exists(b) || exists(a))
 		return;                     /* the first one is the original */
-	mkdirs(BACKUP_DIR "/x");
+	mkdirs(BACKUP_DIR);
 	if ((t = slurp(path))) {
 		put(b, t);
 		free(t);
@@ -253,9 +253,15 @@ sync_user(const char *user)
 		return 1;
 	}
 	snprintf(dir, sizeof dir, "%s/.config/themer/system", home);
-	/* at boot the home may not be there yet: then the palette kept in /etc is used,
-	 * and nothing is taken for removed */
-	dir_ok = exists(dir);
+	/* at boot the home may not be there yet (not mounted, not decrypted): then the
+	 * palette kept in /etc is used, and nothing is taken for removed. A home that is
+	 * there without the directory is one whose styles were removed. */
+	{
+		char cfgdir[PATH_MAX];
+
+		snprintf(cfgdir, sizeof cfgdir, "%s/.config", home);
+		dir_ok = exists(cfgdir);
+	}
 
 	/* the console palette */
 	snprintf(f, sizeof f, "%s/tty.palette", dir);
@@ -263,7 +269,7 @@ sync_user(const char *user)
 		char *t = slurp(f);
 
 		if (t) {
-			mkdirs(ETC_DIR "/x");
+			mkdirs(ETC_DIR);
 			put(ETC_DIR "/tty.palette", t);
 			free(t);
 		}
@@ -356,9 +362,7 @@ install(const char *user)
 	}
 	snprintf(dir, sizeof dir, "%s/.config/themer/system", home);
 	if (!exists(dir)) {                 /* made the user's, for their applies to write */
-		char p[PATH_MAX];
-
-		mkdirs(strcat(strcpy(p, dir), "/x"));
+		mkdirs(dir);
 		if (chown(dir, uid, gid) < 0)
 			perror("themer: chown");
 	}

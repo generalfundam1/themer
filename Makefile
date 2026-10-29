@@ -141,12 +141,9 @@ install: all uninstall
 	for g in $(GUIS); do install -Dm755 $$g $(DESTDIR)$(PREFIX)/bin/$$g; done
 	install -d $(DESTDIR)$(PREFIX)/share/themer/themes
 	install -m644 themes/*.theme $(DESTDIR)$(PREFIX)/share/themer/themes/
-	for d in templates/*/; do \
-		for s in "$$d"*/; do \
-			dst="$(DESTDIR)$(PREFIX)/share/themer/templates/$$(basename "$$d")/$$(basename "$$s")"; \
-			install -d "$$dst"; \
-			install -m644 "$$s"* "$$dst/"; \
-		done; \
+	# every file of every set, set.conf and subdirectories (assets) included
+	cd templates && find . -type f | while IFS= read -r f; do \
+		install -Dm644 "$$f" "$(DESTDIR)$(PREFIX)/share/themer/templates/$$f" || exit 1; \
 	done
 	install -d $(DESTDIR)$(PREFIX)/share/themer/icons
 	install -m644 icons/*.svg icons/README $(DESTDIR)$(PREFIX)/share/themer/icons/

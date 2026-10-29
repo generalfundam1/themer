@@ -175,6 +175,87 @@ manifest_path(char *p, size_t n, const char *mod)
 	return snprintf(p, n, "%s/.config/themer/undo/%s.manifest", home(), mod) < (int)n ? 0 : -1;
 }
 
+static int mkdirs_parent(const char *path);
+
+/* ---- directories themer made that were not empty when their maker went: another
+ * module (or the host) had files in them. Kept in a list and tried again after
+ * every unload, so nothing themer made is left behind once its last file goes. */
+
+static int
+pending_path(char *p, size_t n)
+{
+	return snprintf(p, n, "%s/.config/themer/undo/dirs.pending", home()) < (int)n ? 0 : -1;
+}
+
+void
+dirs_note(const char *dir)
+{
+	char p[PATH_MAX], line[PATH_MAX];
+	FILE *f;
+
+	if (pending_path(p, sizeof p) < 0)
+		return;
+	if ((f = fopen(p, "r"))) {
+		while (fgets(line, sizeof line, f)) {
+			line[strcspn(line, "\n")] = '\0';
+			if (!strcmp(line, dir)) {
+				fclose(f);
+				return;
+			}
+		}
+		fclose(f);
+	}
+	mkdirs_parent(p);
+	if ((f = fopen(p, "a"))) {
+		fprintf(f, "%s\n", dir);
+		fclose(f);
+	}
+}
+
+static int
+cmp_depth(const void *a, const void *b)
+{
+	return (int)strlen(*(char *const *)b) - (int)strlen(*(char *const *)a);
+}
+
+/* removes each listed directory that is empty now (the deepest first); the rest,
+ * and those that are gone, are dropped from the list or kept as they are */
+void
+dirs_retry(void)
+{
+	char p[PATH_MAX], line[PATH_MAX], *dirs[512];
+	int n = 0, kept = 0;
+	FILE *f;
+
+	if (pending_path(p, sizeof p) < 0 || !(f = fopen(p, "r")))
+		return;
+	while (n < 512 && fgets(line, sizeof line, f)) {
+		line[strcspn(line, "\n")] = '\0';
+		if (line[0])
+			dirs[n++] = xstrdup(line);
+	}
+	fclose(f);
+	qsort(dirs, n, sizeof dirs[0], cmp_depth);
+	for (int i = 0; i < n; i++) {
+		if (rmdir(dirs[i]) == 0 || errno == ENOENT) {
+			free(dirs[i]);
+			dirs[i] = NULL;
+		} else {
+			kept++;
+		}
+	}
+	if (!kept) {
+		unlink(p);
+	} else if ((f = fopen(p, "w"))) {
+		for (int i = 0; i < n; i++)
+			if (dirs[i])
+				fprintf(f, "%s\n", dirs[i]);
+		fclose(f);
+	}
+	for (int i = 0; i < n; i++)
+		free(dirs[i]);
+}
+
 /* where earlier builds kept it */
 static int
 legacy_manifest_path(char *p, size_t n, const char *mod)
@@ -1125,19 +1206,49 @@ text_write(const char *path, const char *a, size_t an, const char *mid, const ch
 
 /* sets key to value (JSON text: "\"Themer\"", true, 12) in the top-level object;
  * old is the value it had, or JSON_ABSENT when there was none (then it is added) */
-static int
-json_put(const char *path, const char *key, const char *value, char **old)
+/* value as it goes in: no whitespace at its ends, and the lines after its first
+ * indented by ind more, so a multi-line object sits under its key */
+static char *
+json_shape(const char *value, int ind)
 {
-	char *t = file_text(path), *mid;
+	size_t n = strlen(value), o = 0;
+	char *out;
+	const char *s = value, *e = value + n;
+
+	while (s < e && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r'))
+		s++;
+	while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\n' || e[-1] == '\r'))
+		e--;
+	out = malloc((size_t)(e - s) * (size_t)(ind + 2) + 1);
+	for (; s < e; s++) {
+		out[o++] = *s;
+		if (*s == '\n')
+			for (int k = 0; k < ind; k++)
+				out[o++] = ' ';
+	}
+	out[o] = '\0';
+	return out;
+}
+
+static int
+json_put(const char *path, const char *key, const char *value, char **old, int shape)
+{
+	char *t = file_text(path), *mid, *shaped = NULL;
 	const char *ks, *vs, *ve;
 	int r;
 
 	if (!t)
 		return -1;
 	if (json_find(t, key, &ks, &vs, &ve) == 0) {
+		const char *ls = ks;
+
+		while (ls > t && ls[-1] != '\n')
+			ls--;
 		if (old)
 			*old = strndup(vs, (size_t)(ve - vs));
-		r = text_write(path, t, (size_t)(vs - t), value, ve);
+		/* a value put back on unload goes back exactly as it was */
+		shaped = shape ? json_shape(value, (int)(ks - ls)) : strdup(value);
+		r = text_write(path, t, (size_t)(vs - t), shaped, ve);
 	} else if (vs) {
 		const char *c = vs;
 		int empty, multi = strchr(vs, '\n') != NULL;
@@ -1155,10 +1266,11 @@ json_put(const char *path, const char *key, const char *value, char **old)
 
 			while (ind && (ind[w] == ' ' || ind[w] == '\t') && w < 16)
 				w++;
-			n += 16;
+			shaped = json_shape(value, multi ? (w ? w : 2) : 0);
+			n = strlen(key) + strlen(shaped) + 40;
 			mid = realloc(mid, n);
 			snprintf(mid, n, "%s%.*s\"%s\": %s%s", multi ? "\n" : "", multi ? (w ? w : 2) : 0,
-			         ind && w ? ind : "                ", key, value, empty ? "" : ",");
+			         ind && w ? ind : "                ", key, shaped, empty ? "" : ",");
 		}
 		if (old)
 			*old = strdup(JSON_ABSENT);
@@ -1167,6 +1279,7 @@ json_put(const char *path, const char *key, const char *value, char **old)
 	} else {
 		r = -1;               /* not an object */
 	}
+	free(shaped);
 	free(t);
 	return r;
 }
@@ -1181,12 +1294,14 @@ json_drop(const char *path, const char *key)
 	if (!t)
 		return;
 	if (json_find(t, key, &ks, &vs, &ve) == 0) {
+		const char *c2 = ve;
+
 		a = ks;
 		b = ve;
-		while (*b == ' ' || *b == '\t')
-			b++;
-		if (*b == ',') {
-			b++;
+		while (*c2 == ' ' || *c2 == '\t' || *c2 == '\n' || *c2 == '\r')
+			c2++;
+		if (*c2 == ',') {
+			b = c2 + 1;
 		} else {                     /* the last key: the comma before it goes */
 			const char *c = a;
 
@@ -1212,7 +1327,7 @@ tm_json_set(const char *path, const char *key, const char *value)
 	int r;
 
 	snapshot(path);
-	r = json_put(path, key, value, &old);
+	r = json_put(path, key, value, &old, 1);
 	if (r == 0)
 		rec_add(R_JSON, path, key, value, old);
 	free(old);
@@ -1225,7 +1340,7 @@ undo_json(const Rec *r)
 	if (!strcmp(r->s[2], JSON_ABSENT))
 		json_drop(r->path, r->s[0]);
 	else
-		json_put(r->path, r->s[0], r->s[2], NULL);
+		json_put(r->path, r->s[0], r->s[2], NULL, 0);
 }
 
 /* Finds [start, end) of a section and the last line of key in it.
@@ -1577,7 +1692,11 @@ undo_all(void)
 				unlink(r->path);
 			break;
 		}
-		case R_DIR:   rmdir(r->path); break;
+		case R_DIR:
+			/* still holding another module's files: kept in mind, removed once empty */
+			if (rmdir(r->path) < 0 && errno == ENOTEMPTY)
+				dirs_note(r->path);
+			break;
 		case R_BLOCK: undo_block(r); break;
 		case R_KEY:   undo_key(r); break;
 		case R_LINE:  undo_line(r); break;
@@ -1597,6 +1716,7 @@ cleanup(const TmModule *m)
 	snprintf(cur_mod, sizeof cur_mod, "%s", m->name);
 	if (manifest_read(m->name) == 0) {
 		undo_all();
+		dirs_retry();
 		if (manifest_path(p, sizeof p, m->name) == 0)
 			unlink(p);
 		if (legacy_manifest_path(p, sizeof p, m->name) == 0)

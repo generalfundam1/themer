@@ -466,6 +466,7 @@ themer_remove_all(void)
 	for (size_t i = 0; i < TM_COUNT(ours); i++)
 		if (path_under_home(p, sizeof p, ours[i]) == 0)
 			unlink(p);
+	dirs_retry();             /* the directories themer made, now empty */
 	reload_all();
 	return 0;
 }

@@ -1565,6 +1565,7 @@ module_state_text(int i)
 }
 
 static int filling_modules;
+static GtkWidget *sel_row, *mod_list_scroll;   /* the selected module's row, to scroll to */
 
 /* The list in the groups every front end shows (loaded, unloaded, not installed),
  * a heading row before each; refilled when a module changes group. Each module's
@@ -1606,11 +1607,26 @@ refresh_module_states(void)
 		gtk_container_add(GTK_CONTAINER(row), box);
 		g_object_set_data(G_OBJECT(row), "module", GINT_TO_POINTER(i + 1));
 		gtk_list_box_insert(GTK_LIST_BOX(mod_list), row, -1);
-		if (i == mod_sel)
+		if (i == mod_sel) {
 			gtk_list_box_select_row(GTK_LIST_BOX(mod_list), GTK_LIST_BOX_ROW(row));
+			sel_row = row;
+		}
 	}
 	gtk_widget_show_all(mod_list);
 	filling_modules--;
+}
+
+static gboolean
+focus_sel_row(gpointer data)
+{
+	(void)data;
+	int y;
+
+	/* the list alone scrolls to it, not the page around it */
+	if (sel_row && mod_list_scroll && gtk_widget_translate_coordinates(sel_row, mod_list, 0, 0, NULL, &y))
+		gtk_adjustment_clamp_page(gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(mod_list_scroll)),
+		                          y, y + gtk_widget_get_allocated_height(sel_row));
+	return G_SOURCE_REMOVE;
 }
 
 /* selects module i in the list (the command line's themer-gtk modules NAME) */
@@ -1620,6 +1636,7 @@ select_module(int i)
 	mod_sel = i;
 	refresh_module_states();
 	module_detail();
+	g_timeout_add(200, focus_sel_row, NULL);   /* once the list has its size */
 }
 
 /* sets an option; it takes effect at once */
@@ -2067,6 +2084,7 @@ page_modules(void)
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll), GTK_SHADOW_IN);
 	gtk_widget_set_size_request(scroll, 190, -1);
 	gtk_container_add(GTK_CONTAINER(scroll), mod_list);
+	mod_list_scroll = scroll;
 	gtk_box_pack_start(GTK_BOX(paned), scroll, FALSE, FALSE, 0);
 
 	mod_detail = gtk_scrolled_window_new(NULL, NULL);

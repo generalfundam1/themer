@@ -177,6 +177,10 @@ int  gen_env(const Config *, const Scheme *);
 int  gen_tty(const Config *, const Scheme *);
 int  gen_grub(const Config *, const Scheme *);
 void targets_remove(void);
+/* manifest.c: a directory themer made, to be removed once it is empty (dirs_retry,
+ * after every unload) */
+void dirs_note(const char *dir);
+void dirs_retry(void);
 void tty_escapes(const Config *c, char *out, size_t n);
 /* system.c: the root side of the console, GRUB and ly (themer system ...) */
 int  system_cmd(int argc, char **argv);

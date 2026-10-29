@@ -758,8 +758,10 @@ private:
 				sel = it;
 		}
 		mods->expandAll();
-		if (sel)
+		if (sel) {
 			mods->setCurrentItem(sel);
+			mods->scrollToItem(sel);
+		}
 		fillingModules = false;
 	}
 
