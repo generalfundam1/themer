@@ -1,30 +1,30 @@
 # bluloco: light from Gogh "bluloco_light"; the dark section is derived (no dark variant).
 # Terminal colors as published; roles chosen by tools/gogh2theme.py (see it).
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=1e1f25
-fg=d9d9d9
-surf=34353b
-acc=0099e1
+bg=18191d
+fg=d5d6dd
+surf=2f3034
+acc=9962f4
 accfg=000000
 urg=ff6480
 warn=c5a332
-ansi0=1e1f25
-ansi1=e05679
-ansi2=249a4c
+ansi0=18191d
+ansi1=df4e73
+ansi2=23974a
 ansi3=df631c
-ansi4=5783ea
-ansi5=9d69f4
-ansi6=3b8cc9
-ansi7=aaaaac
-ansi8=727376
+ansi4=4e7ce9
+ansi5=9962f4
+ansi6=3687c4
+ansi7=a6a7ad
+ansi8=818287
 ansi9=ff6480
 ansi10=3cbc66
 ansi11=c5a332
 ansi12=0099e1
-ansi13=d54fc9
+ansi13=d245c6
 ansi14=6d93bb
-ansi15=d9d9d9
+ansi15=d5d6dd
 [light]
 bg=d5d6dd
 fg=000000

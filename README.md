@@ -154,6 +154,7 @@ themer server install [SITE]        open the userstyles (or one site's) in the b
 themer scheme import FILE [NAME]    add a colour scheme (see Colour schemes)
 themer scheme remove NAME           delete one of yours, or hide a built-in one
 themer scheme restore [NAME]        bring hidden built-in schemes back
+themer scheme rederive [FILE...]    make the derived side of your schemes (or FILEs) again
 themer template list DIR [SET]      list template sets, or the files in SET
 themer template render MODULE SET FILE [OUT]
                                     render one template with the current theme
@@ -1169,9 +1170,27 @@ From the sixteen colours it picks the roles: the background (the scheme's own, o
 `ansi0`), the white that reads best on it, a surface a step toward it, the red and the
 yellow that read better as urgent and warning, and as the accent the most saturated
 of the rest that reads 3:1 (yellows weighted down, so it is not the warning colour).
-The side the scheme is (dark or light) comes from it; the other side is derived: the
-same hues with the lightness flipped, each colour moved until it reads. The readability
-rules check the rest on load. Imports land in `~/.config/themer/themes/`.
+The side the scheme is (dark or light) comes from it; the other side is derived from
+the scheme's own colours, the way an author makes a light (or dark) variant:
+
+- **the page is the scheme's own white** (its foreground or bright white: Gruvbox's
+  cream, Nord's snow), its tint kept; a plain grey white takes the background's tint,
+  and where neither has one, a soft tint of the accent. Its lightness runs from paper
+  (86%) to near-white (95%): half from how light the white is, half from how dark the
+  source background is, so a soft scheme gets soft paper and a near-black one a bright
+  page. A derived dark side is the same the other way round (6% to 20%);
+- **the text is the scheme's background**, made dark (or light) enough for 7:1;
+- **the accent is the same terminal colour on both sides**: a green scheme is green in
+  light mode too;
+- **every other colour keeps its hue and saturation** and moves in lightness, by
+  luminance, as far as it must to read 4.5:1, so greens and cyans stay themselves
+  instead of turning olive.
+
+The readability rules check every side on load (`themer check` lists what they move;
+a derived side needs nothing). Imports land in `~/.config/themer/themes/`.
+`themer scheme rederive` makes the derived side of your imported schemes again
+(after an update to these rules), keeping the side you imported as it is; with file
+names it does the same to those files.
 
 **Removing.** `themer scheme remove NAME` (**Remove**, `d`) deletes one of yours; a
 built-in one is hidden instead, its name kept in `~/.config/themer/themes/.removed`, so

@@ -104,6 +104,7 @@ void theme_scheme(const Config *c, Scheme *s);
 int  scheme_import(const char *path, const char *name, FILE *report);
 int  scheme_remove(const char *name);
 int  scheme_restore(const char *name);        /* NULL: every hidden one */
+int  scheme_rederive(int n, char **paths, FILE *report);   /* n 0: the user's schemes */
 
 /* state.c: defaults and the state file */
 int  config_defaults(Config *c);

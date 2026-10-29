@@ -1,30 +1,30 @@
 # colorcli: light from the Gogh collection; the dark section is derived.
 # Terminal colors as published; roles chosen by themer scheme import.
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=212121
-fg=d9d9d9
-surf=373737
-acc=5faf00
+bg=0b1114
+fg=ebebeb
+surf=262b2e
+acc=0084bb
 accfg=000000
-urg=ff3838
+urg=fa0000
 warn=ffff00
-ansi0=212121
-ansi1=ff3838
+ansi0=0b1114
+ansi1=fa0000
 ansi2=5faf00
 ansi3=5faf00
-ansi4=0092cf
-ansi5=ff3838
-ansi6=898989
-ansi7=ababab
-ansi8=747474
-ansi9=ff3838
-ansi10=898989
+ansi4=0084bb
+ansi5=fa0000
+ansi6=7c7c7c
+ansi7=b3b4b5
+ansi8=7b7e80
+ansi9=fa0000
+ansi10=7c7c7c
 ansi11=ffff00
-ansi12=0095c1
-ansi13=0095c1
-ansi14=0095c1
-ansi15=d9d9d9
+ansi12=0087af
+ansi13=0087af
+ansi14=0087af
+ansi15=ebebeb
 [light]
 bg=ffffff
 fg=000000

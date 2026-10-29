@@ -1,30 +1,30 @@
 # manpage: light from Gogh "manpage"; the dark section is derived (no dark variant).
 # Terminal colors as published; roles chosen by tools/gogh2theme.py (see it).
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=292819
-fg=d9d9d9
-surf=3e3d30
-acc=00a600
+bg=2b2913
+fg=e6e1b4
+surf=413f26
+acc=8080ff
 accfg=000000
-urg=ff4c4c
+urg=ff4f4f
 warn=e5e500
-ansi0=292819
-ansi1=ff4b4b
+ansi0=2b2913
+ansi1=ff4e4e
 ansi2=00a600
 ansi3=999900
-ansi4=6666ff
-ansi5=fa00fa
+ansi4=8080ff
+ansi5=fc00fc
 ansi6=00a6b2
-ansi7=adada9
-ansi8=78786f
-ansi9=ff4c4c
+ansi7=b7b38c
+ansi8=94906d
+ansi9=ff4f4f
 ansi10=00d900
 ansi11=e5e500
-ansi12=6666ff
-ansi13=fb00fb
+ansi12=8181ff
+ansi13=fc00fc
 ansi14=00e5e5
-ansi15=d9d9d9
+ansi15=e6e1b4
 [light]
 bg=fef49c
 fg=000000

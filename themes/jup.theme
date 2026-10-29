@@ -1,30 +1,30 @@
 # jup: light from the Gogh collection; the dark section is derived.
 # Terminal colors as published; roles chosen by themer scheme import.
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=1f2322
-fg=d9d9d9
-surf=353938
-acc=6fdd00
+bg=212b17
+fg=c9cfcd
+surf=353f2d
+acc=b9ff74
 accfg=000000
 urg=ff74b9
 warn=ffb974
-ansi0=1f2322
-ansi1=ff2994
+ansi0=212b17
+ansi1=ff3d9e
 ansi2=6fdd00
-ansi3=dd6f00
-ansi4=1189ff
-ansi5=b163ff
+ansi3=e07000
+ansi4=1d8fff
+ansi5=b56aff
 ansi6=00dd6f
-ansi7=abacab
-ansi8=737574
+ansi7=9fa6a0
+ansi8=8a9287
 ansi9=ff74b9
 ansi10=b9ff74
 ansi11=ffb974
 ansi12=74b9ff
 ansi13=b974ff
 ansi14=74ffb9
-ansi15=d9d9d9
+ansi15=c9cfcd
 [light]
 bg=758480
 fg=000000

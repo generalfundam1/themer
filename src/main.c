@@ -22,6 +22,7 @@ usage(void)
 	      "               module reset NAME KEY | server start|stop|status | server port N |\n"
 	      "               server install [SITE] |\n"
 	      "               scheme import FILE [NAME] | scheme remove NAME | scheme restore [NAME] |\n"
+	      "               scheme rederive [FILE...] |\n"
 	      "               template list DIR [SET] | template render MODULE SET FILE [OUT] |\n"
 	      "               system install|remove|sync|watch|status [USER] | -v]\n", stderr);
 }
@@ -428,6 +429,8 @@ main(int argc, char *argv[])
 
 		fprintf(bad ? stderr : stdout, "%s%s\n", bad ? "themer: " : "", msg);
 		return bad;
+	} else if (!strcmp(cmd, "scheme") && !strcmp(sub, "rederive")) {
+		return scheme_rederive(argc - 3, argv + 3, stdout) < 0 ? 1 : 0;
 	} else if (!strcmp(cmd, "scheme") && !strcmp(sub, "restore")) {
 		if (scheme_restore(argc > 3 ? argv[3] : NULL) < 0) {
 			fprintf(stderr, "themer: could not restore\n");

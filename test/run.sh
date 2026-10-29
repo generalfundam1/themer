@@ -76,6 +76,12 @@ for n in mine-x mine-k mine-a 3024night; do ./themer list | grep -qx "$n" || bad
 grep -q '^\[light\]' "$HOME/.config/themer/themes/mine-a.theme" && grep -q '^\[dark\]' "$HOME/.config/themer/themes/mine-a.theme" ||
 	bad "an imported scheme lacks a side"
 ./themer theme mine-x >/dev/null 2>&1 || bad "an imported scheme does not apply"
+# the derived side keeps the accent's terminal color and needs no readability fixes;
+# rederive makes the same file again
+cp "$HOME/.config/themer/themes/mine-x.theme" "$HOME/mine-x.before"
+./themer scheme rederive >/dev/null 2>&1 || bad "scheme rederive failed"
+cmp -s "$HOME/mine-x.before" "$HOME/.config/themer/themes/mine-x.theme" || bad "rederive does not give what import gave"
+./themer check 2>/dev/null | sed -n '/^mine-x /,/^[^ ]/p' | grep -q 'light .*->' && bad "a derived light side needs readability fixes"
 ./themer scheme remove mine-x >/dev/null 2>&1 && bad "the scheme in use was removed"
 ./themer theme nord >/dev/null 2>&1
 ./themer scheme remove mine-x >/dev/null || bad "remove an imported scheme"

@@ -1,30 +1,30 @@
 # sonoran-sunrise: light from Gogh "sonoransunrise"; the dark section is derived (no dark variant).
 # Terminal colors as published; roles chosen by tools/gogh2theme.py (see it).
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=292919
-fg=e1dbd0
-surf=3f3e2f
-acc=91a9f9
+bg=2c261c
+fg=f4f5e0
+surf=443f34
+acc=2da165
 accfg=000000
 urg=fb7f7f
 warn=f2c55c
-ansi0=292919
+ansi0=2c261c
 ansi1=eb6f6f
 ansi2=669c50
 ansi3=f2c55c
-ansi4=2da266
-ansi5=738bda
+ansi4=2da165
+ansi5=728ad9
 ansi6=e07941
-ansi7=b3aea2
-ansi8=7c796b
+ansi7=c2c1af
+ansi8=908e7e
 ansi9=fb7f7f
 ansi10=86ac70
 ansi11=d2a53c
-ansi12=44a070
+ansi12=449f70
 ansi13=91a9f9
 ansi14=f08951
-ansi15=e1dbd0
+ansi15=f4f5e0
 [light]
 bg=f9fae3
 fg=61543e

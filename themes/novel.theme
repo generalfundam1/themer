@@ -1,30 +1,30 @@
 # novel: light from Gogh "novel"; the dark section is derived (no dark variant).
 # Terminal colors as published; roles chosen by tools/gogh2theme.py (see it).
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=292719
-fg=d9d9d9
-surf=3e3c30
-acc=00a600
+bg=252316
+fg=dfdbc3
+surf=3b392b
+acc=7b7bff
 accfg=000000
-urg=ff4b4b
-warn=db7100
-ansi0=292719
-ansi1=ff4b4b
-ansi2=00a600
-ansi3=db7100
-ansi4=6666ff
-ansi5=fa00fa
-ansi6=0094df
-ansi7=adaca9
-ansi8=78776f
-ansi9=ff4b4b
-ansi10=00a600
-ansi11=db7100
-ansi12=6666ff
-ansi13=fa00fa
-ansi14=0094df
-ansi15=d9d9d9
+urg=ff4040
+warn=d66e00
+ansi0=252316
+ansi1=ff4040
+ansi2=00a000
+ansi3=d66e00
+ansi4=7b7bff
+ansi5=f300f3
+ansi6=0090da
+ansi7=b1ad98
+ansi8=8d8a78
+ansi9=ff4040
+ansi10=00a000
+ansi11=d66e00
+ansi12=7b7bff
+ansi13=f300f3
+ansi14=0090da
+ansi15=dfdbc3
 [light]
 bg=dfdbc3
 fg=000000

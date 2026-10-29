@@ -1,30 +1,30 @@
 # nep: light from the Gogh collection; the dark section is derived.
 # Terminal colors as published; roles chosen by themer scheme import.
-# derived from the light section: same hues, lightness flipped
+# derived from the light section: its colors with the light and dark ends swapped, the accent kept
 [dark]
-bg=1f2322
-fg=d9d9d9
-surf=353938
-acc=00dd6f
+bg=172b21
+fg=c9cfcd
+surf=2c3f36
+acc=74ffb9
 accfg=000000
 urg=ffb974
 warn=b9ff74
-ansi0=1f2322
+ansi0=172b21
 ansi1=dd6f00
 ansi2=00dd6f
 ansi3=6fdd00
-ansi4=b163ff
-ansi5=ff2994
-ansi6=1189ff
-ansi7=abacab
-ansi8=737574
+ansi4=b56aff
+ansi5=ff3a9d
+ansi6=1d8fff
+ansi7=9da6a2
+ansi8=83908a
 ansi9=ffb974
 ansi10=74ffb9
 ansi11=b9ff74
 ansi12=b974ff
 ansi13=ff74b9
 ansi14=74b9ff
-ansi15=d9d9d9
+ansi15=c9cfcd
 [light]
 bg=758480
 fg=000000
