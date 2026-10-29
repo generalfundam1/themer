@@ -426,7 +426,7 @@ go where each program reads them.
   stylus/          the rendered userstyles
   bin/             the launcher scripts ($menu for sway and i3)
   qt/ gtk/ ...     files a module keeps for itself
-  cache/           font specimens, the TUI's error log
+  cache/           font specimens, the TUI's error log, themer-gtk's empty base theme
   env.sh, tty.rgb  the environment and the console palette
 ```
 
