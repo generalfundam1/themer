@@ -1049,16 +1049,19 @@ on_scheme_remove(GtkButton *b, gpointer data)
 	if (i < 0 || i >= ntheme_names)
 		return;
 	snprintf(name, sizeof name, "%s", theme_names[i]);
-	if (!strcmp(name, applied.th.name)) {
-		set_status(front_text(FT_SCHEME_IN_USE));
-		return;
+	{
+		GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION,
+		                                      GTK_BUTTONS_OK_CANCEL, "%s %s?", front_text(FT_SCHEME_REMOVE), name);
+		int ok;
+
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d), "%s", front_text(FT_SCHEME_REMOVE_ASK));
+		ok = gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_OK;
+		gtk_widget_destroy(d);
+		if (!ok)
+			return;
 	}
-	/* the selection is only browsed: compare with what is applied, not cfg */
-	if (scheme_remove(name) < 0) {
-		set_status(front_text(FT_SCHEME_REMOVE_FAILED));
-		return;
-	}
-	snprintf(msg, sizeof msg, "%s removed", name);
+	/* the selection is only browsed: the one in use is what is applied, not cfg */
+	front_scheme_remove(&applied, name, msg, sizeof msg);
 	set_status(msg);
 	if (!strcmp(cfg.th.name, name))
 		front_set_theme(&cfg, applied.th.name), changed();

@@ -349,13 +349,14 @@ $('schemeimport').onclick = () => $('schemefile').click();
 $('schemefile').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   const text = await f.text(), name = f.name.replace(/\.[^.]*$/, '');
-  report(await api('/api/scheme/import', {name, text})); e.target.value = ''; await load();
+  const r = await api('/api/scheme/import', {name, text}); e.target.value = ''; await load();
+  status(r.ok ? T.scheme_imported : T.scheme_import_none); if (!r.ok) report(r);
 };
 $('schemeremove').onclick = async () => {
-  if (!confirm(`Remove ${S.theme}? Yours are deleted; built-in ones are hidden and can be restored.`)) return;
-  report(await api('/api/scheme/remove', {name: S.theme})); await load();
+  if (!confirm(`${T.scheme_remove} ${S.theme}?\n\n${T.scheme_remove_ask}`)) return;
+  const r = await api('/api/scheme/remove', {name: S.theme}); await load(); status(r.report.trim());
 };
-$('schemerestore').onclick = async () => { report(await api('/api/scheme/restore', {})); await load(); };
+$('schemerestore').onclick = async () => { const r = await api('/api/scheme/restore', {}); await load(); status(r.report.trim()); };
 $('srvstop').onclick = async () => {
   if (!confirm('Stop themer-web? This page stops working until the server is started again (Server in any front end, or themer server start).')) return;
   try { await api('/api/quit', {}); } catch (e) {}

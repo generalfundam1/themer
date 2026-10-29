@@ -753,7 +753,7 @@ handle(int fd, const char *method, const char *path, const char *body)
 				cfg.th = applied.th;    /* it was only being browsed */
 		} else if (!strcmp(path + 12, "restore")) {
 			rc = scheme_restore(NULL);
-			fputs(rc == 0 ? "every hidden built-in scheme is back" : "could not restore", rf);
+			fputs(front_text(rc == 0 ? FT_SCHEME_RESTORED : FT_SCHEME_RESTORE_FAILED), rf);
 		}
 		fclose(rf);
 		bprintf(&b, "{\"ok\":%s,\"report\":", rc < 0 ? "false" : "true");
@@ -782,8 +782,8 @@ handle(int fd, const char *method, const char *path, const char *body)
 			int rc = front_module_set(&cfg, i, want);   /* saved at once, not pending */
 
 			bprintf(&b, "{\"ok\":%s,\"msg\":", rc < 0 ? "false" : "true");
-			jstr(&b, rc < 0 ? (want ? "load failed (see the server's output)" : "unload had errors")
-			               : (want ? "module loaded" : "module unloaded"));
+			jstr(&b, front_text(rc < 0 ? (want ? FT_MODULE_LOAD_FAILED : FT_MODULE_UNLOAD_FAILED)
+			                           : (want ? FT_MODULE_LOADED : FT_MODULE_UNLOADED)));
 			bput(&b, "}", 1);
 			respond_json(fd, &b);
 		}

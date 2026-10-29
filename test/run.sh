@@ -225,6 +225,7 @@ if command -v curl >/dev/null 2>&1; then
 	mkdir -p "$HOME/bin"
 	printf '#!/bin/sh\necho "$1" >> "$HOME/opened"\n' > "$HOME/bin/xdg-open"; chmod +x "$HOME/bin/xdg-open"
 	PATH="$HOME/bin:$PWD:$PATH" ./themer-web -p 7390 >/dev/null 2>&1 || bad "themer-web did not open the running server"
+	sleep 0.3   # xdg-open runs detached
 	grep -qx "http://localhost:7390/" "$HOME/opened" 2>/dev/null || bad "themer-web opened the wrong page"
 	rm -f "$HOME/opened"
 	[ "$(code --path-as-is "$w/stylus/../state")" = 404 ] || bad "themer-web: a path outside the styles was served"

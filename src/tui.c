@@ -830,6 +830,7 @@ theme_menu(void)
 	static const char *items[MAX_THEMES];
 	Theme orig_th = cfg->th;
 	int omode = cfg->mode, n, sel = 0, i, vis, off, k;
+	char armed_rm[NAME_LEN] = "";
 
 	n = theme_list(names, MAX_THEMES);
 	if (!n) {
@@ -869,6 +870,8 @@ theme_menu(void)
 		frame_end();
 
 		k = readkey();
+		if (k != 'd')
+			armed_rm[0] = '\0';
 		switch (k) {
 		case 'j':
 		case K_DOWN:
@@ -916,15 +919,25 @@ theme_menu(void)
 				sel = n - 1;
 			break;
 		case 'd':
-			if (!strcmp(items[sel], orig_th.name)) {
-				flash(front_text(FT_SCHEME_IN_USE));
+			/* asked first, as in the other front ends: d again removes it */
+			if (strcmp(armed_rm, items[sel])) {
+				char ask[NAME_LEN + 160];
+
+				snprintf(armed_rm, sizeof armed_rm, "%s", items[sel]);
+				snprintf(ask, sizeof ask, "%s %s? d again: %s", front_text(FT_SCHEME_REMOVE), items[sel],
+				         front_text(FT_SCHEME_REMOVE_ASK));
+				flash(ask);
 				break;
 			}
+			armed_rm[0] = '\0';
 			snprintf(what, sizeof what, "%s", items[sel]);
-			switch (scheme_remove(what)) {
-			case 0: flash("deleted"); break;
-			case 1: flash("hidden (a built-in scheme: r brings every hidden one back)"); break;
-			default: flash(front_text(FT_SCHEME_REMOVE_FAILED));
+			{
+				Config in_use = { 0 };
+				char msg[256];
+
+				in_use.th = base.th;   /* the applied one, as in the other front ends */
+				front_scheme_remove(&in_use, what, msg, sizeof msg);
+				flash(msg);
 			}
 			n = theme_list(names, MAX_THEMES);
 			for (i = 0; i < n; i++)

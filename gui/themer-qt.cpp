@@ -952,15 +952,16 @@ private:
 		if (!it)
 			return;
 		QByteArray name = it->text().toUtf8();
-		if (!strcmp(name.constData(), applied.th.name)) {
-			status->setText(front_text(FT_SCHEME_IN_USE));
+		char msg[256];
+		if (QMessageBox::question(this, "themer", QString("%1 %2?\n\n%3").arg(front_text(FT_SCHEME_REMOVE), it->text(),
+		                                                                     front_text(FT_SCHEME_REMOVE_ASK)),
+		                          QMessageBox::Ok | QMessageBox::Cancel) != QMessageBox::Ok)
 			return;
-		}
-		if (scheme_remove(name.constData()) < 0) {
-			status->setText(front_text(FT_SCHEME_REMOVE_FAILED));
+		/* the selection is only browsed: the one in use is what is applied, not cfg */
+		int r = front_scheme_remove(&applied, name.constData(), msg, sizeof msg);
+		status->setText(utf8(msg));
+		if (r < 0)
 			return;
-		}
-		status->setText(it->text() + " removed");
 		if (!strcmp(cfg.th.name, name.constData())) {
 			front_set_theme(&cfg, applied.th.name);
 			changed();

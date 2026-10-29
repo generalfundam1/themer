@@ -537,24 +537,24 @@ front_web_stop(int port)
 
 /* ---- colour schemes ---- */
 
-/* removes a scheme, unless it is the one in use (switch first); msg says what
- * happened */
+/* removes a scheme, unless it is the one applied (c): yours are deleted, built-in
+ * ones hidden. msg says what happened, in every front end's words. */
 int
 front_scheme_remove(Config *c, const char *name, char *msg, size_t n)
 {
 	if (!strcmp(name, c->th.name)) {
-		snprintf(msg, n, "%s is the scheme in use: switch to another first", name);
+		snprintf(msg, n, "%s: %s", name, front_text(FT_SCHEME_IN_USE));
 		return -1;
 	}
 	switch (scheme_remove(name)) {
 	case 0:
-		snprintf(msg, n, "%s deleted", name);
+		snprintf(msg, n, "%s %s", name, front_text(FT_SCHEME_DELETED));
 		return 0;
 	case 1:
-		snprintf(msg, n, "%s hidden (a built-in scheme; restore it from the scheme list)", name);
+		snprintf(msg, n, "%s %s", name, front_text(FT_SCHEME_HIDDEN));
 		return 0;
 	}
-	snprintf(msg, n, "no scheme %s", name);
+	snprintf(msg, n, "%s: %s", name, front_text(FT_SCHEME_REMOVE_FAILED));
 	return -1;
 }
 
