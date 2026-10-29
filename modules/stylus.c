@@ -182,7 +182,7 @@ load(const TmTheme *t)
 		if (tm_render(body, sizeof body, DIR_NAME, tm_opt(t, "stylus.template"), names[i],
 		              t, v, nv) < 0)
 			return -1;
-		snprintf(rel, sizeof rel, ".config/themer/stylus/%s", names[i]);
+		snprintf(rel, sizeof rel, ".config/themer/stylus/%.63s", names[i]);
 		tm_path(p, sizeof p, t, rel);
 		if (tm_writef(p, "%s", body) < 0)
 			return -1;
