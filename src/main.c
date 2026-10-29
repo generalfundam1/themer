@@ -9,7 +9,7 @@
 static void
 usage(void)
 {
-	fputs("usage: themer [tui | apply | toggle | dark | light | theme NAME |\n"
+	fputs("usage: themer [tui | apply | remove | restore | toggle | dark | light | theme NAME |\n"
 	      "               list | check |\n"
 	      "               icons [NAME] | cursor [NAME [SIZE]] | font ui|mono FAMILY [SIZE] |\n"
 	      "               font tty [NAME] | color [ROLE HEX|reset] | env [NAME=VALUE] |\n"
@@ -22,7 +22,8 @@ usage(void)
 	      "               module reset NAME KEY | server start|stop|status | server port N |\n"
 	      "               server install [SITE] |\n"
 	      "               scheme import FILE [NAME] | scheme remove NAME | scheme restore [NAME] |\n"
-	      "               template list DIR [SET] | template render MODULE SET FILE [OUT] | -v]\n", stderr);
+	      "               template list DIR [SET] | template render MODULE SET FILE [OUT] |\n"
+	      "               system install|remove|sync|status [USER] | -v]\n", stderr);
 }
 
 static int
@@ -207,6 +208,8 @@ main(int argc, char *argv[])
 		puts("themer " VERSION);
 		return 0;
 	}
+	if (!strcmp(cmd, "system"))
+		return system_cmd(argc, argv);   /* root's side: no state of its own */
 	if (themer_startup(&c) < 0)
 		return 1;
 
@@ -232,11 +235,16 @@ main(int argc, char *argv[])
 	} else if (!strcmp(cmd, "template") && !strcmp(sub, "render") && argc > 5) {
 		return cmd_template_render(&c, argv[3], argv[4], argv[5], argc > 6 ? argv[6] : NULL);
 	} else if (!strcmp(cmd, "module") && !strcmp(sub, "list")) {
-		int order[MAX_MODULES], n = front_module_order(order, MAX_MODULES);
+		int order[MAX_MODULES], n = front_module_order(&c, order, MAX_MODULES), last = -1;
 
+		/* in the groups every front end shows: loaded, unloaded, not installed */
 		for (int k = 0; k < n; k++) {
 			int i = order[k];
 
+			if (front_module_group(&c, i) != last) {
+				last = front_module_group(&c, i);
+				printf("%s# %s\n", k ? "\n" : "", front_module_group_title(last));
+			}
 			printf("%-12s %-3s %-8s %s\n", themer_module_name(i),
 			       themer_module_on(&c, i) ? "on" : "off",
 			       themer_module_present(&c, i) ? "" : "absent", themer_module_desc(i));
@@ -277,6 +285,15 @@ main(int argc, char *argv[])
 
 	/* commands that change the state, saved below */
 	if (!strcmp(cmd, "apply")) {
+		r = themer_apply(&c);
+	} else if (!strcmp(cmd, "remove") && argc == 2) {
+		char msg[256];
+
+		r = front_remove(&c, msg, sizeof msg);
+		puts(msg);
+		return r ? 1 : 0;               /* saved by front_remove */
+	} else if (!strcmp(cmd, "restore") && argc == 2) {
+		c.removed = 0;
 		r = themer_apply(&c);
 	} else if (!strcmp(cmd, "toggle")) {
 		c.mode = c.mode == MODE_DARK ? MODE_LIGHT : MODE_DARK;
@@ -384,6 +401,10 @@ main(int argc, char *argv[])
 		if (i < 0)
 			return no_module(argv[3]);
 		r = themer_module_set(&c, i, sub[0] == 'l');
+		if (r == -3) {
+			fprintf(stderr, "themer: %s: %s\n", argv[3], front_text(FT_MODULE_ABSENT));
+			return 1;
+		}
 	} else if (!strcmp(cmd, "module") && ((!strcmp(sub, "option") && argc > 5) ||
 	                                      (!strcmp(sub, "reset") && argc > 4))) {
 		int i = themer_module_find(argv[3]), j = i < 0 ? -1 : themer_option_find(i, argv[4]);

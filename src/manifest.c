@@ -50,7 +50,7 @@
 #define NEW_SECTION       "<new>"       /* section was created */
 #define NEW_SECTION_BLANK "<new+blank>" /* ...and a blank line was added before it */
 
-enum { R_FILE = 'F', R_CREATED = 'C', R_DIR = 'D', R_BLOCK = 'B', R_KEY = 'K', R_REPLACE = 'X', R_LINE = 'L', R_ASSET = 'A', R_LINK = 'S', R_ORIG = 'O', R_OFF = 'M' };
+enum { R_FILE = 'F', R_CREATED = 'C', R_DIR = 'D', R_BLOCK = 'B', R_KEY = 'K', R_REPLACE = 'X', R_LINE = 'L', R_ASSET = 'A', R_LINK = 'S', R_ORIG = 'O', R_OFF = 'M', R_JSON = 'J' };
 
 #define BACKUP_SUFFIX ".themer-orig"
 #define OFF_PREFIX    "#themer-off: "
@@ -579,6 +579,33 @@ tm_signal(const char *name, int sig)
 }
 
 int
+tm_have_flatpak(const char *app_id)
+{
+	char p[PATH_MAX];
+
+	if (snprintf(p, sizeof p, "/var/lib/flatpak/exports/bin/%s", app_id) < (int)sizeof p && !access(p, F_OK))
+		return 1;
+	return snprintf(p, sizeof p, "%s/.local/share/flatpak/exports/bin/%s", home(), app_id) < (int)sizeof p &&
+	       !access(p, F_OK);
+}
+
+int
+tm_have_lib(const char *soname)
+{
+	static const char *const dirs[] = {
+		"/usr/lib", "/usr/lib64", "/usr/local/lib", "/lib", "/lib64",
+		"/usr/lib/x86_64-linux-gnu", "/usr/lib/aarch64-linux-gnu", "/usr/lib/i386-linux-gnu",
+		"/usr/lib/arm-linux-gnueabihf", "/usr/lib/riscv64-linux-gnu",
+	};
+	char p[PATH_MAX];
+
+	for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++)
+		if (snprintf(p, sizeof p, "%s/%s", dirs[i], soname) < (int)sizeof p && !access(p, F_OK))
+			return 1;
+	return 0;
+}
+
+int
 tm_have(const char *prog)
 {
 	const char *env = getenv("PATH");
@@ -883,20 +910,17 @@ block_remove_all(Lines *L, const char *b, const char *e)
 			lines_del(L, from);
 }
 
-int
-tm_blockf(const char *path, const char *id, const char *prefix, const char *suffix,
-          int top, const char *fmt, ...)
+/* the block goes first (top 1), last, or after the last line starting with after */
+static int
+vblockf(const char *path, const char *id, const char *prefix, const char *suffix,
+        int top, const char *after, const char *fmt, va_list ap)
 {
 	static char body[MAX_BODY];
 	char b[512], e[512], *s, *nl;
 	Lines L;
-	va_list ap;
 	int existed, at, r;
 
-	va_start(ap, fmt);
 	vsnprintf(body, sizeof body, fmt, ap);
-	va_end(ap);
-
 	block_marks(b, e, sizeof b, id, prefix, suffix);
 	snapshot(path);
 	existed = lines_read(path, &L) == 0;
@@ -905,6 +929,8 @@ tm_blockf(const char *path, const char *id, const char *prefix, const char *suff
 	block_remove_all(&L, b, e);
 
 	at = top ? 0 : L.n;
+	if (after && (r = find_setline(&L, after)) >= 0)
+		at = r + 1;
 	lines_ins(&L, at++, b);
 	for (s = body; *s; s = nl + 1) {
 		nl = strchr(s, '\n');
@@ -924,6 +950,282 @@ tm_blockf(const char *path, const char *id, const char *prefix, const char *suff
 		rec_add(R_CREATED, path, "", "", "");
 	rec_add(R_BLOCK, path, id, prefix, suffix);
 	return 0;
+}
+
+int
+tm_blockf(const char *path, const char *id, const char *prefix, const char *suffix,
+          int top, const char *fmt, ...)
+{
+	va_list ap;
+	int r;
+
+	va_start(ap, fmt);
+	r = vblockf(path, id, prefix, suffix, top, NULL, fmt, ap);
+	va_end(ap);
+	return r;
+}
+
+int
+tm_blockf_after(const char *path, const char *id, const char *prefix, const char *suffix,
+                const char *after, const char *fmt, ...)
+{
+	va_list ap;
+	int r;
+
+	va_start(ap, fmt);
+	r = vblockf(path, id, prefix, suffix, 0, after, fmt, ap);
+	va_end(ap);
+	return r;
+}
+
+/* ---- a top-level key of a JSON object, for files that allow no comments ---- */
+
+#define JSON_ABSENT "\001absent"
+
+/* past a // or block comment at s (JSONC: VS Code's settings), or s itself */
+static const char *
+json_comment(const char *s)
+{
+	if (s[0] == '/' && s[1] == '/') {
+		while (*s && *s != '\n')
+			s++;
+		return s;
+	}
+	if (s[0] == '/' && s[1] == '*') {
+		const char *e = strstr(s + 2, "*/");
+
+		return e ? e + 2 : s + strlen(s);
+	}
+	return s;
+}
+
+/* the end of the JSON value starting at s (past whitespace), or NULL */
+static const char *
+json_value_end(const char *s)
+{
+	int depth = 0, str = 0;
+
+	for (; *s; s++) {
+		if (str) {
+			if (*s == '\\' && s[1])
+				s++;
+			else if (*s == '"')
+				str = 0;
+			if (!str && !depth)
+				return s + 1;
+			continue;
+		}
+		if (json_comment(s) != s) {
+			if (!depth)
+				return s;          /* a comment after a scalar */
+			s = json_comment(s) - 1;
+		} else if (*s == '"')
+			str = 1;
+		else if (*s == '{' || *s == '[')
+			depth++;
+		else if (*s == '}' || *s == ']') {
+			if (!depth)
+				return s;          /* a scalar ends at the object's end */
+			if (!--depth)
+				return s + 1;
+		} else if (!depth && (*s == ',' || *s == '\n'))
+			return s;
+	}
+	return s;
+}
+
+/* Where key's value lies in the top-level object of text: *vs..*ve, and *ks the start
+ * of "key". 0 when found; -1 when the key is not there (*vs: just past the "{"). */
+static int
+json_find(const char *text, const char *key, const char **ks, const char **vs, const char **ve)
+{
+	const char *s = text, *open = NULL;
+	int depth = 0, str = 0;
+	size_t kl = strlen(key);
+
+	for (; *s; s++) {
+		if (str) {
+			if (*s == '\\' && s[1])
+				s++;
+			else if (*s == '"')
+				str = 0;
+			continue;
+		}
+		if (json_comment(s) != s) {
+			s = json_comment(s) - 1;
+			continue;
+		}
+		if (*s == '"') {
+			if (depth == 1 && !strncmp(s + 1, key, kl) && s[kl + 1] == '"') {
+				const char *c = s + kl + 2;
+
+				while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r')
+					c++;
+				if (*c == ':') {
+					*ks = s;
+					c++;
+					while (*c == ' ' || *c == '\t')
+						c++;
+					*vs = c;
+					*ve = json_value_end(c);
+					while (*ve > c && ((*ve)[-1] == ' ' || (*ve)[-1] == '\t'))
+						(*ve)--;
+					return 0;
+				}
+			}
+			str = 1;
+		} else if (*s == '{' || *s == '[') {
+			if (!depth && *s == '{' && !open)
+				open = s + 1;
+			depth++;
+		} else if (*s == '}' || *s == ']') {
+			depth--;
+		}
+	}
+	*vs = open;
+	return -1;
+}
+
+static char *
+file_text(const char *path)
+{
+	FILE *f = fopen(path, "rb");
+	char *t;
+	long n;
+
+	if (!f)
+		return NULL;
+	fseek(f, 0, SEEK_END);
+	n = ftell(f);
+	rewind(f);
+	t = malloc((size_t)n + 1);
+	if (t && fread(t, 1, (size_t)n, f) != (size_t)n) {
+		free(t);
+		t = NULL;
+	}
+	if (t)
+		t[n] = '\0';
+	fclose(f);
+	return t;
+}
+
+static int
+text_write(const char *path, const char *a, size_t an, const char *mid, const char *b)
+{
+	AFile af;
+	FILE *f = afile_open(&af, path, 1);
+
+	if (!f)
+		return -1;
+	fwrite(a, 1, an, f);
+	fputs(mid, f);
+	fputs(b, f);
+	return afile_commit(&af);
+}
+
+/* sets key to value (JSON text: "\"Themer\"", true, 12) in the top-level object;
+ * old is the value it had, or JSON_ABSENT when there was none (then it is added) */
+static int
+json_put(const char *path, const char *key, const char *value, char **old)
+{
+	char *t = file_text(path), *mid;
+	const char *ks, *vs, *ve;
+	int r;
+
+	if (!t)
+		return -1;
+	if (json_find(t, key, &ks, &vs, &ve) == 0) {
+		if (old)
+			*old = strndup(vs, (size_t)(ve - vs));
+		r = text_write(path, t, (size_t)(vs - t), value, ve);
+	} else if (vs) {
+		const char *c = vs;
+		int empty, multi = strchr(vs, '\n') != NULL;
+		size_t n;
+
+		while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r')
+			c++;
+		empty = *c == '}';
+		n = strlen(key) + strlen(value) + 16;
+		mid = malloc(n);
+		{
+			/* indented as the first key is */
+			const char *nl = memchr(vs, '\n', (size_t)(c - vs) + 1), *ind = nl ? nl + 1 : NULL;
+			int w = 0;
+
+			while (ind && (ind[w] == ' ' || ind[w] == '\t') && w < 16)
+				w++;
+			n += 16;
+			mid = realloc(mid, n);
+			snprintf(mid, n, "%s%.*s\"%s\": %s%s", multi ? "\n" : "", multi ? (w ? w : 2) : 0,
+			         ind && w ? ind : "                ", key, value, empty ? "" : ",");
+		}
+		if (old)
+			*old = strdup(JSON_ABSENT);
+		r = text_write(path, t, (size_t)(vs - t), mid, vs);
+		free(mid);
+	} else {
+		r = -1;               /* not an object */
+	}
+	free(t);
+	return r;
+}
+
+/* takes key out again (what json_put added), with the comma that went with it */
+static void
+json_drop(const char *path, const char *key)
+{
+	char *t = file_text(path);
+	const char *ks, *vs, *ve, *a, *b;
+
+	if (!t)
+		return;
+	if (json_find(t, key, &ks, &vs, &ve) == 0) {
+		a = ks;
+		b = ve;
+		while (*b == ' ' || *b == '\t')
+			b++;
+		if (*b == ',') {
+			b++;
+		} else {                     /* the last key: the comma before it goes */
+			const char *c = a;
+
+			while (c > t && (c[-1] == ' ' || c[-1] == '\t' || c[-1] == '\n' || c[-1] == '\r'))
+				c--;
+			if (c > t && c[-1] == ',')
+				a = c - 1;
+		}
+		/* the line it was on, when it had one of its own */
+		while (a > t && (a[-1] == ' ' || a[-1] == '\t'))
+			a--;
+		if (a > t && a[-1] == '\n' && (*b == '\n' || *b == '\r'))
+			a--;
+		text_write(path, t, (size_t)(a - t), "", b);
+	}
+	free(t);
+}
+
+int
+tm_json_set(const char *path, const char *key, const char *value)
+{
+	char *old = NULL;
+	int r;
+
+	snapshot(path);
+	r = json_put(path, key, value, &old);
+	if (r == 0)
+		rec_add(R_JSON, path, key, value, old);
+	free(old);
+	return r;
+}
+
+static void
+undo_json(const Rec *r)
+{
+	if (!strcmp(r->s[2], JSON_ABSENT))
+		json_drop(r->path, r->s[0]);
+	else
+		json_put(r->path, r->s[0], r->s[2], NULL);
 }
 
 /* Finds [start, end) of a section and the last line of key in it.
@@ -1279,6 +1581,7 @@ undo_all(void)
 		case R_BLOCK: undo_block(r); break;
 		case R_KEY:   undo_key(r); break;
 		case R_LINE:  undo_line(r); break;
+		case R_JSON:  undo_json(r); break;
 		case R_OFF:   undo_off(r); break;
 		}
 	}

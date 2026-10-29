@@ -156,13 +156,19 @@ present(const TmTheme *t)
 		"firefox", "librewolf", "zen", "floorp", "chromium", "chromium-browser",
 		"google-chrome", "google-chrome-stable", "brave", "brave-browser", "vivaldi"
 	};
-	char p[PATH_MAX];
+	static const char *const flatpaks[] = {
+		"org.mozilla.firefox", "io.gitlab.librewolf-community", "app.zen_browser.zen",
+		"org.chromium.Chromium", "com.google.Chrome", "com.brave.Browser", "com.vivaldi.Vivaldi",
+	};
 
+	(void)t;
 	for (size_t i = 0; i < TM_COUNT(browsers); i++)
 		if (tm_have(browsers[i]))
 			return 1;
-	tm_path(p, sizeof p, t, ".mozilla");
-	return !access(p, F_OK);
+	for (size_t i = 0; i < TM_COUNT(flatpaks); i++)
+		if (tm_have_flatpak(flatpaks[i]))
+			return 1;
+	return 0;
 }
 
 static int

@@ -32,6 +32,7 @@
  *                               changes the browsed settings (not applied yet)
  *   POST /api/apply             applies and saves, as themer apply
  *   POST /api/revert            back to the applied state
+ *   POST /api/remove            Remove all styles (front_remove)
  *   POST /api/module            {name, on}: load or unload a module now
  *   POST /api/option            {module, option, value}: set an option now; a new
  *                               stylus port moves the server there ({"moved": PORT})
@@ -278,7 +279,8 @@ state_json(Buf *b)
 		bput(b, "]", 1);
 	}
 	bput(b, "]", 1);
-	bprintf(b, ",\"dirty\":%s", config_same(&cfg, &applied) ? "false" : "true");
+	bprintf(b, ",\"dirty\":%s,\"removed\":%s", config_same(&cfg, &applied) && !cfg.removed ? "false" : "true",
+	        cfg.removed ? "true" : "false");
 	bprintf(b, ",\"port\":%d,\"web_port\":%d", port, front_web_port(&cfg));
 	bputs(b, ",\"colors\":{");
 	for (int i = 0; i < C_N; i++)
@@ -353,8 +355,14 @@ state_json(Buf *b)
 			bput(b, ",", 1);
 		jstr(b, front_option_groups[g]);
 	}
+	bputs(b, "],\"module_groups\":[");
+	for (int g = 0; g < MG_N; g++) {
+		if (g)
+			bput(b, ",", 1);
+		jstr(b, front_module_group_title(g));
+	}
 	bputs(b, "],\"modules\":[");
-	nm = front_module_order(order, MAX_MODULES);
+	nm = front_module_order(&cfg, order, MAX_MODULES);
 	for (int k = 0; k < nm; k++) {
 		int i = order[k];
 
@@ -362,6 +370,7 @@ state_json(Buf *b)
 		jstr(b, themer_module_name(i));
 		bputs(b, ",\"desc\":"); jstr(b, themer_module_desc(i));
 		bputs(b, ",\"state\":"); jstr(b, front_module_state(&cfg, i));
+		bprintf(b, ",\"group\":%d", front_module_group(&cfg, i));
 		bputs(b, ",\"note\":"); jstr(b, front_module_note(&cfg, i) ? front_module_note(&cfg, i) : "");
 		bprintf(b, ",\"on\":%s,\"present\":%s,\"templates\":%s,\"options\":[",
 		        themer_module_on(&cfg, i) ? "true" : "false",
@@ -764,6 +773,15 @@ handle(int fd, const char *method, const char *path, const char *body)
 	} else if (!strcmp(method, "POST") && !strcmp(path, "/api/quit")) {
 		respond_text(fd, 200, "themer-web: stopped\n");
 		after = AFTER_QUIT;
+	} else if (!strcmp(method, "POST") && !strcmp(path, "/api/remove")) {
+		char m[256];
+		int fails = front_remove(&cfg, m, sizeof m);
+
+		applied = cfg;
+		bprintf(&b, "{\"failures\":%d,\"message\":", fails);
+		jstr(&b, m);
+		bputs(&b, "}");
+		respond_json(fd, &b);
 	} else if (!strcmp(method, "POST") && !strcmp(path, "/api/revert")) {
 		cfg = applied;
 		state_json(&b);

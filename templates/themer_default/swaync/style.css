@@ -1,0 +1,36 @@
+/* themer: the swaync module's block at the end of ~/.config/swaync/style.css.
+ * swaync's own look (rounded, as Adwaita's), in the theme's colors: the control
+ * center on the window color, notifications on the raised tone, hovers and presses a
+ * step toward the text, the selection in the accent. swaync 0.12 and later read the
+ * custom properties, earlier versions the named colors; both are set. */
+@define-color cc-bg #{{bg}};
+@define-color noti-border-color #{{line}};
+@define-color noti-bg #{{raised}};
+@define-color noti-bg-darker #{{view}};
+@define-color noti-bg-hover #{{control_hover}};
+@define-color noti-bg-focus #{{control_active}};
+@define-color noti-close-bg #{{control}};
+@define-color noti-close-bg-hover #{{control_hover}};
+@define-color text-color #{{fg}};
+@define-color text-color-disabled #{{disabled}};
+@define-color bg-selected #{{acc}};
+:root {
+  --cc-bg: #{{bg}};
+  --noti-border-color: #{{line}};
+  --noti-bg: #{{raised}};
+  --noti-bg-darker: #{{view}};
+  --noti-bg-hover: #{{control_hover}};
+  --noti-bg-focus: #{{control_active}};
+  --noti-close-bg: #{{control}};
+  --noti-close-bg-hover: #{{control_hover}};
+  --text-color: #{{fg}};
+  --text-color-disabled: #{{disabled}};
+  --bg-selected: #{{acc}};
+}
+* {
+  font-family: "{{font_family}}";
+}
+.notification-row .notification-background .notification.critical,
+.notification.critical {
+  border-color: #{{urg}};
+}

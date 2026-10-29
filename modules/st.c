@@ -32,11 +32,20 @@ load(const TmTheme *t)
 	return 0;
 }
 
+/* st itself (a build of it on PATH) */
+static int
+present(const TmTheme *t)
+{
+	(void)t;
+	return tm_have("st");
+}
+
 static const TmModule mod = {
 	.name = "st",
 	.desc = "st: a colors header (st's config.h needs one edit, see modules/st.c)",
 	.templates = "st",
 	.default_on = 0,
+	.present = present,
 	.load = load,
 	.options = opts,
 	.noptions = TM_COUNT(opts),

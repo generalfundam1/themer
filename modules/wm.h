@@ -68,13 +68,11 @@ wm_config_path(const TmTheme *t, const char *wm, char *out, size_t n)
 static int
 wm_present(const TmTheme *t, const char *wm, const char *socket_var)
 {
-	char p[PATH_MAX];
-
+	(void)t;
 	/* sway sets I3SOCK as well: its socket says nothing about i3 */
 	if (getenv(socket_var) && !(!strcmp(socket_var, "I3SOCK") && getenv("SWAYSOCK")))
 		return 1;
-	wm_config_path(t, wm, p, sizeof p);
-	return !access(p, F_OK);
+	return tm_have(wm);
 }
 
 /* The status_command of the first bar { } block in the config, if any, so the bar

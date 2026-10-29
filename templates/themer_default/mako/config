@@ -1,0 +1,17 @@
+# themer: the keys the mako module sets in ~/.config/mako/config.
+# Mako's own look (square, a 2px border), in the theme's colors: the notification on
+# the raised tone, its border and progress bar in the accent, an urgent one outlined
+# in the urgent color. Keys before any [section] are mako's global options.
+font={{font_family}} {{font_size}}
+background-color=#{{raised}}
+text-color=#{{fg}}
+border-color=#{{acc}}
+border-size=2
+border-radius=0
+progress-color=over #{{control_active}}
+
+[urgency=low]
+border-color=#{{line}}
+
+[urgency=high]
+border-color=#{{urg}}

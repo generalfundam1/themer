@@ -1,0 +1,43 @@
+/* themer: the swaync module's block at the end of ~/.config/swaync/style.css.
+ * Chicago: square, with 1px outlines, on the window color; notifications on the face
+ * color, hovers in the bevel's light, presses in its shade, the selection in the
+ * accent. swaync 0.12 and later read the custom properties, earlier versions the
+ * named colors; both are set. */
+@define-color cc-bg #{{bg}};
+@define-color noti-border-color #{{line}};
+@define-color noti-bg #{{face}};
+@define-color noti-bg-darker #{{bg}};
+@define-color noti-bg-hover #{{light}};
+@define-color noti-bg-focus #{{pressed}};
+@define-color noti-close-bg #{{face}};
+@define-color noti-close-bg-hover #{{light}};
+@define-color text-color #{{fg}};
+@define-color text-color-disabled #{{disabled}};
+@define-color bg-selected #{{acc}};
+:root {
+  --cc-bg: #{{bg}};
+  --noti-border-color: #{{line}};
+  --noti-bg: #{{face}};
+  --noti-bg-darker: #{{bg}};
+  --noti-bg-hover: #{{light}};
+  --noti-bg-focus: #{{pressed}};
+  --noti-close-bg: #{{face}};
+  --noti-close-bg-hover: #{{light}};
+  --text-color: #{{fg}};
+  --text-color-disabled: #{{disabled}};
+  --bg-selected: #{{acc}};
+  --border-radius: 0;
+}
+* {
+  font-family: "{{font_family}}";
+}
+.notification-row .notification-background .notification.critical,
+.notification.critical {
+  border-color: #{{urg}};
+}
+* {
+  border-radius: 0;
+}
+.control-center, .notification {
+  border: 1px solid #{{line}};
+}

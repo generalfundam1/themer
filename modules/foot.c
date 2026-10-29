@@ -29,14 +29,12 @@ top_level_font(const char *path)
 	return found;
 }
 
-/* foot, or a config for it */
+/* foot itself: a config alone does not make the module loadable */
 static int
 present(const TmTheme *t)
 {
-	char p[PATH_MAX];
-
-	tm_path(p, sizeof p, t, ".config/foot/foot.ini");
-	return !access(p, F_OK) || tm_have("foot");
+	(void)t;
+	return tm_have("foot");
 }
 
 static int

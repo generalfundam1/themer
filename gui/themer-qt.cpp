@@ -353,11 +353,11 @@ public:
 		/* the action bar: status on the left, Apply on the right */
 		QHBoxLayout *actions = new QHBoxLayout;
 		actions->setContentsMargins(12, 6, 12, 8);
-		status = new QLabel(front_text(FT_UP_TO_DATE));
+		status = new QLabel(front_text(cfg.removed ? FT_REMOVED_STATE : FT_UP_TO_DATE));
 		actions->addWidget(status, 1);
 		applyButton = new QPushButton(front_text(FT_APPLY));
 		applyButton->setDefault(true);
-		applyButton->setEnabled(false);
+		applyButton->setEnabled(cfg.removed);   /* removed styles: Apply brings them back */
 		QObject::connect(applyButton, &QPushButton::clicked, []() { doApply(); });
 		actions->addWidget(applyButton);
 		v->addLayout(actions);
@@ -386,7 +386,7 @@ public:
 		if (module && p == FP_MODULES)
 			for (int k = 0; k < nmodules; k++)
 				if (!strcmp(themer_module_name(moduleOrder[k]), module))
-					mods->setCurrentItem(mods->topLevelItem(k));
+					selectModule(moduleOrder[k]);
 	}
 protected:
 	void closeEvent(QCloseEvent *e) override
@@ -444,9 +444,26 @@ private:
 		QAction *apply = file->addAction(front_text(FT_APPLY), []() { doApply(); });
 		apply->setShortcut(QKeySequence("Ctrl+S"));
 		file->addAction(front_text(FT_REVERT), [this]() { revert(); });
+		file->addAction(front_text(FT_REMOVE), [this]() { removeAll(); });
 		file->addSeparator();
 		QAction *quit = file->addAction(front_text(FT_QUIT), [this]() { close(); });
 		quit->setShortcut(QKeySequence("Ctrl+Q"));
+	}
+
+	/* Remove all styles: asked first, then every program back to its own look */
+	void removeAll()
+	{
+		if (QMessageBox::question(this, "themer", QString("%1?\n\n%2").arg(front_text(FT_REMOVE), front_text(FT_REMOVE_ASK)),
+		                          QMessageBox::Ok | QMessageBox::Cancel) != QMessageBox::Ok)
+			return;
+		char msg[256];
+		front_remove(&cfg, msg, sizeof msg);
+		applied = cfg;
+		dirty = true;            /* Apply puts them back */
+		applyButton->setEnabled(true);
+		status->setText(msg);
+		refreshStates();
+		rebuildLater();
 	}
 
 	/* back to what was last applied */
@@ -709,10 +726,48 @@ private:
 		return front_module_state(&cfg, i);
 	}
 
+	/* The list in the groups every front end shows (loaded, unloaded, not installed):
+	 * a heading item for each, the modules under it; refilled when one changes group.
+	 * A module's item holds its index; a heading holds -1 and cannot be selected. */
+	bool fillingModules = false;
 	void refreshStates()
 	{
-		for (int k = 0; k < nmodules; k++)
-			mods->topLevelItem(k)->setText(1, stateText(moduleOrder[k]));
+		fillingModules = true;
+		mods->clear();
+		nmodules = front_module_order(&cfg, moduleOrder, MAX_MODULES);
+		QTreeWidgetItem *group = nullptr, *sel = nullptr;
+		for (int k = 0, last = -1; k < nmodules; k++) {
+			int i = moduleOrder[k];
+			if (front_module_group(&cfg, i) != last) {
+				last = front_module_group(&cfg, i);
+				group = new QTreeWidgetItem(mods, QStringList() << front_module_group_title(last));
+				group->setData(0, Qt::UserRole, -1);
+				group->setFlags(Qt::ItemIsEnabled);
+				group->setFirstColumnSpanned(true);
+				QFont f = group->font(0);
+				f.setBold(true);
+				group->setFont(0, f);
+				group->setExpanded(true);
+			}
+			QTreeWidgetItem *it = new QTreeWidgetItem(group, QStringList() << utf8(themer_module_name(i)) << stateText(i));
+			it->setData(0, Qt::UserRole, i);
+			it->setForeground(1, qApp->palette().color(QPalette::Disabled, QPalette::Text));
+			if (!themer_module_present(&cfg, i))
+				it->setForeground(0, qApp->palette().color(QPalette::Disabled, QPalette::Text));
+			if (i == modSel)
+				sel = it;
+		}
+		mods->expandAll();
+		if (sel)
+			mods->setCurrentItem(sel);
+		fillingModules = false;
+	}
+
+	void selectModule(int i)
+	{
+		modSel = i;
+		refreshStates();
+		showModule(i);
 	}
 
 	/* the detail is rebuilt after the signal that changed it has returned */
@@ -830,13 +885,17 @@ private:
 
 		QHBoxLayout *top = new QHBoxLayout;
 		QLabel *name = new QLabel(QString("<b><big>%1</big></b>").arg(utf8(themer_module_name(i)).toHtmlEscaped()));
-		QCheckBox *on = new QCheckBox("On");
+		QCheckBox *on = new QCheckBox(front_module_state(&cfg, i));
 		on->setChecked(themer_module_on(&cfg, i));
-		on->setToolTip(front_text(FT_MODULE_SWITCH_TIP));
+		on->setEnabled(themer_module_present(&cfg, i));   /* not installed: cannot load */
+		on->setToolTip(front_text(themer_module_present(&cfg, i) ? FT_MODULE_SWITCH_TIP : FT_MODULE_ABSENT));
 		QObject::connect(on, &QCheckBox::toggled, [this, i](bool want) {
 			if (updating || want == (bool)themer_module_on(&cfg, i))
 				return;
-			if (front_module_set(&cfg, i, want) < 0)
+			int r = front_module_set(&cfg, i, want);
+			if (r == -3)
+				status->setText(front_text(FT_MODULE_ABSENT));
+			else if (r < 0)
 				status->setText(want ? front_text(FT_MODULE_LOAD_FAILED) : front_text(FT_MODULE_UNLOAD_FAILED));
 			else
 				status->setText(want ? front_text(FT_MODULE_LOADED) : front_text(FT_MODULE_UNLOADED));
@@ -1491,14 +1550,11 @@ private:
 		mods->setColumnCount(2);
 		mods->setHeaderHidden(true);
 		mods->setRootIsDecorated(false);
-		mods->setFixedWidth(205);
-		nmodules = front_module_order(moduleOrder, MAX_MODULES);
-		for (int k = 0; k < nmodules; k++) {
-			int i = moduleOrder[k];
-			QTreeWidgetItem *it = new QTreeWidgetItem(mods, QStringList() << utf8(themer_module_name(i)) << stateText(i));
-			it->setData(0, Qt::UserRole, i);
-			it->setForeground(1, qApp->palette().color(QPalette::Disabled, QPalette::Text));
-		}
+		mods->setIndentation(8);
+		mods->setFixedWidth(215);
+		nmodules = front_module_order(&cfg, moduleOrder, MAX_MODULES);
+		modSel = nmodules ? moduleOrder[0] : -1;
+		refreshStates();
 		mods->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
 		mods->header()->setSectionResizeMode(1, QHeaderView::Stretch);
 		h->addWidget(mods);
@@ -1508,11 +1564,9 @@ private:
 		h->addWidget(detail, 1);
 		v->addLayout(h, 1);
 		QObject::connect(mods, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem *it, QTreeWidgetItem *) {
-			if (it)
+			if (it && !fillingModules && it->data(0, Qt::UserRole).toInt() >= 0)
 				showModule(it->data(0, Qt::UserRole).toInt());
 		});
-		if (nmodules)
-			mods->setCurrentItem(mods->topLevelItem(0));
 		return w;
 	}
 

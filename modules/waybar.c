@@ -85,10 +85,8 @@ load(const TmTheme *t)
 static int
 present(const TmTheme *t)
 {
-	char cfg[PATH_MAX];
-
-	tm_path(cfg, sizeof cfg, t, ".config/waybar/config.jsonc");
-	return !access(cfg, F_OK) || tm_have("waybar");
+	(void)t;
+	return tm_have("waybar");
 }
 
 static void

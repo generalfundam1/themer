@@ -1,0 +1,3 @@
+# btop.conf lines this set changes, one "key = value" each: Themer Chicago's boxes
+# are square, like every outline in the set
+rounded_corners = False

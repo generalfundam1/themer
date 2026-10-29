@@ -1,0 +1,35 @@
+# themer: the keys the swaylock module sets in ~/.config/swaylock/config.
+# swaylock's own ring, in the theme's colors: the window color behind it, the inside
+# on the raised tone, the ring a step toward the text, the keys you type lit in the
+# accent; clearing in the warning color, verifying in the accent, a wrong password in
+# the urgent color. The size of the text is swaylock's own (it fits the ring).
+color={{bg}}
+font={{font_family}}
+text-color={{fg}}
+inside-color={{raised}}
+ring-color={{control_active}}
+line-color={{bg}}
+separator-color={{bg}}
+key-hl-color={{acc}}
+bs-hl-color={{warn}}
+inside-clear-color={{raised}}
+ring-clear-color={{warn}}
+line-clear-color={{bg}}
+text-clear-color={{fg}}
+inside-ver-color={{raised}}
+ring-ver-color={{acc}}
+line-ver-color={{bg}}
+text-ver-color={{fg}}
+inside-wrong-color={{raised}}
+ring-wrong-color={{urg}}
+line-wrong-color={{bg}}
+text-wrong-color={{fg}}
+inside-caps-lock-color={{raised}}
+ring-caps-lock-color={{warn}}
+line-caps-lock-color={{bg}}
+text-caps-lock-color={{fg}}
+caps-lock-key-hl-color={{acc}}
+caps-lock-bs-hl-color={{urg}}
+layout-bg-color={{raised}}
+layout-border-color={{line}}
+layout-text-color={{fg}}

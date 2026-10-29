@@ -1286,29 +1286,40 @@ option_order(int mod, int *out)
 static void
 modules_menu(void)
 {
-	int order[MAX_MODULES], oo[MAX_OPTS];
-	int n = front_module_order(order, MAX_MODULES), sel = 0, osel = 0, focus = 0, k;
+	int order[MAX_MODULES], oo[MAX_OPTS], disp[MAX_MODULES + MG_N];
+	int n = front_module_order(cfg, order, MAX_MODULES), sel = 0, osel = 0, focus = 0, k, mod;
 
 	if (!n) {
 		flash("no modules found");
 		return;
 	}
+	mod = order[0];
 	for (;;) {
-		int vis, off, i, no, inner, pane, total, left, top, j, mod = order[sel], lines;
+		int vis, off, i, no, inner, pane, total, left, top, j, lines, nd = 0;
 		char b[256];
 
+		/* the list in the groups every front end shows: a heading (a negative
+		 * entry) before each, the selection kept on the same module as it moves */
+		n = front_module_order(cfg, order, MAX_MODULES);
+		for (int x = 0, last = -1; x < n; x++) {
+			if (front_module_group(cfg, order[x]) != last)
+				disp[nd++] = -1 - (last = front_module_group(cfg, order[x]));
+			if (order[x] == mod)
+				sel = nd;
+			disp[nd++] = order[x];
+		}
 		getsize();
 		no = option_order(mod, oo);
 		if (osel >= no)
 			osel = no ? no - 1 : 0;
 		vis = rows - 10;
-		if (vis > n)
-			vis = n;
+		if (vis > nd)
+			vis = nd;
 		if (vis < 1)
 			vis = 1;
 		off = sel - vis / 2;
-		if (off > n - vis)
-			off = n - vis;
+		if (off > nd - vis)
+			off = nd - vis;
 		if (off < 0)
 			off = 0;
 		/* the options pane: the module line, a header per section, the server
@@ -1339,8 +1350,12 @@ modules_menu(void)
 		pfocus = focus ? -1 : 1 + sel - off;
 		pbegin_at("modules", inner, pane, left, top);
 		for (i = 0; i < vis; i++) {
-			int m = order[off + i];
+			int m = disp[off + i];
 
+			if (m < 0) {
+				pline(ST_DIM, front_module_group_title(-1 - m));
+				continue;
+			}
 			snprintf(b, sizeof b, "%c [%c] %-12s %s", off + i == sel ? '>' : ' ',
 			         themer_module_on(cfg, m) ? 'x' : ' ', themer_module_name(m),
 			         themer_module_present(cfg, m) ? "" : front_text(FT_STATE_ABSENT));
@@ -1414,15 +1429,25 @@ modules_menu(void)
 		switch (k) {
 		case 'j':
 		case K_DOWN:
-			if (!focus && sel < n - 1)
-				sel++, osel = 0;
+			if (!focus) {
+				for (int x = sel + 1; x < nd; x++)
+					if (disp[x] >= 0) {
+						mod = disp[x], osel = 0;
+						break;
+					}
+			}
 			else if (focus && osel < no - 1)
 				osel++;
 			break;
 		case 'k':
 		case K_UP:
-			if (!focus && sel > 0)
-				sel--, osel = 0;
+			if (!focus) {
+				for (int x = sel - 1; x >= 0; x--)
+					if (disp[x] >= 0) {
+						mod = disp[x], osel = 0;
+						break;
+					}
+			}
 			else if (focus && osel > 0)
 				osel--;
 			break;
@@ -1505,9 +1530,11 @@ modules_menu(void)
 						set_option(mod, oo[osel], buf);
 				}
 			} else {
-				int on = themer_module_on(cfg, mod);
+				int on = themer_module_on(cfg, mod), r = front_module_set(cfg, mod, !on);
 
-				if (front_module_set(cfg, mod, !on) < 0)
+				if (r == -3)
+					flash(front_text(FT_MODULE_ABSENT));
+				else if (r < 0)
 					flash(front_text(on ? FT_MODULE_UNLOAD_FAILED : FT_MODULE_LOAD_FAILED));
 				else
 					flash(front_text(on ? FT_MODULE_UNLOADED : FT_MODULE_LOADED));
@@ -1908,7 +1935,7 @@ enum {
 	R_ICONS, R_CURSOR, R_CURSIZE,
 	R_MODULES,
 	R_SERVER, R_ENV, R_ABOUT,
-	R_APPLY, R_REVERT, R_QUIT, R_N
+	R_APPLY, R_REVERT, R_REMOVE, R_QUIT, R_N
 };
 
 static const struct { int page, label, note; } menu_rows[R_N] = {
@@ -1931,9 +1958,30 @@ static const struct { int page, label, note; } menu_rows[R_N] = {
 	[R_ABOUT]    = { -1,         FT_ABOUT,            FT_ABOUT_NOTE },
 	[R_APPLY]    = { -2,         FT_APPLY,            -1 },
 	[R_REVERT]   = { -1,         FT_REVERT,           -1 },
+	[R_REMOVE]   = { -1,         FT_REMOVE,           FT_REMOVE_ASK },
 	[R_QUIT]     = { -1,         FT_QUIT,             -1 },
 };
 #define NOTE_LINES 3   /* the selected row's note, wrapped */
+
+/* Remove all styles, asked first: x (or enter on its row) twice */
+static int remove_armed;
+
+static void
+remove_all(void)
+{
+	char msg[256];
+
+	if (!remove_armed) {
+		snprintf(msg, sizeof msg, "%s? again to confirm. %s", front_text(FT_REMOVE), front_text(FT_REMOVE_ASK));
+		flash(msg);
+		remove_armed = 1;
+		return;
+	}
+	remove_armed = 0;
+	front_remove(cfg, msg, sizeof msg);
+	flash(msg);
+	dirty = 1;                /* Apply puts them back */
+}
 
 /* back to what was last applied, as Revert to applied in the other front ends */
 static void
@@ -2009,6 +2057,7 @@ main_action(int row)
 	case R_ABOUT:    break;
 	case R_APPLY:    apply_all(); break;
 	case R_REVERT:   revert_all(); break;
+	case R_REMOVE:   remove_all(); break;
 	default:         return 0;
 	}
 	return 1;
@@ -2046,10 +2095,11 @@ main_menu(void)
 			snprintf(val[R_SERVER], sizeof val[0], "stopped");
 		snprintf(val[R_ENV], sizeof val[0], "%d variable%s", cfg->nenv, cfg->nenv == 1 ? "" : "s");
 		snprintf(val[R_ABOUT], sizeof val[0], "themer %s", VERSION);
-		snprintf(val[R_APPLY], sizeof val[0], "%s", front_text(dirty ? FT_UNAPPLIED : FT_UP_TO_DATE));
-		val[R_REVERT][0] = val[R_QUIT][0] = '\0';
+		snprintf(val[R_APPLY], sizeof val[0], "%s",
+		         front_text(cfg->removed ? FT_REMOVED_STATE : dirty ? FT_UNAPPLIED : FT_UP_TO_DATE));
+		val[R_REVERT][0] = val[R_REMOVE][0] = val[R_QUIT][0] = '\0';
 
-		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   r revert   q quit");
+		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   r revert   x remove all   q quit");
 		/* the selected row's line in the panel, kept in view in a short terminal */
 		pfocus = 1;
 		for (int r = 0; r <= sel; r++)
@@ -2076,8 +2126,12 @@ main_menu(void)
 		k = readkey();
 		if (k == K_ENTER && sel == R_QUIT)
 			k = 'q';       /* the Quit row asks as q does */
+		if (k == K_ENTER && sel == R_REMOVE)
+			k = 'x';
 		if (k != 'q' && k != K_ESC)
 			armed = 0;
+		if (k != 'x')
+			remove_armed = 0;
 		switch (k) {
 		case 'j':
 		case K_DOWN:
@@ -2107,6 +2161,9 @@ main_menu(void)
 			break;
 		case 'r':
 			revert_all();
+			break;
+		case 'x':
+			remove_all();
 			break;
 		case 'q':
 		case K_ESC:

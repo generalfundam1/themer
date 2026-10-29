@@ -217,6 +217,19 @@ int tm_replacef(const char *path, const char *fmt, ...);
 int tm_blockf(const char *path, const char *id, const char *prefix,
               const char *suffix, int top, const char *fmt, ...);
 
+/* Like tm_blockf, but the block goes right after the last line that starts with the
+ * word after (as tm_setline matches it: "[general]", "theme"), or last when there is
+ * no such line. For formats where a block's place decides what it belongs to (a
+ * TOML table). */
+int tm_blockf_after(const char *path, const char *id, const char *prefix,
+                    const char *suffix, const char *after, const char *fmt, ...);
+
+/* Sets a top-level key of a JSON file (an object) to value, which is JSON text:
+ * "\"Themer\"", true, 12, ["a"]. A key that was not there is added after the "{";
+ * unload takes it out again, or puts the old value back. For JSON files, which allow
+ * no comments and so no marked block. The rest of the file is left as it is. */
+int tm_json_set(const char *path, const char *key, const char *value);
+
 /* Sets key=value in a section of an ini-style file. An empty section means
  * the keys before the first [header]. The last matching section is used,
  * which suits files with repeated sections. The previous value is restored
@@ -273,6 +286,14 @@ int tm_disable_block(const char *path, const char *keyword);
 
 /* Returns 1 if prog is an executable on PATH. */
 int tm_have(const char *prog);
+
+/* Returns 1 if the Flatpak app (org.mozilla.firefox) is installed, system-wide or for
+ * the user. */
+int tm_have_flatpak(const char *app_id);
+
+/* Returns 1 if a shared library (libQt6Core.so.6) is in one of the usual library
+ * directories: for a module whose "program" is a toolkit. */
+int tm_have_lib(const char *soname);
 
 /* Runs argv[0] (found on PATH) with the NULL-terminated argv, without a shell, so
  * names and paths with quotes or spaces are passed as they are; its output goes to

@@ -229,6 +229,7 @@ state_load(Config *c)
 		else if (!strcmp(line, "cursor") && v[0]) snprintf(c->cursor, sizeof c->cursor, "%s", v);
 		else if (!strcmp(line, "cursor_size") && atoi(v) > 0) c->cursor_size = atoi(v);
 		else if (!strcmp(line, "web_port") && atoi(v) >= 1024 && atoi(v) <= 65535) c->web_port = atoi(v);
+		else if (!strcmp(line, "removed")) c->removed = atoi(v) != 0;
 		else if (!strcmp(line, "hinting") && v[0]) snprintf(c->hinting, sizeof c->hinting, "%s", v);
 		else if (!strcmp(line, "antialias")) c->antialias = atoi(v) != 0;
 		else if (!strcmp(line, "rgba") && v[0]) snprintf(c->rgba, sizeof c->rgba, "%s", v);
@@ -267,6 +268,8 @@ emit_state(FILE *f, const Config *c, const Scheme *s)
 	        c->th.name, c->mode == MODE_DARK ? "dark" : "light", c->ui_font, c->ui_size,
 	        c->mono_font, c->mono_size, c->tty_font, c->icons, c->cursor, c->cursor_size, c->web_port,
 	        c->hinting, c->antialias, c->rgba, c->set);
+	if (c->removed)
+		fprintf(f, "removed=1\n");
 	for (int i = 0; i < C_N; i++)
 		if (c->color[i][0])
 			fprintf(f, "color.%s=%s\n", color_names[i], c->color[i]);
@@ -348,7 +351,7 @@ config_merge(Config *disk, const Config *mine, const Config *base)
 		disk->th = mine->th;
 	NUM(mode);
 	STR(ui_font); NUM(ui_size); STR(mono_font); NUM(mono_size); STR(tty_font);
-	STR(icons); STR(cursor); NUM(cursor_size); NUM(web_port);
+	STR(icons); STR(cursor); NUM(cursor_size); NUM(web_port); NUM(removed);
 	STR(hinting); NUM(antialias); STR(rgba); STR(set);
 	for (int i = 0; i < C_N; i++)
 		STR(color[i]);

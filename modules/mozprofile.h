@@ -78,20 +78,6 @@ profile_in_use(const char *dir)
 }
 
 
-/* quietly: 1 if any profile exists under the bases, for a module's present() */
-static int
-moz_present(const TmTheme *t, const char *const *bases, size_t nbases)
-{
-	char dir[PATH_MAX], base[PATH_MAX];
-
-	for (size_t i = 0; i < nbases; i++) {
-		tm_path(base, sizeof base, t, bases[i]);
-		if (profile_dir(base, dir, sizeof dir) == 0)
-			return 1;
-	}
-	return 0;
-}
-
 /* Finds the profile in use among the profile bases (directories holding a
  * profiles.ini, relative to HOME). Writes its directory to out and returns 1; prints
  * where it looked and returns 0 when there is none. app names the application in

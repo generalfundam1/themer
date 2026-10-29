@@ -59,7 +59,8 @@ TM_VARS(template_vars)
 static int
 present(const TmTheme *t)
 {
-	return moz_present(t, bases, TM_COUNT(bases));
+	(void)t;
+	return tm_have("thunderbird") || tm_have("thunderbird-bin") || tm_have_flatpak("org.mozilla.Thunderbird");
 }
 
 static int

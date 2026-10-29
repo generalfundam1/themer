@@ -15,11 +15,8 @@ static const TmOption opts[] = {
 static int
 present(const TmTheme *t)
 {
-	char lua[PATH_MAX], vim[PATH_MAX];
-
-	tm_path(lua, sizeof lua, t, ".config/nvim/init.lua");
-	tm_path(vim, sizeof vim, t, ".config/nvim/init.vim");
-	return !access(lua, F_OK) || !access(vim, F_OK) || tm_have("nvim");
+	(void)t;
+	return tm_have("nvim");
 }
 
 static int

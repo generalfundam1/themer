@@ -24,7 +24,7 @@ extern "C" {
 
 #define NAME_LEN     64
 #define MAX_ENV      64
-#define MAX_MODULES  32
+#define MAX_MODULES  128
 #define MAX_MODOPTS  256
 #define MAX_OPTS     32          /* options of one module, the host's mode included */
 #define MAX_NAMES    64          /* template sets or files listed at once */
@@ -61,6 +61,9 @@ typedef struct {
 	char cursor[64];
 	int cursor_size;
 	int web_port;                   /* where themer-web listens on localhost */
+	int removed;                    /* the styles were removed (Remove all styles): apply
+	                                   leaves things alone until Apply in a front end or
+	                                   themer restore */
 	char hinting[16];               /* none, slight, medium, full */
 	int antialias;
 	char rgba[8];                   /* none, rgb, bgr, vrgb, vbgr */
@@ -121,6 +124,9 @@ void config_unset_option(Config *c, const char *key);
 /* registry.c: the loaded modules, their options, and apply */
 void modules_load(void);
 int  themer_apply(const Config *c);
+/* every module unloaded and themer's own files taken away: the user's configs as
+ * they were. The settings stay; returns the number of failures */
+int  themer_remove_all(void);
 int  themer_module_count(void);
 int  themer_module_find(const char *name);
 const char *themer_module_name(int i);
@@ -170,6 +176,10 @@ int  shared_vars(const TmTheme *t, SharedStore *st, TmVar *v, int max);
 int  gen_env(const Config *, const Scheme *);
 int  gen_tty(const Config *, const Scheme *);
 int  gen_grub(const Config *, const Scheme *);
+void targets_remove(void);
+void tty_escapes(const Config *c, char *out, size_t n);
+/* system.c: the root side of the console, GRUB and ly (themer system ...) */
+int  system_cmd(int argc, char **argv);
 
 /* util.c */
 /* Replacing a file whole, atomically: afile_open makes a temporary file beside the
@@ -242,7 +252,12 @@ void front_web_serving(int port);
  * changed them; an immediate save writes base with the one change, never cfg's
  * unapplied browsing. */
 void front_track(Config *cfg, Config *base);
-/* a module loaded or unloaded now and saved (from base when tracked) */
+/* Remove all styles, as every front end offers it: themer_remove_all, and the state
+ * saved as removed, so the login's themer apply leaves things alone until Apply
+ * (front_apply clears it). msg is the status line. */
+int  front_remove(Config *c, char *msg, size_t n);
+/* a module loaded or unloaded now and saved (from base when tracked); -3 when its
+ * program is not installed (it cannot be loaded) */
 int  front_module_set(Config *c, int module, int on);
 int  front_sync(void);
 int  front_save_now(Config *c);
@@ -307,8 +322,11 @@ enum {
 	FT_STATE_ABSENT,
 	FT_STATE_ON,
 	FT_STATE_OFF,
-	FT_ABSENT_ON_NOTE,
-	FT_ABSENT_OFF_NOTE,
+	FT_ABSENT_NOTE,
+	FT_MODULE_ABSENT,
+	FT_GROUP_LOADED,
+	FT_GROUP_UNLOADED,
+	FT_GROUP_ABSENT,
 	FT_DEFAULT,
 	FT_GLOBAL_SET,
 	FT_NO_CURSOR,
@@ -382,6 +400,11 @@ enum {
 	FT_APPLY,
 	FT_REVERT,
 	FT_QUIT,
+	FT_REMOVE,
+	FT_REMOVE_ASK,
+	FT_REMOVED,
+	FT_REMOVE_FAILED,
+	FT_REMOVED_STATE,
 	FT_UP_TO_DATE,
 	FT_UNAPPLIED,
 	FT_APPLYING,
@@ -422,8 +445,14 @@ int  front_set_web_port(Config *c, int port);
 int  front_web_running(int port);
 int  front_web_start(int port);
 int  front_web_stop(int port);
-/* the modules in name order: fills order with indexes, returns the count */
-int  front_module_order(int *order, int max);
+/* The modules as every list shows them: the loaded ones, then the unloaded, then
+ * those whose program is not installed, each by name. Fills order with indexes,
+ * returns the count; front_module_group says which group a module is in, and
+ * front_module_group_title its heading. */
+enum { MG_LOADED, MG_UNLOADED, MG_ABSENT, MG_N };
+int  front_module_order(const Config *c, int *order, int max);
+int  front_module_group(const Config *c, int module);
+const char *front_module_group_title(int group);
 /* renders templates/<set>/<dir>/<file> for the configuration as it is now, with the
  * named module's own variables. Returns 0, or -1 with a message on stderr. */
 int  front_render(const Config *c, const char *module, const char *dir, const char *file,

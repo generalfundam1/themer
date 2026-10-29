@@ -1,0 +1,34 @@
+# themer: the keys the swaylock module sets in ~/.config/swaylock/config.
+# Chicago: the ring in the bevel's shade around an inside of the face color, with a
+# 1px outline; the keys you type lit in the accent; clearing in the warning color,
+# verifying in the accent, a wrong password in the urgent color.
+color={{bg}}
+font={{font_family}}
+text-color={{fg}}
+inside-color={{face}}
+ring-color={{shade}}
+line-color={{line}}
+separator-color={{line}}
+key-hl-color={{acc}}
+bs-hl-color={{warn}}
+inside-clear-color={{face}}
+ring-clear-color={{warn}}
+line-clear-color={{line}}
+text-clear-color={{fg}}
+inside-ver-color={{face}}
+ring-ver-color={{acc}}
+line-ver-color={{line}}
+text-ver-color={{fg}}
+inside-wrong-color={{face}}
+ring-wrong-color={{urg}}
+line-wrong-color={{line}}
+text-wrong-color={{fg}}
+inside-caps-lock-color={{face}}
+ring-caps-lock-color={{warn}}
+line-caps-lock-color={{line}}
+text-caps-lock-color={{fg}}
+caps-lock-key-hl-color={{acc}}
+caps-lock-bs-hl-color={{urg}}
+layout-bg-color={{face}}
+layout-border-color={{line}}
+layout-text-color={{fg}}

@@ -222,21 +222,9 @@ qt_one(const TmTheme *t, const char *ct)
 static int
 present(const TmTheme *t)
 {
-	static const char *const libs[] = {
-		"/usr/lib/libQt6Core.so.6", "/usr/lib/libQt5Core.so.5",
-		"/usr/lib64/libQt6Core.so.6", "/usr/lib64/libQt5Core.so.5",
-		"/usr/lib/x86_64-linux-gnu/libQt6Core.so.6", "/usr/lib/x86_64-linux-gnu/libQt5Core.so.5",
-		"/usr/lib/aarch64-linux-gnu/libQt6Core.so.6", "/usr/lib/aarch64-linux-gnu/libQt5Core.so.5",
-	};
-	char p5[PATH_MAX], p6[PATH_MAX];
-
-	for (size_t i = 0; i < TM_COUNT(libs); i++)
-		if (!access(libs[i], F_OK))
-			return 1;
-	tm_path(p5, sizeof p5, t, ".config/qt5ct");
-	tm_path(p6, sizeof p6, t, ".config/qt6ct");
-	return tm_have("qtpaths") || tm_have("qtpaths6") || tm_have("qmake") || tm_have("qmake6") ||
-	       tm_have("qt5ct") || tm_have("qt6ct") || !access(p5, F_OK) || !access(p6, F_OK);
+	(void)t;
+	return tm_have_lib("libQt6Core.so.6") || tm_have_lib("libQt5Core.so.5") ||
+	       tm_have("qtpaths") || tm_have("qtpaths6") || tm_have("qt5ct") || tm_have("qt6ct");
 }
 
 #ifndef SYS_QT_PLUGINS_DIR

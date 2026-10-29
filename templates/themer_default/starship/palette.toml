@@ -1,0 +1,20 @@
+# themer ({{theme}}, {{mode}}): the named colors starship's modules use, as the
+# theme's terminal colors. Starship looks a color name up in the palette first, so
+# the default prompt, and any format of yours that names colors, takes these.
+[palettes.themer]
+black = "#{{ansi0}}"
+red = "#{{ansi1}}"
+green = "#{{ansi2}}"
+yellow = "#{{ansi3}}"
+blue = "#{{ansi4}}"
+purple = "#{{ansi5}}"
+cyan = "#{{ansi6}}"
+white = "#{{ansi7}}"
+bright-black = "#{{ansi8}}"
+bright-red = "#{{ansi9}}"
+bright-green = "#{{ansi10}}"
+bright-yellow = "#{{ansi11}}"
+bright-blue = "#{{ansi12}}"
+bright-purple = "#{{ansi13}}"
+bright-cyan = "#{{ansi14}}"
+bright-white = "#{{ansi15}}"

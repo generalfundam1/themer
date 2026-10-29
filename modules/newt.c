@@ -114,11 +114,20 @@ load(const TmTheme *t)
 	return tm_writef(p, "%s", body);
 }
 
+/* the newt library, which nmtui, whiptail and the other dialogs are built on */
+static int
+present(const TmTheme *t)
+{
+	(void)t;
+	return tm_have_lib("libnewt.so.0.52") || tm_have("nmtui") || tm_have("whiptail");
+}
+
 static const TmModule mod = {
 	.name = "newt",
 	.desc = "newt: the colors of nmtui and other newt dialogs",
 	.templates = "newt",
 	.default_on = 1,
+	.present = present,
 	.load = load,
 	.options = opts,
 	.noptions = TM_COUNT(opts),

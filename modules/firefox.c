@@ -276,7 +276,15 @@ static const char *const firefox_bases[] = {
 static int
 present(const TmTheme *t)
 {
-	return moz_present(t, firefox_bases, TM_COUNT(firefox_bases));
+	static const char *const progs[] = {
+		"firefox", "firefox-esr", "firefox-bin", "firefox-developer-edition", "firefox-nightly",
+	};
+
+	(void)t;
+	for (size_t i = 0; i < TM_COUNT(progs); i++)
+		if (tm_have(progs[i]))
+			return 1;
+	return tm_have_flatpak("org.mozilla.firefox");
 }
 
 static int

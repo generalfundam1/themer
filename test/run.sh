@@ -19,6 +19,14 @@ fail=0
 t() { printf '%s\n' "$*"; }
 bad() { printf 'FAIL: %s\n' "$*"; fail=1; }
 
+# the programs the modules theme: a module whose program is not installed cannot be
+# loaded, so each one tested gets a stand-in on PATH (wmenu has none: it stays absent)
+mkdir -p "$HOME/stubs"
+for p in foot sway waybar nvim firefox thunderbird st nmtui qtpaths; do
+	printf '#!/bin/sh\nexit 0\n' > "$HOME/stubs/$p"; chmod +x "$HOME/stubs/$p"
+done
+export PATH="$HOME/stubs:$PATH"
+
 # the user's files, seeded before the first apply so every later apply edits them
 mkdir -p "$HOME/.config/foot" "$HOME/.config/sway" "$HOME/.config/waybar" "$HOME/.config/nvim" \
          "$HOME/.config/qt6ct" "$HOME/.config/gtk-3.0"
@@ -238,7 +246,7 @@ if command -v curl >/dev/null 2>&1; then
 	curl -s "$w/api/text" | grep -q '"pages":\[{"id":"theme","title":"Theme"},{"id":"fonts","title":"Fonts"},{"id":"icons","title":"Icons"},{"id":"modules","title":"Modules"},{"id":"system","title":"System"}\]' ||
 		bad "themer-web: the pages are not the five every front end has"
 	curl -s "$w/api/text" | grep -q '":""' && bad "themer-web: a text is empty"
-	curl -s "$w/api/state" | grep -q '"state":"on","note":"",' || bad "themer-web: a module's state is not the shared one"
+	curl -s "$w/api/state" | grep -q '"state":"on","group":0,"note":"",' || bad "themer-web: a module's state is not the shared one"
 	sleep 0.3
 	grep -q '/stylus/youtube.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open the stylus sites"
 	grep -q '/stylus/wikipedia.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open every stylus site"
@@ -282,12 +290,15 @@ expect .config/nvim/colors/themer.lua
 expect .config/sway/themer.conf
 # the user's own style.css is kept under ~/.config/themer/originals while waybar is on
 [ -e "$HOME/.config/themer/originals/waybar$HOME/.config/waybar/style.css" ] || bad "waybar: the user's style.css was not kept in originals/"
-# a module whose program is absent writes nothing, but stays on for when it appears
+# a module whose program is absent writes nothing and cannot be loaded
 if command -v wmenu >/dev/null 2>&1; then
 	expect .config/themer/bin/themer-wmenu
 	else
 	[ -e "$HOME/.config/themer/bin/themer-wmenu" ] && bad "wmenu script written without wmenu"
-	./themer module list | grep -q '^wmenu  *on  *absent' || bad "absent module not listed as such"
+	./themer module list | grep -q '^wmenu  *off  *absent' || bad "absent module not listed as such"
+	./themer module list | grep -A99 '^# Not installed' | grep -q '^wmenu ' || bad "absent module not listed under Not installed"
+	./themer module load wmenu >/dev/null 2>&1 && bad "a module whose program is not installed was loaded"
+	./themer module list | grep -q '^# Loaded' || bad "module list not grouped"
 fi
 expect .config/environment.d/50-themer.conf
 expect .config/themer/env.sh
@@ -359,7 +370,11 @@ rm -f "$HOME/gs.log"
 [ "$(grep -c 'themer:wm begin' "$HOME/.config/sway/config")" = 1 ] || bad "sway block duplicated"
 # the user's bar gives way to themer's, which keeps its status line
 [ "$(grep -c '^#themer-off: ' "$HOME/.config/sway/config")" = 4 ] || bad "the user's bar block was not switched off (exactly)"
+# waybar is installed here (a stand-in) and its module is on: it is sway's bar
+grep -q 'swaybar_command waybar' "$HOME/.config/sway/themer.conf" || bad "sway: waybar not made the bar while its module is on"
+./themer module option sway bar themer >/dev/null 2>&1
 grep -q 'status_command i3blocks' "$HOME/.config/sway/themer.conf" || bad "themer's bar lost the user's status_command"
+./themer module reset sway bar >/dev/null 2>&1
 [ "$(grep -c '^background=' "$HOME/.config/foot/foot.ini")" = 2 ] || bad "foot keys duplicated"
 
 # a module option round-trips, and a bad value is refused
@@ -508,6 +523,390 @@ grep -q 'stale' "$HOME/.config/themer/templates/themer_chicago/gtk/gtk.css" && b
 [ -e "$HOME/.config/themer/templates/themer_chicago/gtk/gtk.css.themer-old" ] || bad "stale copy not kept aside"
 rm -rf "$HOME/.config/themer/templates"
 
+# ---- window managers: hyprland, hyprlock, niri, river, bspwm, dwm, labwc, openbox ----
+t "window managers: hooked into the user's configs, put back byte for byte"
+for p in Hyprland hyprctl hyprlock riverctl bspwm bspc dwm labwc openbox; do
+	printf '#!/bin/sh\nexit 0\n' > "$HOME/stubs/$p"; chmod +x "$HOME/stubs/$p"
+done
+printf '#!/bin/sh\necho "niri 26.04 (test)"\n' > "$HOME/stubs/niri"; chmod +x "$HOME/stubs/niri"
+mkdir -p "$HOME/.config/hypr" "$HOME/.config/niri" "$HOME/.config/river" "$HOME/.config/bspwm" \
+         "$HOME/.config/labwc" "$HOME/.config/openbox" "$HOME/wmorig" "$HOME/dwmsrc"
+printf 'hl.config({ general = { gaps_in = 5 } })\n' > "$HOME/.config/hypr/hyprland.lua"
+printf 'general {\n    gaps_in = 5\n}\n' > "$HOME/.config/hypr/hyprland.conf"
+printf 'input-field {\n    size = 200, 50\n}\n' > "$HOME/.config/hypr/hyprlock.conf"
+printf 'layout {\n    gaps 16\n}\n' > "$HOME/.config/niri/config.kdl"
+printf '#!/bin/sh\nriverctl map normal Super Return spawn foot\n' > "$HOME/.config/river/init"
+printf '#!/usr/bin/env bash\nbspc monitor -d I II III\n' > "$HOME/.config/bspwm/bspwmrc"
+printf 'border.width: 2\n' > "$HOME/.config/labwc/themerc-override"
+printf '<labwc_config>\n  <theme>\n    <name>Clearlooks</name>\n    <font name="sans" size="10" />\n  </theme>\n</labwc_config>\n' > "$HOME/.config/labwc/rc.xml"
+printf '<openbox_config>\n<theme>\n  <name>Clearlooks</name>\n  <font place="ActiveWindow">\n    <name>sans</name>\n    <size>8</size>\n  </font>\n</theme>\n<desktops>\n  <names>\n    <name>one</name>\n  </names>\n</desktops>\n</openbox_config>\n' > "$HOME/.config/openbox/rc.xml"
+for f in hypr/hyprland.lua hypr/hyprland.conf hypr/hyprlock.conf niri/config.kdl river/init bspwm/bspwmrc labwc/themerc-override labwc/rc.xml openbox/rc.xml; do
+	mkdir -p "$HOME/wmorig/$(dirname $f)"; cp "$HOME/.config/$f" "$HOME/wmorig/$f"
+done
+wmset=$(sed -n 's/^set=//p' "$HOME/.config/themer/state")
+for m in hyprland hyprlock niri river bspwm dwm labwc openbox; do
+	DWM_SRC="$HOME/dwmsrc" ./themer module load $m >/dev/null 2>&1 || bad "$m did not load"
+done
+for s in themer_chicago themer_default; do
+	DWM_SRC="$HOME/dwmsrc" ./themer set $s >/dev/null 2>&1
+	grep -q 'pcall(require, "themer")' "$HOME/.config/hypr/hyprland.lua" || bad "hyprland: themer.lua not loaded from hyprland.lua"
+	grep -q '^source = .*/.config/hypr/themer.conf$' "$HOME/.config/hypr/hyprland.conf" || bad "hyprland: themer.conf not sourced"
+	grep -q 'active_border' "$HOME/.config/hypr/themer.lua" || bad "hyprland: no border colors"
+	grep -q '^source = .*themer-colors.conf$' "$HOME/.config/hypr/hyprlock.conf" || bad "hyprlock: colors not sourced into the user's config"
+	grep -q '^\$themer_accent = rgb(' "$HOME/.config/hypr/themer-colors.conf" || bad "hyprlock: no \$themer_accent"
+	grep -q '^include "themer.kdl"$' "$HOME/.config/niri/config.kdl" || bad "niri: not included"
+	grep -q 'active-color "#' "$HOME/.config/niri/themer.kdl" || bad "niri: no focus ring colors"
+	grep -q '\. "$HOME/.config/river/themer"' "$HOME/.config/river/init" || bad "river: init does not run the colors"
+	grep -q '^riverctl border-color-focused 0x' "$HOME/.config/river/themer" || bad "river: no border colors"
+	grep -q '\. "$HOME/.config/bspwm/themer"' "$HOME/.config/bspwm/bspwmrc" || bad "bspwm: bspwmrc does not run the colors"
+	sh -n "$HOME/.config/bspwm/bspwmrc" && sh -n "$HOME/.config/river/init" || bad "river/bspwm: init no longer parses"
+	grep -q 'SchemeSel' "$HOME/dwmsrc/themer-colors.h" || bad "dwm: header not written to DWM_SRC"
+	grep -q '^window.active.title.bg.color: #' "$HOME/.config/labwc/themerc-override" || bad "labwc: no title colors"
+	grep -q '<font place="" name=' "$HOME/.config/labwc/rc.xml" || bad "labwc: no font"
+	expect .local/share/themes/Themer/openbox-3/themerc
+	grep -q '<name>Themer</name>' "$HOME/.config/openbox/rc.xml" || bad "openbox: theme not selected"
+	if command -v python3 >/dev/null 2>&1; then
+		for x in labwc/rc.xml openbox/rc.xml; do
+			python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$HOME/.config/$x" 2>/dev/null || bad "$x is not XML any more"
+		done
+		python3 - "$HOME/.config/openbox/rc.xml" <<'PY' || bad "openbox: the Themer name is not the theme's first, or the fonts are not last"
+import sys, xml.dom.minidom as m
+th = m.parse(sys.argv[1]).getElementsByTagName('theme')[0]
+kids = [c for c in th.childNodes if c.nodeType == 1]
+names = [c for c in kids if c.tagName == 'name']
+fonts = [c for c in kids if c.tagName == 'font']
+sys.exit(not (names[0].firstChild.data == 'Themer' and fonts[-1].getElementsByTagName('name')[0].firstChild.data != 'sans'))
+PY
+	fi
+done
+cp "$HOME/.config/hypr/themer.lua" "$HOME/hl1"; ./themer apply >/dev/null 2>&1
+cmp -s "$HOME/hl1" "$HOME/.config/hypr/themer.lua" || bad "hyprland: a second apply changed themer.lua"
+for m in hyprland hyprlock niri river bspwm dwm labwc openbox; do ./themer module unload $m >/dev/null 2>&1; done
+for f in hypr/hyprland.lua hypr/hyprland.conf hypr/hyprlock.conf niri/config.kdl river/init bspwm/bspwmrc labwc/themerc-override labwc/rc.xml openbox/rc.xml; do
+	cmp -s "$HOME/wmorig/$f" "$HOME/.config/$f" || bad "$f not restored by unload"
+done
+for f in .config/hypr/themer.lua .config/hypr/themer.conf .config/hypr/themer-colors.conf .config/niri/themer.kdl \
+         .config/river/themer .config/bspwm/themer .config/themer/dwm/colors.h dwmsrc/themer-colors.h \
+         .local/share/themes/Themer/openbox-3/themerc; do
+	[ -e "$HOME/$f" ] && bad "$f left after unload"
+done
+# no hyprlock.conf of the user's: a whole one is written, and taken away again
+rm "$HOME/.config/hypr/hyprlock.conf"
+./themer module load hyprlock >/dev/null 2>&1
+grep -q 'generated by themer' "$HOME/.config/hypr/hyprlock.conf" 2>/dev/null || bad "hyprlock: no lock screen written"
+./themer module unload hyprlock >/dev/null 2>&1
+[ -e "$HOME/.config/hypr/hyprlock.conf" ] && bad "hyprlock: its lock screen left after unload"
+# a niri without include lines is left alone
+printf '#!/bin/sh\necho "niri 25.08 (test)"\n' > "$HOME/stubs/niri"
+./themer module load niri >/dev/null 2>&1
+grep -q themer "$HOME/.config/niri/config.kdl" && bad "niri: an include written for a niri older than 25.11"
+./themer module unload niri >/dev/null 2>&1
+# not installed: not loadable
+rm "$HOME/stubs/labwc"
+./themer module load labwc >/dev/null 2>&1 && grep -q themer "$HOME/.config/labwc/rc.xml" && bad "labwc loaded without labwc"
+rm -f "$HOME/stubs/Hyprland" "$HOME/stubs/hyprctl" "$HOME/stubs/hyprlock" "$HOME/stubs/niri" "$HOME/stubs/riverctl" \
+      "$HOME/stubs/bspwm" "$HOME/stubs/bspc" "$HOME/stubs/dwm" "$HOME/stubs/openbox"
+./themer set "$wmset" >/dev/null 2>&1
+
+# ---- the terminals: kitty, alacritty, ghostty, wezterm, tmux ----
+# Self-contained: stand-in programs on PATH (the modules load only where their
+# program is installed), seeded configs, load, apply again, both sets and modes,
+# then unload gives every file back byte for byte.
+t "terminals: kitty, alacritty, ghostty, wezterm, tmux"
+stubs="$HOME/stubs-terminals"; mkdir -p "$stubs"
+for p in kitty alacritty ghostty wezterm tmux; do
+	printf '#!/bin/sh\nexit 0\n' > "$stubs/$p"; chmod +x "$stubs/$p"
+done
+oldpath=$PATH; PATH="$stubs:$PATH"
+mkdir -p "$HOME/.config/kitty" "$HOME/.config/alacritty" "$HOME/.config/ghostty" "$HOME/.config/wezterm"
+printf '# mine\nfont_size 9\n' > "$HOME/.config/kitty/kitty.conf"
+printf '[general]\nimport = ["~/.config/alacritty/mine.toml"]\n\n[font]\nsize = 9\n' > "$HOME/.config/alacritty/alacritty.toml"
+printf 'font-size = 9\n' > "$HOME/.config/ghostty/config"
+printf "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\nconfig.font_size = 9\nreturn config\n" > "$HOME/.config/wezterm/wezterm.lua"
+printf 'set -g mouse on\n' > "$HOME/.tmux.conf"
+mkdir -p "$HOME/orig-terminals" && cp -r "$HOME/.config/kitty" "$HOME/.config/alacritty" "$HOME/.config/ghostty" \
+	"$HOME/.config/wezterm" "$HOME/.tmux.conf" "$HOME/orig-terminals/"
+for m in kitty alacritty ghostty wezterm tmux; do
+	./themer module load $m >/dev/null 2>&1 || bad "$m did not load"
+done
+./themer apply >/dev/null 2>&1
+grep -q '^include themer.conf$' "$HOME/.config/kitty/kitty.conf" || bad "kitty: themer.conf not included"
+grep -q '^color15 #' "$HOME/.config/kitty/themer.conf" || bad "kitty: palette not written"
+grep -q '^import = \["~/.config/alacritty/mine.toml", "~/.config/alacritty/themer.toml"\]$' "$HOME/.config/alacritty/alacritty.toml" ||
+	bad "alacritty: themer.toml not added to the user's imports"
+grep -q '^\[colors.bright\]' "$HOME/.config/alacritty/themer.toml" || bad "alacritty: colors not written"
+grep -q '^config-file = ?themer$' "$HOME/.config/ghostty/config" || bad "ghostty: themer not read from config"
+grep -q '^palette = 15=#' "$HOME/.config/ghostty/themer" || bad "ghostty: palette not written"
+sed -n '3p' "$HOME/.config/wezterm/wezterm.lua" | grep -q 'themer:wezterm begin' || bad "wezterm: the block is not right after local config"
+grep -q '^name = "themer"' "$HOME/.config/themer/wezterm/themer.toml" || bad "wezterm: scheme not written"
+grep -q 'source-file -q ~/.config/themer/tmux/themer.conf' "$HOME/.tmux.conf" || bad "tmux: theme not sourced"
+grep -q '^set -gq status-style "bg=#' "$HOME/.config/themer/tmux/themer.conf" || bad "tmux: status line not themed"
+[ "$(grep -c 'themer:kitty begin' "$HOME/.config/kitty/kitty.conf")" = 1 ] || bad "kitty: block repeated by apply"
+[ "$(grep -c 'themer.toml' "$HOME/.config/alacritty/alacritty.toml")" = 1 ] || bad "alacritty: import repeated by apply"
+# the files parse: TOML with python's tomllib, tmux with tmux itself when installed
+if command -v python3 >/dev/null 2>&1; then
+	for f in .config/alacritty/alacritty.toml .config/alacritty/themer.toml .config/themer/wezterm/themer.toml; do
+		python3 -c "import tomllib, sys; tomllib.load(open(sys.argv[1], 'rb'))" "$HOME/$f" 2>/dev/null || bad "$f is not valid TOML"
+	done
+fi
+./themer set themer_chicago >/dev/null 2>&1
+grep -q '^tab_bar_style separator' "$HOME/.config/kitty/themer.conf" || bad "kitty: Chicago's tab bar not rendered"
+grep -q 'use_fancy_tab_bar = false' "$HOME/.config/wezterm/wezterm.lua" || bad "wezterm: Chicago's plain tab bar not selected"
+PATH=$oldpath
+if command -v tmux >/dev/null 2>&1; then
+	tmux -L themercheck -f /dev/null new-session -d 2>/dev/null &&
+		{ tmux -L themercheck source-file "$HOME/.config/themer/tmux/themer.conf" 2>/dev/null || bad "tmux: themer.conf has errors"; }
+	tmux -L themercheck kill-server 2>/dev/null
+fi
+PATH="$stubs:$PATH"
+./themer light >/dev/null 2>&1; ./themer dark >/dev/null 2>&1; ./themer set themer_default >/dev/null 2>&1
+for m in kitty alacritty ghostty wezterm tmux; do ./themer module unload $m >/dev/null 2>&1; done
+for f in kitty/kitty.conf alacritty/alacritty.toml ghostty/config wezterm/wezterm.lua; do
+	cmp -s "$HOME/orig-terminals/${f%%/*}/${f#*/}" "$HOME/.config/$f" || bad "unload did not restore .config/$f"
+done
+cmp -s "$HOME/orig-terminals/.tmux.conf" "$HOME/.tmux.conf" || bad "unload did not restore .tmux.conf"
+for f in .config/kitty/themer.conf .config/alacritty/themer.toml .config/ghostty/themer .config/themer/wezterm .config/themer/tmux; do
+	[ -e "$HOME/$f" ] && bad "unload left $f"
+done
+rm -rf "$HOME/.config/kitty" "$HOME/.config/alacritty" "$HOME/.config/ghostty" "$HOME/.config/wezterm" "$HOME/.tmux.conf" "$HOME/orig-terminals"
+PATH=$oldpath
+
+# ---- launchers, notifications, the lock screen: rofi, fuzzel, mako, dunst, swaync,
+# swaylock. Self-contained: stand-ins for the programs, the user's own configs, load,
+# apply again, the other set and mode, unload and compare byte for byte. ----
+t "rofi, fuzzel, mako, dunst, swaync, swaylock: written, idempotent, restored"
+for p in rofi fuzzel mako makoctl dunst dunstctl swaync swaync-client swaylock; do
+	printf '#!/bin/sh\nexit 0\n' > "$HOME/stubs/$p"; chmod +x "$HOME/stubs/$p"
+done
+mkdir -p "$HOME/.config/rofi" "$HOME/.config/fuzzel" "$HOME/.config/mako" "$HOME/.config/swaylock" \
+         "$HOME/.config/swaync" "$HOME/groupC"
+printf 'configuration {\n  modi: "drun,run";\n}\n@theme "gruvbox-dark"\n' > "$HOME/.config/rofi/config.rasi"
+printf '[main]\nfont=Mine:size=9\nterminal=foot\n\n[colors]\nbackground=000000ff\n' > "$HOME/.config/fuzzel/fuzzel.ini"
+printf 'font=Mine 9\nmax-visible=3\n\n[app-name=spotify]\ninvisible=1\n' > "$HOME/.config/mako/config"
+printf 'ignore-empty-password\ncolor=000000\nshow-failed-attempts\n' > "$HOME/.config/swaylock/config"
+printf '.notification { margin: 4px; }\n' > "$HOME/.config/swaync/style.css"
+for f in rofi/config.rasi fuzzel/fuzzel.ini mako/config swaylock/config swaync/style.css; do
+	cp "$HOME/.config/$f" "$HOME/groupC/$(echo "$f" | tr / _)"
+done
+for m in rofi fuzzel mako dunst swaync swaylock; do
+	./themer module load "$m" >/dev/null 2>&1 || bad "load $m"
+done
+expect .local/share/rofi/themes/themer.rasi
+grep -q '^@theme ".*/.local/share/rofi/themes/themer.rasi"$' "$HOME/.config/rofi/config.rasi" || bad "rofi: theme not selected in config.rasi"
+grep -q '^@theme "gruvbox-dark"$' "$HOME/.config/rofi/config.rasi" || bad "rofi: the user's own @theme line lost"
+grep -q 'selected-normal-background: *#[0-9a-f]\{6\};' "$HOME/.local/share/rofi/themes/themer.rasi" || bad "rofi: no selection color"
+grep -q '^terminal=foot$' "$HOME/.config/fuzzel/fuzzel.ini" || bad "fuzzel: the user's key lost"
+grep -q '^background=[0-9a-f]\{8\}$' "$HOME/.config/fuzzel/fuzzel.ini" || bad "fuzzel: background not RRGGBBAA"
+[ "$(grep -c '^\[colors\]' "$HOME/.config/fuzzel/fuzzel.ini")" = 1 ] || bad "fuzzel: [colors] repeated"
+grep -q '^font=.*:size=[0-9]*$' "$HOME/.config/fuzzel/fuzzel.ini" || bad "fuzzel: font not set"
+sed -n '1,/^\[/p' "$HOME/.config/mako/config" | grep -q '^background-color=#' || bad "mako: colors not in the global section"
+grep -q '^max-visible=3$' "$HOME/.config/mako/config" || bad "mako: the user's key lost"
+grep -q '^\[urgency=high\]$' "$HOME/.config/mako/config" || bad "mako: no urgent border"
+expect .config/dunst/dunstrc.d/90-themer.conf
+expect .config/dunst/dunstrc
+grep -q 'frame_color = "#[0-9a-f]\{6\}"' "$HOME/.config/dunst/dunstrc.d/90-themer.conf" || bad "dunst: no frame color"
+grep -q '^\.notification { margin: 4px; }$' "$HOME/.config/swaync/style.css" || bad "swaync: the user's rule lost"
+grep -q 'themer:swaync begin' "$HOME/.config/swaync/style.css" || bad "swaync: no block"
+grep -q -- '--noti-bg: #' "$HOME/.config/swaync/style.css" || bad "swaync: no custom properties"
+grep -q '^ignore-empty-password$' "$HOME/.config/swaylock/config" || bad "swaylock: the user's flag lost"
+[ "$(grep -c '^color=' "$HOME/.config/swaylock/config")" = 1 ] || bad "swaylock: color repeated"
+grep -q '^ring-wrong-color=[0-9a-f]\{6\}$' "$HOME/.config/swaylock/config" || bad "swaylock: no wrong-password ring"
+# again: the same bytes
+for f in rofi/config.rasi fuzzel/fuzzel.ini mako/config swaylock/config swaync/style.css dunst/dunstrc.d/90-themer.conf; do
+	cp "$HOME/.config/$f" "$HOME/groupC/again_$(echo "$f" | tr / _)"
+done
+./themer apply >/dev/null 2>&1
+for f in rofi/config.rasi fuzzel/fuzzel.ini mako/config swaylock/config swaync/style.css dunst/dunstrc.d/90-themer.conf; do
+	cmp -s "$HOME/.config/$f" "$HOME/groupC/again_$(echo "$f" | tr / _)" || bad "$f changed on a second apply"
+done
+# Chicago: square, 1px
+./themer set themer_chicago >/dev/null 2>&1
+grep -q '^radius=0$' "$HOME/.config/fuzzel/fuzzel.ini" || bad "fuzzel: Chicago is not square"
+grep -q '^border-size=1$' "$HOME/.config/mako/config" || bad "mako: Chicago's border is not 1px"
+grep -q 'frame_width = 1' "$HOME/.config/dunst/dunstrc.d/90-themer.conf" || bad "dunst: Chicago's frame is not 1px"
+grep -q 'border-radius: 0;' "$HOME/.config/swaync/style.css" || bad "swaync: Chicago is not square"
+grep -q 'border: *1px solid 0px 0px;' "$HOME/.local/share/rofi/themes/themer.rasi" || bad "rofi: Chicago's separators are not solid"
+./themer set themer_default >/dev/null 2>&1
+grep -q '^radius=12$' "$HOME/.config/fuzzel/fuzzel.ini" || bad "fuzzel: back to Themer Default"
+for m in rofi fuzzel mako dunst swaync swaylock; do
+	./themer module unload "$m" >/dev/null 2>&1 || bad "unload $m"
+done
+for f in rofi/config.rasi fuzzel/fuzzel.ini mako/config swaylock/config swaync/style.css; do
+	cmp -s "$HOME/.config/$f" "$HOME/groupC/$(echo "$f" | tr / _)" || bad "$f not restored"
+done
+[ -e "$HOME/.config/dunst" ] && bad "dunst: files left after unload"
+[ -e "$HOME/.local/share/rofi" ] && bad "rofi: theme left after unload"
+# swaync without a style.css of the user's: themer's imports the system's first, and goes
+rm "$HOME/.config/swaync/style.css"
+./themer module load swaync >/dev/null 2>&1
+if [ -r /etc/xdg/swaync/style.css ]; then
+	head -4 "$HOME/.config/swaync/style.css" | grep -q '@import url("file:///etc/xdg/swaync/style.css");' ||
+		bad "swaync: the system's style not imported first"
+fi
+./themer module unload swaync >/dev/null 2>&1
+[ -e "$HOME/.config/swaync/style.css" ] && bad "swaync: the created style.css left behind"
+cp "$HOME/groupC/swaync_style.css" "$HOME/.config/swaync/style.css"
+rm -rf "$HOME/groupC"
+
+# ---- the command-line tools: btop, zathura, bat, lazygit, fzf, vivid, starship ----
+# Self-contained: stand-ins for the programs, the user's own files, then load,
+# re-apply, theme and set changes, and unload putting every file back.
+t "tools: btop, zathura, bat, lazygit, fzf, vivid, starship"
+for p in btop zathura bat lazygit fzf starship; do
+	printf '#!/bin/sh\nexit 0\n' > "$HOME/stubs/$p"; chmod +x "$HOME/stubs/$p"
+done
+# a stand-in vivid: checks the theme file it is given, prints an LS_COLORS from it
+cat > "$HOME/stubs/vivid" <<'V'
+#!/bin/sh
+[ "$1" = generate ] && [ -f "$2" ] || exit 1
+echo "di=38;2;$(sed -n 's/^  cyan: "\(.*\)"/\1/p' "$2"):ln=1"
+V
+chmod +x "$HOME/stubs/vivid"
+mkdir -p "$HOME/.config/btop" "$HOME/.config/zathura" "$HOME/.config/bat" "$HOME/.config/lazygit" "$HOME/tools-orig"
+printf '#? Config file for btop v. 1.4.5\ncolor_theme = "Default"\nrounded_corners = True\n' > "$HOME/.config/btop/btop.conf"
+printf 'set selection-clipboard clipboard\nset default-bg "#000000"\n' > "$HOME/.config/zathura/zathurarc"
+printf -- '--style="numbers,changes"\n--theme="TwoDark"\n' > "$HOME/.config/bat/config"
+printf 'gui:\n  showIcons: true\n' > "$HOME/.config/lazygit/config.yml"
+printf 'add_newline = false\npalette = "gruvbox"\n\n[character]\nsuccess_symbol = "[>](bold green)"\n\n[palettes.gruvbox]\ngreen = "#00ff00"\n' > "$HOME/.config/starship.toml"
+for f in btop/btop.conf zathura/zathurarc bat/config lazygit/config.yml starship.toml; do
+	cp "$HOME/.config/$f" "$HOME/tools-orig/$(echo "$f" | tr / _)"
+done
+for m in btop zathura bat lazygit fzf vivid starship; do
+	./themer module load "$m" >/dev/null 2>&1 || bad "$m did not load"
+done
+grep -q '^color_theme = "themer"' "$HOME/.config/btop/btop.conf" || bad "btop: color_theme not changed in place"
+grep -q 'theme\[main_bg\]="#' "$HOME/.config/btop/themes/themer.theme" || bad "btop: no theme file"
+tail -1 "$HOME/.config/zathura/zathurarc" | grep -q 'themer:zathura end' || bad "zathura: the block is not last"
+grep -q '^set highlight-color "rgba(' "$HOME/.config/zathura/zathurarc" || bad "zathura: highlight not rgba()"
+tail -2 "$HOME/.config/bat/config" | grep -q -- '--theme="ansi"' || bad "bat: --theme not last"
+grep -q "^LG_CONFIG_FILE=$HOME/.config/lazygit/config.yml,$HOME/.config/themer/lazygit/config.yml\$" \
+	"$HOME/.config/environment.d/40-themer-lazygit.conf" || bad "lazygit: LG_CONFIG_FILE"
+grep -q "^FZF_DEFAULT_OPTS_FILE=$HOME/.config/themer/fzf/fzfrc\$" "$HOME/.config/environment.d/40-themer-fzf.conf" ||
+	bad "fzf: FZF_DEFAULT_OPTS_FILE"
+grep -q -- '--color=pointer:#' "$HOME/.config/themer/fzf/fzfrc" || bad "fzf: no colors"
+grep -q '^LS_COLORS=di=38;2;[0-9a-f]\{6\}:ln=1$' "$HOME/.config/environment.d/40-themer-lscolors.conf" ||
+	bad "vivid: LS_COLORS not from vivid's output"
+grep -q '^palette = "themer"$' "$HOME/.config/starship.toml" || bad "starship: palette not selected in place"
+if command -v python3 >/dev/null 2>&1; then
+	python3 -c "import tomllib,sys; d=tomllib.load(open(sys.argv[1],'rb')); assert d['palette']=='themer' and d['palettes']['themer']['green'].startswith('#') and d['add_newline'] is False" \
+		"$HOME/.config/starship.toml" 2>/dev/null || bad "starship: starship.toml is not valid TOML"
+fi
+cp "$HOME/.config/starship.toml" "$HOME/tools-s1"
+./themer apply >/dev/null 2>&1
+cmp -s "$HOME/tools-s1" "$HOME/.config/starship.toml" || bad "starship: a second apply changed starship.toml"
+[ "$(grep -c 'themer:zathura begin' "$HOME/.config/zathura/zathurarc")" = 1 ] || bad "zathura: the block twice"
+./themer set themer_chicago >/dev/null 2>&1
+grep -q '^rounded_corners = False' "$HOME/.config/btop/btop.conf" || bad "btop: Chicago's boxes not square"
+./themer set themer_default >/dev/null 2>&1
+grep -q '^rounded_corners = True' "$HOME/.config/btop/btop.conf" || bad "btop: Themer Default did not give the corners back"
+# no btop.conf yet (btop writes it on its first run): a block, gone again on unload
+./themer module unload btop >/dev/null 2>&1; mv "$HOME/.config/btop/btop.conf" "$HOME/tools-btop"
+./themer module load btop >/dev/null 2>&1
+grep -q 'color_theme = "themer"' "$HOME/.config/btop/btop.conf" || bad "btop: no color_theme without a btop.conf"
+./themer module unload btop >/dev/null 2>&1
+[ -e "$HOME/.config/btop/btop.conf" ] && bad "btop: the btop.conf themer made was left behind"
+mv "$HOME/tools-btop" "$HOME/.config/btop/btop.conf"
+# lazygit refuses a missing listed file: one is made when there is none, and taken away
+./themer module unload lazygit >/dev/null 2>&1; mv "$HOME/.config/lazygit/config.yml" "$HOME/tools-lg"
+./themer module load lazygit >/dev/null 2>&1
+[ -e "$HOME/.config/lazygit/config.yml" ] || bad "lazygit: no config.yml for LG_CONFIG_FILE to list"
+./themer module unload lazygit >/dev/null 2>&1
+[ -e "$HOME/.config/lazygit/config.yml" ] && bad "lazygit: the config.yml themer made was left behind"
+mv "$HOME/tools-lg" "$HOME/.config/lazygit/config.yml"
+# starship with no palette line: one at the very top, before the tables
+./themer module unload starship >/dev/null 2>&1
+printf '[character]\nsuccess_symbol = "[>](bold green)"\n' > "$HOME/.config/starship.toml"; cp "$HOME/.config/starship.toml" "$HOME/tools-s2"
+./themer module load starship >/dev/null 2>&1
+head -2 "$HOME/.config/starship.toml" | grep -q '^palette = "themer"$' || bad "starship: palette line not at the top"
+./themer module unload starship >/dev/null 2>&1
+cmp -s "$HOME/tools-s2" "$HOME/.config/starship.toml" || bad "starship: not restored (no palette line)"
+cp "$HOME/tools-orig/starship.toml" "$HOME/.config/starship.toml"
+./themer module unload btop >/dev/null 2>&1
+for m in btop zathura bat lazygit fzf vivid starship; do ./themer module unload "$m" >/dev/null 2>&1; done
+for f in btop/btop.conf zathura/zathurarc bat/config lazygit/config.yml starship.toml; do
+	cmp -s "$HOME/tools-orig/$(echo "$f" | tr / _)" "$HOME/.config/$f" || bad "$f not restored"
+done
+for f in .config/environment.d/40-themer-lazygit.conf .config/environment.d/40-themer-fzf.conf \
+         .config/environment.d/40-themer-lscolors.conf .config/btop/themes/themer.theme \
+         .config/vivid/themes/themer.yml .config/themer/fzf/fzfrc .config/themer/lazygit/config.yml; do
+	[ -e "$HOME/$f" ] && bad "$f left behind"
+done
+rm -f "$HOME/stubs/btop" "$HOME/stubs/zathura" "$HOME/stubs/bat" "$HOME/stubs/lazygit" "$HOME/stubs/fzf" \
+      "$HOME/stubs/vivid" "$HOME/stubs/starship"
+
+# ---- helix, vscode, kde: each with its program stubbed on PATH ----
+t "helix, vscode, kde: the theme in, your files back"
+mkdir -p "$HOME/stubE" "$HOME/.config/helix" "$HOME/.config/Code/User"
+for p in hx code kreadconfig6; do printf '#!/bin/sh\n' > "$HOME/stubE/$p"; chmod +x "$HOME/stubE/$p"; done
+printf 'theme = "onedark"\n\n[editor]\nline-number = "relative"\n' > "$HOME/.config/helix/config.toml"
+printf '{\n    // mine\n    "editor.fontSize": 13,\n    "workbench.colorTheme": "Monokai"\n}\n' > "$HOME/.config/Code/User/settings.json"
+printf '[General]\nfont=Noto Sans,10,-1,5,50,0,0,0,0,0\n\n[KDE]\nSingleClick=false\n' > "$HOME/.config/kdeglobals"
+cp "$HOME/.config/helix/config.toml" "$HOME/helix.orig"
+cp "$HOME/.config/Code/User/settings.json" "$HOME/code.orig"
+cp "$HOME/.config/kdeglobals" "$HOME/kde.orig"
+# without their programs they are not loadable
+for m in helix vscode kde; do
+	./themer module load $m >/dev/null 2>&1 && bad "$m loaded without its program"
+done
+for m in helix vscode kde; do
+	PATH="$HOME/stubE:$PATH" ./themer module load $m >/dev/null 2>&1 || bad "$m did not load"
+done
+PATH="$HOME/stubE:$PATH" ./themer apply >/dev/null 2>&1
+expect .config/helix/themes/themer.toml
+grep -qx 'theme = "themer"' "$HOME/.config/helix/config.toml" || bad "helix: theme not selected"
+grep -q 'theme = "onedark"' "$HOME/.config/helix/config.toml" && bad "helix: two theme lines"
+grep -q '^"ui.background" = { bg = "bg" }' "$HOME/.config/helix/themes/themer.toml" || bad "helix: theme not rendered"
+grep -q '"workbench.colorTheme": "Default \(Dark\|Light\) Modern"' "$HOME/.config/Code/User/settings.json" || bad "vscode: theme not set"
+grep -q '"workbench.colorCustomizations": {' "$HOME/.config/Code/User/settings.json" || bad "vscode: colors not set"
+grep -q '// mine' "$HOME/.config/Code/User/settings.json" || bad "vscode: the user's comment lost"
+grep -q '"editor.fontSize": 13' "$HOME/.config/Code/User/settings.json" || bad "vscode: the user's setting lost"
+grep -q 'editor.fontFamily' "$HOME/.config/Code/User/settings.json" && bad "vscode: font=own set a font"
+if command -v python3 >/dev/null 2>&1; then
+	python3 -c 'import tomllib,sys; tomllib.load(open(sys.argv[1],"rb")); tomllib.load(open(sys.argv[2],"rb"))' \
+		"$HOME/.config/helix/themes/themer.toml" "$HOME/.config/helix/config.toml" 2>/dev/null || bad "helix: not valid TOML"
+	python3 -c 'import json,re,sys; json.loads(re.sub(r"(?m)^\s*//.*$","",open(sys.argv[1]).read()))' \
+		"$HOME/.config/Code/User/settings.json" 2>/dev/null || bad "vscode: settings.json not valid JSON"
+fi
+expect .local/share/color-schemes/Themer.colors
+grep -qx 'ColorScheme=Themer' "$HOME/.config/kdeglobals" || bad "kde: scheme not selected"
+grep -q '^\[Colors:View\]' "$HOME/.config/kdeglobals" || bad "kde: no view colors"
+grep -q '^BackgroundNormal=[0-9]*,[0-9]*,[0-9]*$' "$HOME/.config/kdeglobals" || bad "kde: colors not r,g,b"
+grep -qx 'SingleClick=false' "$HOME/.config/kdeglobals" || bad "kde: the user's key lost"
+PATH="$HOME/stubE:$PATH" ./themer module option vscode font terminal >/dev/null 2>&1
+grep -q '"editor.fontFamily": "' "$HOME/.config/Code/User/settings.json" || bad "vscode: font=terminal not set"
+PATH="$HOME/stubE:$PATH" ./themer module reset vscode font >/dev/null 2>&1
+for m in helix vscode kde; do
+	PATH="$HOME/stubE:$PATH" ./themer module unload $m >/dev/null 2>&1
+done
+cmp -s "$HOME/.config/helix/config.toml" "$HOME/helix.orig" || bad "helix: config.toml not restored"
+cmp -s "$HOME/.config/Code/User/settings.json" "$HOME/code.orig" || bad "vscode: settings.json not restored"
+cmp -s "$HOME/.config/kdeglobals" "$HOME/kde.orig" || bad "kde: kdeglobals not restored"
+[ -e "$HOME/.config/helix/themes/themer.toml" ] && bad "helix: theme file left behind"
+[ -e "$HOME/.local/share/color-schemes/Themer.colors" ] && bad "kde: scheme file left behind"
+rm -rf "$HOME/stubE" "$HOME/helix.orig" "$HOME/code.orig" "$HOME/kde.orig" "$HOME/.config/helix" "$HOME/.config/Code" "$HOME/.config/kdeglobals"
+
+# ---- Remove all styles: every file back, the settings kept, apply waits for Apply ----
+t "remove: all styles off and back"
+./themer remove >/dev/null 2>&1 || bad "themer remove failed"
+grep -qx 'removed=1' "$HOME/.config/themer/state" || bad "remove: not saved as removed"
+cmp -s "$HOME/orig/.config/foot/foot.ini" "$HOME/.config/foot/foot.ini" || bad "remove: foot.ini not put back"
+cmp -s "$HOME/orig/.config/sway/config" "$HOME/.config/sway/config" || bad "remove: sway config not put back"
+cmp -s "$HOME/orig/.mozilla/firefox/abc.default/chrome/userChrome.css" "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "remove: userChrome.css not put back"
+[ -e "$HOME/.config/themer/system/tty.palette" ] && bad "remove: the console palette left"
+[ -e "$HOME/.config/environment.d/50-themer.conf" ] && bad "remove: the environment left"
+./themer apply >/dev/null 2>&1
+[ -e "$HOME/.config/sway/themer.conf" ] && bad "remove: themer apply (the login's) put the styles back"
+./themer restore >/dev/null 2>&1 || bad "themer restore failed"
+grep -q 'removed=' "$HOME/.config/themer/state" && bad "restore: still saved as removed"
+expect .config/sway/themer.conf
+grep -q '^[0-9]*,[0-9]*,' "$HOME/.config/themer/system/tty.palette" || bad "tty.palette is not in setvtrgb's format"
+[ "$(wc -l < "$HOME/.config/themer/system/tty.palette")" = 3 ] || bad "tty.palette is not three lines"
+grep -q 'TERM.*linux' "$HOME/.config/themer/env.sh" || bad "env.sh does not set the console palette"
+./themer system status >/dev/null 2>&1 || bad "themer system status failed"
+if [ "$(id -u)" != 0 ]; then
+	./themer system install >/dev/null 2>&1 && bad "themer system install ran without root"
+fi
+
 # ---- 3. unload everything ----
 t "unload: user files restored, nothing left behind"
 for mod in $(./themer module list | awk '$2=="on"{print $1}'); do
@@ -521,9 +920,10 @@ cmp -s "$HOME/orig/.mozilla/firefox/abc.default/chrome/userChrome.css" "$HOME/.m
 cmp -s "$HOME/orig/.config/thunderbird/tb.default/chrome/userChrome.css" "$HOME/.config/thunderbird/tb.default/chrome/userChrome.css" || bad "thunderbird userChrome.css not restored"
 [ ! -e "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" ] || bad "thunderbird userContent.css left behind"
 left=$(cd "$HOME" && find .config .themes .local -type f 2>/dev/null |
-	grep -v '^\.config/themer/\(state\|tty\.rgb\|env\.sh\|templates/\)' |
+	grep -v '^\.config/themer/\(state\|tty\.rgb\|env\.sh\|templates/\|system/\(tty\.palette\|console\.conf\|grub\.conf\)\)' |
 	grep -v '^\.config/environment\.d/50-themer\.conf$' |
-	grep -v '^\.config/\(foot\|sway\|waybar\|nvim\|qt6ct\|gtk-3\.0\|thunderbird\)/' || true)
+	grep -v '^\.config/\(foot\|sway\|waybar\|nvim\|qt6ct\|gtk-3\.0\|thunderbird\)/' |
+	grep -vx '\.config/\(zathura/zathurarc\|lazygit/config\.yml\|rofi/config\.rasi\|mako/config\|starship\.toml\|btop/btop\.conf\|labwc/themerc-override\|labwc/rc\.xml\|openbox/rc\.xml\|bspwm/bspwmrc\|fuzzel/fuzzel\.ini\|hypr/hyprland\.lua\|hypr/hyprland\.conf\|hypr/hyprlock\.conf\|bat/config\|swaylock/config\|river/init\|swaync/style\.css\|niri/config\.kdl\)' || true)
 [ -z "$left" ] || bad "files left after unload: [$left]
 $left"
 [ ! -e "$HOME/.local/state/themer" ] || [ -z "$(ls -A "$HOME/.local/state/themer")" ] ||

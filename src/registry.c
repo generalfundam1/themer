@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 #include "themer.h"
 
 typedef struct {
@@ -153,23 +155,40 @@ themer_option_find(int i, const char *name)
 	return -1;
 }
 
+/* On: switched on (or on by default) and its program installed. A module whose
+ * program is missing is off, whatever was saved, and cannot be switched on. */
+static int checking;   /* inside a present(): the view it gets lists modules by state alone */
+
 int
 themer_module_on(const Config *c, int i)
 {
-	return config_module_on(c, reg[i].m->name, reg[i].m->default_on);
+	if (!config_module_on(c, reg[i].m->name, reg[i].m->default_on))
+		return 0;
+	return checking || themer_module_present(c, i);
 }
 
-/* whether the program a module themes is here; modules without a check are present */
+/* Whether the program a module themes is here; modules without a check are present.
+ * Asked often (every list, every redraw), so the answer is kept a few seconds. */
+#define PRESENT_TTL 3
 int
 themer_module_present(const Config *c, int i)
 {
+	static signed char known[MAX_MODULES];
+	static time_t when[MAX_MODULES];
+	time_t now = time(NULL);
 	Scheme s;
 	TmTheme t;
 
 	if (!reg[i].m->present)
 		return 1;
+	if (known[i] && now - when[i] < PRESENT_TTL)
+		return known[i] > 0;
+	checking++;
 	themer_module_view(c, i, &s, &t);
-	return reg[i].m->present(&t) != 0;
+	known[i] = reg[i].m->present(&t) ? 1 : -1;
+	checking--;
+	when[i] = now;
+	return known[i] > 0;
 }
 
 /* a module's own template variables; 0 when it has none */
@@ -360,17 +379,16 @@ themer_module_set(Config *c, int i, int on)
 	TmTheme t;
 	int r;
 
+	if (on && !themer_module_present(c, i))
+		return -3;             /* its program is not installed: it cannot be switched on */
 	config_set_module(c, reg[i].m->name, on);
 	themer_module_view(c, i, &s, &t);
-	if (on && reg[i].m->present && !reg[i].m->present(&t))
-		on = 0;                /* recorded as on; loads once the program appears */
 	r = on ? mod_load(reg[i].m, &t) : mod_unload(reg[i].m);
 	/* the modules that follow the others (sway's bar is waybar while waybar is on) */
 	for (int k = 0; k < nreg; k++)
 		if (k != i && reg[k].m->watches_modules && themer_module_on(c, k)) {
 			themer_module_view(c, k, &s, &t);
-			if (!reg[k].m->present || reg[k].m->present(&t))
-				mod_load(reg[k].m, &t);
+			mod_load(reg[k].m, &t);
 		}
 	reload_all();
 	return r;
@@ -435,6 +453,24 @@ themer_option_set(Config *c, int i, int j, const char *value)
 
 /* the built-in targets, then every module: loaded if on, unloaded if off */
 int
+themer_remove_all(void)
+{
+	static const char *const ours[] = {
+		".config/environment.d/50-themer.conf", ".config/themer/env.sh", ".config/themer/tty.rgb",
+	};
+	char p[PATH_MAX];
+
+	for (int i = 0; i < nreg; i++)
+		mod_unload(reg[i].m);
+	targets_remove();
+	for (size_t i = 0; i < TM_COUNT(ours); i++)
+		if (path_under_home(p, sizeof p, ours[i]) == 0)
+			unlink(p);
+	reload_all();
+	return 0;
+}
+
+int
 themer_apply(const Config *c)
 {
 	static const Target targets[] = {
@@ -446,6 +482,11 @@ themer_apply(const Config *c)
 	TmTheme t;
 	int fails = 0;
 
+	if (c->removed) {
+		fprintf(stderr, "themer: the styles are removed (Remove all styles); themer restore, or "
+		        "Apply in a front end, puts them back\n");
+		return 0;
+	}
 	theme_scheme(c, &s);
 	for (size_t i = 0; i < TM_COUNT(targets); i++)
 		if (targets[i].fn(c, &s) < 0) {
@@ -455,17 +496,13 @@ themer_apply(const Config *c)
 	for (int i = 0; i < nreg; i++) {
 		if (themer_module_on(c, i)) {
 			themer_module_view(c, i, &s, &t);
-			/* an absent program: nothing to write, and nothing left from before */
-			if (reg[i].m->present && !reg[i].m->present(&t)) {
-				mod_unload(reg[i].m);
-				continue;
-			}
 			if (mod_load(reg[i].m, &t) < 0) {
 				fprintf(stderr, "themer: module %s failed\n", reg[i].m->name);
 				fails++;
 			}
 		} else {
-			mod_unload(reg[i].m);      /* removes files left by an earlier load */
+			/* off, or its program missing: removes what an earlier load left */
+			mod_unload(reg[i].m);
 		}
 	}
 	reload_all();

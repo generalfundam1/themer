@@ -217,6 +217,8 @@ front_module_set(Config *c, int module, int on)
 {
 	int r;
 
+	if (on && !themer_module_present(c, module))
+		return -3;           /* its program is not installed */
 	if (!tcfg || c != tcfg) {
 		r = themer_module_set(c, module, on);
 		state_save(c);
@@ -313,7 +315,7 @@ front_module_note(const Config *c, int module)
 {
 	if (themer_module_present(c, module))
 		return NULL;
-	return front_text(themer_module_on(c, module) ? FT_ABSENT_ON_NOTE : FT_ABSENT_OFF_NOTE);
+	return front_text(FT_ABSENT_NOTE);
 }
 
 void
@@ -357,6 +359,23 @@ stylus_open_on_apply(const Config *c, char *note, size_t n)
 }
 
 int
+front_remove(Config *c, char *msg, size_t n)
+{
+	int fails;
+
+	if (tcfg && c == tcfg)
+		front_sync();
+	fails = themer_remove_all();
+	c->removed = 1;
+	if (tcfg && c == tcfg)
+		tbase->removed = 1;
+	if (state_save(tcfg && c == tcfg ? tbase : c) < 0)
+		fails++;
+	snprintf(msg, n, "%s", front_text(fails ? FT_REMOVE_FAILED : FT_REMOVED));
+	return fails;
+}
+
+int
 front_apply(Config *c, char *msg, size_t n)
 {
 	char note[160] = "";
@@ -364,6 +383,7 @@ front_apply(Config *c, char *msg, size_t n)
 
 	if (tcfg && c == tcfg)
 		front_sync();         /* what another front end changed is applied too */
+	c->removed = 0;         /* Apply puts removed styles back */
 	fails = themer_apply(c);
 	if (state_save(c) < 0)
 		fails++;
@@ -381,19 +401,45 @@ front_apply(Config *c, char *msg, size_t n)
 	return fails;
 }
 
+int
+front_module_group(const Config *c, int module)
+{
+	return !themer_module_present(c, module) ? MG_ABSENT : themer_module_on(c, module) ? MG_LOADED : MG_UNLOADED;
+}
+
+const char *
+front_module_group_title(int group)
+{
+	static const int t[MG_N] = { FT_GROUP_LOADED, FT_GROUP_UNLOADED, FT_GROUP_ABSENT };
+
+	return group >= 0 && group < MG_N ? front_text(t[group]) : "";
+}
+
+static const Config *order_cfg;
+static int order_group[MAX_MODULES];
+
 static int
 cmp_module(const void *a, const void *b)
 {
-	return strcmp(themer_module_name(*(const int *)a), themer_module_name(*(const int *)b));
+	int i = *(const int *)a, j = *(const int *)b;
+
+	if (order_group[i] != order_group[j])
+		return order_group[i] - order_group[j];
+	return strcmp(themer_module_name(i), themer_module_name(j));
 }
 
+/* every module: the loaded ones, then the unloaded, then those whose program is not
+ * installed, each by name (front_module_group says which a module is in) */
 int
-front_module_order(int *order, int max)
+front_module_order(const Config *c, int *order, int max)
 {
 	int n = themer_module_count() < max ? themer_module_count() : max;
 
-	for (int i = 0; i < n; i++)
+	order_cfg = c;
+	for (int i = 0; i < n; i++) {
 		order[i] = i;
+		order_group[i] = front_module_group(c, i);
+	}
 	qsort(order, n, sizeof order[0], cmp_module);
 	return n;
 }

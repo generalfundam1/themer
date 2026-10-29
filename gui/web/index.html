@@ -52,6 +52,8 @@ input, select, textarea { font: inherit; }
 .mods { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: start; }
 .modlist { max-height: none; }
 .modlist .row { justify-content: space-between; }
+.modlist .grouphead { font-weight: bold; padding: 6px 4px 2px; }
+.modlist .row.absent span { opacity: .6; }
 .moddetail { min-width: 0; }
 .moddetail .top { display: flex; align-items: center; gap: 10px; }
 .moddetail .top h3 { margin: 0; font-size: inherit; flex: 1; }
@@ -107,6 +109,7 @@ code { font-family: var(--mono_font, monospace), monospace; }
 <div class="menu">
   <button onclick="apply()" title="Ctrl+S" data-t="apply"></button>
   <button onclick="revert()" data-t="revert"></button>
+  <button onclick="removeAll()" data-t="remove" data-t-title="remove_ask"></button>
   <span class="title">themer-web · this page is the preview</span>
 </div>
 <nav id="nav"></nav>
@@ -266,7 +269,7 @@ function render() {
   $('term').innerHTML = `<span style="color:#${c.ansi[2]}">user@host</span>:<span style="color:#${c.ansi[4]}">~/src</span>$ make check<br>ok<br>` +
     c.ansi.slice(0, 8).map((h, i) => `<span style="color:#${h}">■ ansi${i}</span>`).join(' ');
   $('applybtn').disabled = !s.dirty;
-  status(s.dirty ? T.unapplied : T.up_to_date);
+  status(s.removed ? T.removed_state : s.dirty ? T.unapplied : T.up_to_date);
   restyle();
 }
 // the colors of your own, the console font, and the environment
@@ -299,12 +302,14 @@ let selMod = null;
 function renderModules() {
   const s = S;
   if (!selMod || !s.modules.find(m => m.name === selMod)) selMod = s.modules.length ? s.modules[0].name : null;
-  $('modlist').innerHTML = s.modules.map(m =>
-    `<div class="row${m.name === selMod ? ' sel' : ''}" data-mod="${esc(m.name)}"><span>${esc(m.name)}</span><small>${esc(m.state)}</small></div>`).join('');
+  // in the groups every front end shows: loaded, unloaded, not installed
+  $('modlist').innerHTML = s.modules.map((m, k) =>
+    (!k || s.modules[k - 1].group !== m.group ? `<div class="grouphead">${esc(s.module_groups[m.group])}</div>` : '') +
+    `<div class="row${m.name === selMod ? ' sel' : ''}${m.present ? '' : ' absent'}" data-mod="${esc(m.name)}"><span>${esc(m.name)}</span><small>${esc(m.state)}</small></div>`).join('');
   $('modlist').querySelectorAll('.row').forEach(r => r.onclick = () => { location.hash = 'modules/' + r.dataset.mod; });
   const m = s.modules.find(m => m.name === selMod);
   if (!m) { $('moddetail').innerHTML = ''; return; }
-  let h = `<div class="top"><h3>${esc(m.name)}</h3><label title="${esc(T.module_switch_tip)}"><input type="checkbox" id="modon" ${m.on ? 'checked' : ''}> ${esc(m.on ? T.state_on : T.state_off)}</label></div>
+  let h = `<div class="top"><h3>${esc(m.name)}</h3><label title="${esc(m.present ? T.module_switch_tip : T.module_absent)}"><input type="checkbox" id="modon" ${m.on ? 'checked' : ''} ${m.present ? '' : 'disabled'}> ${esc(m.state)}</label></div>
     <p class="desc">${esc(m.desc)}</p>`;
   if (m.note) h += `<p class="note">${esc(m.note)}</p>`;
   for (let g = 0; g < s.groups.length; g++) {
@@ -370,6 +375,10 @@ $('webport').onchange = async e => {
 async function load() { S = await api('/api/state'); render(); }
 async function set(kv) { S = await api('/api/set', kv); render(); }
 async function apply() { status(T.applying); const r = await api('/api/apply', {}); await load(); status(r.message); }
+async function removeAll() {
+  if (!confirm(`${T.remove}?\n\n${T.remove_ask}`)) return;
+  const r = await api('/api/remove', {}); await load(); status(r.message);
+}
 async function revert() { S = await api('/api/revert', {}); render(); status(T.reverted); }
 async function module(name, on) { const r = await api('/api/module', {name, on}); status(r.msg); await load(); }
 async function option(module, option, value) {

@@ -388,11 +388,20 @@ reload(void)
 		tm_run(portal);
 }
 
+/* any of GTK 2, 3 and 4 */
+static int
+present(const TmTheme *t)
+{
+	(void)t;
+	return tm_have_lib("libgtk-3.so.0") || tm_have_lib("libgtk-4.so.1") || tm_have_lib("libgtk-x11-2.0.so.0");
+}
+
 static const TmModule mod = {
 	.name = "gtk",
 	.desc = "GTK 2, 3 and 4: theme, icons, cursor, font and rendering",
 	.templates = "gtk",
 	.default_on = 1,
+	.present = present,
 	.load = load,
 	.reload = reload,
 	.options = opts,

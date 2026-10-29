@@ -625,6 +625,35 @@ sync_tick(gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
+static void refresh_module_states(void);
+static void module_detail(void);
+
+/* Remove all styles: asked first, then every program back to its own look */
+static void
+on_remove(GtkWidget *w, gpointer data)
+{
+	GtkWidget *d;
+	char msg[256];
+	int ok;
+
+	(void)w;
+	(void)data;
+	d = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION,
+	                           GTK_BUTTONS_OK_CANCEL, "%s?", front_text(FT_REMOVE));
+	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d), "%s", front_text(FT_REMOVE_ASK));
+	ok = gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_OK;
+	gtk_widget_destroy(d);
+	if (!ok)
+		return;
+	front_remove(&cfg, msg, sizeof msg);
+	applied = cfg;
+	dirty = 1;               /* Apply puts them back */
+	gtk_widget_set_sensitive(apply_button, TRUE);
+	set_status(msg);
+	refresh_module_states();
+	module_detail();
+}
+
 static void
 on_revert(GtkWidget *w, gpointer data)
 {
@@ -1535,12 +1564,62 @@ module_state_text(int i)
 	return front_module_state(&cfg, i);
 }
 
+static int filling_modules;
+
+/* The list in the groups every front end shows (loaded, unloaded, not installed),
+ * a heading row before each; refilled when a module changes group. Each module's
+ * row carries its index + 1 as "module"; headings carry none and cannot be picked. */
 static void
 refresh_module_states(void)
 {
-	for (int k = 0; k < nmodule_order; k++)
-		if (mod_state[module_order[k]])
-			gtk_label_set_text(GTK_LABEL(mod_state[module_order[k]]), module_state_text(module_order[k]));
+	GList *old = gtk_container_get_children(GTK_CONTAINER(mod_list));
+
+	filling_modules++;
+	for (GList *l = old; l; l = l->next)
+		gtk_widget_destroy(l->data);
+	g_list_free(old);
+	memset(mod_state, 0, sizeof mod_state);
+	nmodule_order = front_module_order(&cfg, module_order, MAX_MODULES);
+	for (int k = 0, last = -1; k < nmodule_order; k++) {
+		int i = module_order[k];
+		GtkWidget *row, *box, *name;
+
+		if (front_module_group(&cfg, i) != last) {
+			GtkWidget *h = heading(front_module_group_title(last = front_module_group(&cfg, i)));
+
+			row = gtk_list_box_row_new();
+			gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), FALSE);
+			gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), FALSE);
+			gtk_widget_set_margin_start(h, 4);
+			gtk_container_add(GTK_CONTAINER(row), h);
+			gtk_list_box_insert(GTK_LIST_BOX(mod_list), row, -1);
+		}
+		row = gtk_list_box_row_new();
+		box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+		name = gtk_label_new(themer_module_name(i));
+		gtk_widget_set_halign(name, GTK_ALIGN_START);
+		gtk_widget_set_sensitive(name, themer_module_present(&cfg, i));
+		mod_state[i] = caption(module_state_text(i));
+		gtk_box_pack_start(GTK_BOX(box), name, TRUE, TRUE, 0);
+		gtk_box_pack_end(GTK_BOX(box), mod_state[i], FALSE, FALSE, 0);
+		gtk_container_set_border_width(GTK_CONTAINER(box), 4);
+		gtk_container_add(GTK_CONTAINER(row), box);
+		g_object_set_data(G_OBJECT(row), "module", GINT_TO_POINTER(i + 1));
+		gtk_list_box_insert(GTK_LIST_BOX(mod_list), row, -1);
+		if (i == mod_sel)
+			gtk_list_box_select_row(GTK_LIST_BOX(mod_list), GTK_LIST_BOX_ROW(row));
+	}
+	gtk_widget_show_all(mod_list);
+	filling_modules--;
+}
+
+/* selects module i in the list (the command line's themer-gtk modules NAME) */
+static void
+select_module(int i)
+{
+	mod_sel = i;
+	refresh_module_states();
+	module_detail();
 }
 
 /* sets an option; it takes effect at once */
@@ -1640,12 +1719,15 @@ on_opt_reset(GtkButton *b, gpointer data)
 static void
 on_module_switch(GtkSwitch *sw, GParamSpec *ps, gpointer data)
 {
-	int i = GPOINTER_TO_INT(data), on = gtk_switch_get_active(sw);
+	int i = GPOINTER_TO_INT(data), on = gtk_switch_get_active(sw), r;
 
 	(void)ps;
 	if (updating || on == themer_module_on(&cfg, i))
 		return;
-	if (front_module_set(&cfg, i, on) < 0)
+	r = front_module_set(&cfg, i, on);
+	if (r == -3)
+		set_status(front_text(FT_MODULE_ABSENT));
+	else if (r < 0)
 		set_status(on ? front_text(FT_MODULE_LOAD_FAILED) : front_text(FT_MODULE_UNLOAD_FAILED));
 	else
 		set_status(on ? front_text(FT_MODULE_LOADED) : front_text(FT_MODULE_UNLOADED));
@@ -1780,6 +1862,7 @@ module_detail(void)
 	gtk_widget_set_halign(name, GTK_ALIGN_START);
 	sw = gtk_switch_new();
 	gtk_switch_set_active(GTK_SWITCH(sw), themer_module_on(&cfg, i));
+	gtk_widget_set_sensitive(sw, themer_module_present(&cfg, i));   /* not installed: cannot load */
 	gtk_widget_set_valign(sw, GTK_ALIGN_CENTER);
 	gtk_widget_set_tooltip_text(sw, front_text(FT_MODULE_SWITCH_TIP));
 	g_signal_connect(sw, "notify::active", G_CALLBACK(on_module_switch), GINT_TO_POINTER(i));
@@ -1958,9 +2041,9 @@ on_module_selected(GtkListBox *box, GtkListBoxRow *row, gpointer data)
 {
 	(void)box;
 	(void)data;
-	if (!row)
+	if (!row || filling_modules || !g_object_get_data(G_OBJECT(row), "module"))
 		return;
-	mod_sel = module_order[gtk_list_box_row_get_index(row)];
+	mod_sel = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(row), "module")) - 1;
 	module_detail();
 }
 
@@ -1975,18 +2058,9 @@ page_modules(void)
 	paned = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
 	mod_list = gtk_list_box_new();
 	gtk_list_box_set_selection_mode(GTK_LIST_BOX(mod_list), GTK_SELECTION_BROWSE);
-	nmodule_order = front_module_order(module_order, MAX_MODULES);
-	for (int k = 0; k < nmodule_order; k++) {
-		int i = module_order[k];
-		GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8), *name = gtk_label_new(themer_module_name(i));
-
-		gtk_widget_set_halign(name, GTK_ALIGN_START);
-		mod_state[i] = caption(module_state_text(i));
-		gtk_box_pack_start(GTK_BOX(row), name, TRUE, TRUE, 0);
-		gtk_box_pack_end(GTK_BOX(row), mod_state[i], FALSE, FALSE, 0);
-		gtk_container_set_border_width(GTK_CONTAINER(row), 4);
-		gtk_list_box_insert(GTK_LIST_BOX(mod_list), row, -1);
-	}
+	nmodule_order = front_module_order(&cfg, module_order, MAX_MODULES);
+	mod_sel = nmodule_order ? module_order[0] : 0;
+	refresh_module_states();
 	g_signal_connect(mod_list, "row-selected", G_CALLBACK(on_module_selected), NULL);
 	scroll = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
@@ -2000,8 +2074,6 @@ page_modules(void)
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(mod_detail), GTK_SHADOW_IN);
 	gtk_box_pack_start(GTK_BOX(paned), mod_detail, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(box), paned, TRUE, TRUE, 0);
-	if (nmodule_order)
-		gtk_list_box_select_row(GTK_LIST_BOX(mod_list), gtk_list_box_get_row_at_index(GTK_LIST_BOX(mod_list), 0));
 	return box;
 }
 
@@ -2180,15 +2252,18 @@ build_menubar(void)
 	{
 		GtkWidget *a = gtk_menu_item_new_with_label(front_text(FT_APPLY));
 		GtkWidget *r = gtk_menu_item_new_with_label(front_text(FT_REVERT));
+		GtkWidget *x = gtk_menu_item_new_with_label(front_text(FT_REMOVE));
 		GtkWidget *q = gtk_menu_item_new_with_label(front_text(FT_QUIT));
 
 		gtk_widget_add_accelerator(a, "activate", accel, GDK_KEY_s, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 		gtk_widget_add_accelerator(q, "activate", accel, GDK_KEY_q, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 		g_signal_connect(a, "activate", G_CALLBACK(on_apply), NULL);
 		g_signal_connect(r, "activate", G_CALLBACK(on_revert), NULL);
+		g_signal_connect(x, "activate", G_CALLBACK(on_remove), NULL);
 		g_signal_connect_swapped(q, "activate", G_CALLBACK(gtk_window_close), window);
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), a);
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), r);
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), x);
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), q);
 	}
@@ -2260,12 +2335,12 @@ main(int argc, char *argv[])
 
 	/* the action bar: status on the left, Apply on the right */
 	actions = gtk_action_bar_new();
-	status = gtk_label_new(front_text(FT_UP_TO_DATE));
+	status = gtk_label_new(front_text(cfg.removed ? FT_REMOVED_STATE : FT_UP_TO_DATE));
 	gtk_label_set_ellipsize(GTK_LABEL(status), PANGO_ELLIPSIZE_END);
 	gtk_action_bar_pack_start(GTK_ACTION_BAR(actions), status);
 	apply_button = gtk_button_new_with_label(front_text(FT_APPLY));
 	gtk_style_context_add_class(gtk_widget_get_style_context(apply_button), "suggested-action");
-	gtk_widget_set_sensitive(apply_button, FALSE);
+	gtk_widget_set_sensitive(apply_button, cfg.removed);   /* removed styles: Apply brings them back */
 	g_signal_connect(apply_button, "clicked", G_CALLBACK(on_apply), NULL);
 	gtk_action_bar_pack_end(GTK_ACTION_BAR(actions), apply_button);
 	gtk_box_pack_start(GTK_BOX(vbox), actions, FALSE, FALSE, 0);
@@ -2281,8 +2356,7 @@ main(int argc, char *argv[])
 	if (argc > 2 && front_page_find(argv[1]) == FP_MODULES)
 		for (int k = 0; k < nmodule_order; k++)
 			if (!strcmp(themer_module_name(module_order[k]), argv[2]))
-				gtk_list_box_select_row(GTK_LIST_BOX(mod_list),
-				                        gtk_list_box_get_row_at_index(GTK_LIST_BOX(mod_list), k));
+				select_module(module_order[k]);
 	gtk_main();
 	return 0;
 }

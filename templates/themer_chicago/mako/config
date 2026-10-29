@@ -1,0 +1,17 @@
+# themer: the keys the mako module sets in ~/.config/mako/config.
+# Chicago: a square box on the window color with a 1px outline, the progress bar in
+# the bevel's shade, an urgent one outlined in the urgent color. Keys before any [section]
+# are mako's global options.
+font={{font_family}} {{font_size}}
+background-color=#{{bg}}
+text-color=#{{fg}}
+border-color=#{{line}}
+border-size=1
+border-radius=0
+progress-color=over #{{shade}}
+
+[urgency=low]
+border-color=#{{line}}
+
+[urgency=high]
+border-color=#{{urg}}
