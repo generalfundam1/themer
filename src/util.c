@@ -185,6 +185,31 @@ afile_open(AFile *a, const char *path, int binary)
 	return a->f;
 }
 
+/* whether two files hold the same bytes */
+static int
+same_file(const char *a, const char *b)
+{
+	char x[8192], y[8192];
+	struct stat sa, sb;
+	FILE *fa, *fb;
+	size_t n;
+	int same = 0;
+
+	if (stat(a, &sa) || stat(b, &sb) || !S_ISREG(sb.st_mode) || sa.st_size != sb.st_size)
+		return 0;
+	if (!(fa = fopen(a, "rb")))
+		return 0;
+	if ((fb = fopen(b, "rb"))) {
+		do {
+			n = fread(x, 1, sizeof x, fa);
+			same = fread(y, 1, sizeof y, fb) == n && !memcmp(x, y, n);
+		} while (same && n == sizeof x);
+		fclose(fb);
+	}
+	fclose(fa);
+	return same;
+}
+
 int
 afile_commit(AFile *a)
 {
@@ -193,6 +218,12 @@ afile_commit(AFile *a)
 	if (fclose(a->f) != 0)
 		bad = 1;
 	a->f = NULL;
+	/* the same bytes as already there: the file is left alone, its time too, so
+	 * nothing that watches it (waybar, fcitx, Stylus) reloads for nothing */
+	if (!bad && same_file(a->tmp, a->path)) {
+		unlink(a->tmp);
+		return 0;
+	}
 	if (bad || rename(a->tmp, a->path) < 0) {
 		unlink(a->tmp);
 		return -1;

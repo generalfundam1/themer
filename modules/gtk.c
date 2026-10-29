@@ -27,6 +27,7 @@
  * A GTK app keeps the theme it loaded at launch, so running apps need a restart. */
 #include <dirent.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -379,12 +380,10 @@ load(const TmTheme *t)
 static void
 reload(void)
 {
-	static const char *const hup[] = { "pkill", "-HUP", "-x", "xsettingsd", NULL };
 	static const char *const portal[] = { "systemctl", "--user", "try-restart",
 	                                      "xdg-desktop-portal-gtk.service", NULL };
 
-	if (tm_have("pkill"))
-		tm_run(hup);
+	tm_signal("xsettingsd", SIGHUP);
 	if (tm_have("systemctl") && session_bus())
 		tm_run(portal);
 }

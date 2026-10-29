@@ -8,20 +8,42 @@
 
 #define WCAG_TEXT 4.5          /* normal text */
 
+/* Theme lists draw a swatch per theme, and each theme's colors are checked for
+ * contrast as it loads: this runs thousands of times a refresh, so it parses the
+ * digits itself and looks the curve up rather than calling strtol and pow. */
+static int
+digit(char c)
+{
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return 0;
+}
+
 static int
 channel(const char *hex, int i)
 {
-	char two[3] = { hex[2 * i], hex[2 * i + 1], '\0' };
-
-	return (int)strtol(two, NULL, 16);
+	return digit(hex[2 * i]) * 16 + digit(hex[2 * i + 1]);
 }
 
 static double
 linear(int v)
 {
-	double x = v / 255.0;
+	static double table[256];
+	static int ready;
 
-	return x <= 0.03928 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+	if (!ready) {
+		for (int k = 0; k < 256; k++) {
+			double x = k / 255.0;
+
+			table[k] = x <= 0.03928 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+		}
+		ready = 1;
+	}
+	return table[v & 255];
 }
 
 static double
@@ -49,19 +71,22 @@ tm_contrast(const char *a, const char *b)
 void
 tm_mix(char *out, size_t n, const char *a, const char *b, int t10)
 {
-	int i;
+	static const char hexd[] = "0123456789abcdef";
 	char buf[7];
 
 	if (t10 < 0)
 		t10 = 0;
 	if (t10 > 10)
 		t10 = 10;
-	for (i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++) {
 		int x = channel(a, i), y = channel(b, i);
-
 		/* a weighted average, rounded: a step of a few units must still move the color */
-		snprintf(buf + 2 * i, 3, "%02x", (x * (10 - t10) + y * t10 + 5) / 10);
+		int v = (x * (10 - t10) + y * t10 + 5) / 10;
+
+		buf[2 * i] = hexd[v >> 4];
+		buf[2 * i + 1] = hexd[v & 15];
 	}
+	buf[6] = '\0';
 	snprintf(out, n, "%s", buf);
 }
 

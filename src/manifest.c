@@ -34,6 +34,7 @@
 #include <dirent.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -539,6 +540,42 @@ tm_run(const char *const argv[])
 		if (errno != EINTR)
 			return -1;
 	return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+
+int
+tm_signal(const char *name, int sig)
+{
+	DIR *d = opendir("/proc");
+	struct dirent *e;
+	uid_t me = getuid();
+	int n = 0;
+
+	if (!d)
+		return 0;
+	while ((e = readdir(d))) {
+		char path[64], comm[32] = "";
+		struct stat st;
+		FILE *f;
+		size_t len;
+
+		if (e->d_name[0] < '0' || e->d_name[0] > '9')
+			continue;
+		snprintf(path, sizeof path, "/proc/%.20s", e->d_name);
+		if (stat(path, &st) || st.st_uid != me)
+			continue;
+		snprintf(path, sizeof path, "/proc/%.20s/comm", e->d_name);
+		if (!(f = fopen(path, "r")))
+			continue;
+		if (fgets(comm, sizeof comm, f)) {
+			len = strcspn(comm, "\n");
+			if (len == strlen(name) && !strncmp(comm, name, len) &&
+			    !kill((pid_t)strtol(e->d_name, NULL, 10), sig))
+				n++;
+		}
+		fclose(f);
+	}
+	closedir(d);
+	return n;
 }
 
 int

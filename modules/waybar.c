@@ -8,8 +8,6 @@
  * The look is in templates/<set>/waybar/style.css. This module supplies the font
  * and the padding: "padding" picks the spacing around workspaces and status
  * modules, in pixels. */
-#include <ctype.h>
-#include <dirent.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
@@ -82,7 +80,7 @@ load(const TmTheme *t)
 	return tm_replacef(css, "%s", body);
 }
 
-/* Sends SIGUSR2 (re-read style.css) to each running waybar, found through /proc.
+/* Sends SIGUSR2 (re-read style.css) to each running waybar, found through /proc (tm_signal).
  * Nothing is started: a bar that is not running is simply not signalled. */
 static int
 present(const TmTheme *t)
@@ -96,25 +94,7 @@ present(const TmTheme *t)
 static void
 reload(void)
 {
-	DIR *d = opendir("/proc");
-	struct dirent *e;
-
-	if (!d)
-		return;
-	while ((e = readdir(d))) {
-		char path[320], comm[32] = "";
-		FILE *f;
-
-		if (!isdigit((unsigned char)e->d_name[0]))
-			continue;
-		snprintf(path, sizeof path, "/proc/%s/comm", e->d_name);
-		if (!(f = fopen(path, "r")))
-			continue;
-		if (fgets(comm, sizeof comm, f) && !strcmp(comm, "waybar\n"))
-			kill((pid_t)strtol(e->d_name, NULL, 10), SIGUSR2);
-		fclose(f);
-	}
-	closedir(d);
+	tm_signal("waybar", SIGUSR2);
 }
 
 static const TmModule mod = {

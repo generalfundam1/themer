@@ -61,6 +61,32 @@ own_icons(const TmTheme *t)
 	return s && !strcmp(s, "firefox");
 }
 
+/* Whether the set's Firefox files draw icons at all (Themer Default's do not): if
+ * not, the icon theme is not searched and no icon is encoded, the bulk of an apply. */
+static int
+uses_icons(const TmTheme *t)
+{
+	static const char *const files[] = { "userChrome.css", "userContent.css" };
+	static const char *const marks[] = { "{{icon_", "{{raster_", "{{mask_", "{{menu_", "{{tint_" };
+	char dir[PATH_MAX], path[PATH_MAX + 32], line[4096];
+	int found = 0;
+
+	if (tm_template_dir("firefox", tm_opt(t, "firefox.template"), dir, sizeof dir) < 0)
+		return 1;   /* not found: let the render say so */
+	for (size_t i = 0; i < TM_COUNT(files) && !found; i++) {
+		FILE *f;
+
+		snprintf(path, sizeof path, "%s/%s", dir, files[i]);
+		if (!(f = fopen(path, "r")))
+			continue;
+		while (!found && fgets(line, sizeof line, f))
+			for (size_t m = 0; m < TM_COUNT(marks) && !found; m++)
+				found = strstr(line, marks[m]) != NULL;
+		fclose(f);
+	}
+	return found;
+}
+
 /* Cuts every "themer:icons" ... "themer:icons end" stretch (the comments included)
  * out of a rendered file, for style=firefox. */
 static void
@@ -125,7 +151,7 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	const char *recolor = tm_opt(t, "firefox.recolor");
 	const int ink_rasters = strcmp(tm_opt(t, "firefox.raster") ? tm_opt(t, "firefox.raster") : "color", "ink") == 0;
 	const int masks = strcmp(tm_opt(t, "firefox.style") ? tm_opt(t, "firefox.style") : "image", "mask") == 0;
-	const int own = own_icons(t);
+	const int own = own_icons(t) || !uses_icons(t);
 	const char *size_opt = tm_opt(t, "firefox.size");
 	int size, k = 5, recolor_all, nn = 0, px = size_opt ? atoi(size_opt) : 0;
 

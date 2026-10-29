@@ -279,6 +279,11 @@ int tm_have(const char *prog);
  * /dev/null. Waits for it and returns its exit status, or -1 if it could not run. */
 int tm_run(const char *const argv[]);
 
+/* Sends sig to each of the user's processes named name (its /proc comm, which the
+ * kernel cuts at 15 characters), without starting a program to find them. Returns
+ * how many were signalled. */
+int tm_signal(const char *name, int sig);
+
 /* Option values and the loaded-module list. tm_opt returns NULL for an unknown
  * key. tm_loaded is 1 if that module is on. */
 const char *tm_opt(const TmTheme *t, const char *key);

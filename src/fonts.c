@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 #include "themer.h"
 
 #define MAXF     8192
@@ -178,8 +179,47 @@ cmp_name(const void *a, const void *b)
 }
 
 /* fills names with sorted, unique family names. returns the count */
+static int scan_all(char names[][NAME_LEN], int max);
+static int scan_mono(char names[][NAME_LEN], int max);
+
+/* The lists, kept for a while: a front end that stays open asks again on every
+ * refresh (themer-web on every request for the state), and each ask runs fc-list.
+ * A font installed meanwhile shows up within FONT_TTL seconds. */
+#define FONT_TTL 30
+#define FONT_MAX 8192
+static int
+cached(char names[][NAME_LEN], int max, int mono)
+{
+	static char list[2][FONT_MAX][NAME_LEN];
+	static int count[2] = { -1, -1 };
+	static struct timespec when[2];
+	struct timespec now;
+	int n;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	if (count[mono] < 0 || now.tv_sec - when[mono].tv_sec >= FONT_TTL) {
+		count[mono] = mono ? scan_mono(list[mono], FONT_MAX) : scan_all(list[mono], FONT_MAX);
+		when[mono] = now;
+	}
+	n = count[mono] < max ? count[mono] : max;
+	memcpy(names, list[mono], (size_t)n * NAME_LEN);
+	return n;
+}
+
 int
 fonts_scan(char names[][NAME_LEN], int max)
+{
+	return cached(names, max, 0);
+}
+
+int
+fonts_mono(char names[][NAME_LEN], int max)
+{
+	return cached(names, max, 1);
+}
+
+static int
+scan_all(char names[][NAME_LEN], int max)
 {
 	static const char *dirs[] = { "/usr/share/fonts", "/usr/local/share/fonts" };
 	char line[512], p[PATH_MAX];
@@ -234,8 +274,8 @@ collect_fc(const char *cmd)
 
 /* monospace families, from fontconfig's spacing property. returns 0 when
  * fontconfig is missing or reports none, so callers can fall back. */
-int
-fonts_mono(char names[][NAME_LEN], int max)
+static int
+scan_mono(char names[][NAME_LEN], int max)
 {
 	int i, n = 0;
 
