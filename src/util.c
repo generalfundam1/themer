@@ -110,41 +110,6 @@ write_bytes(const char *path, const void *buf, size_t len)
 	return afile_commit(&a);
 }
 
-/* Set key=val in a shell-style file, replacing the first matching line or appending. */
-int
-kv_set_file(const char *path, const char *key, const char *val)
-{
-	char tmp[PATH_MAX], *line = NULL;
-	size_t cap = 0, klen = strlen(key);
-	int done = 0;
-	FILE *in, *out;
-
-	if (snprintf(tmp, sizeof tmp, "%s.themer", path) >= (int)sizeof tmp)
-		return -1;
-	in = fopen(path, "r");
-	if (!(out = fopen(tmp, "w"))) {
-		if (in)
-			fclose(in);
-		return -1;
-	}
-	while (in && getline(&line, &cap, in) > 0) {
-		if (!done && !strncmp(line, key, klen) && line[klen] == '=') {
-			fprintf(out, "%s=%s\n", key, val);
-			done = 1;
-		} else {
-			fputs(line, out);
-		}
-	}
-	if (!done)
-		fprintf(out, "%s=%s\n", key, val);
-	free(line);
-	if (in)
-		fclose(in);
-	if (fclose(out) != 0)
-		return -1;
-	return rename(tmp, path);
-}
-
 int
 run(const char *cmd)
 {

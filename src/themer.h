@@ -201,7 +201,6 @@ int  path_under_home(char *out, size_t n, const char *rel);
 int  mkdirs(const char *path);
 int  write_gen(const char *path, EmitFn fn, const Config *c, const Scheme *s);
 int  write_bytes(const char *path, const void *buf, size_t len);
-int  kv_set_file(const char *path, const char *key, const char *val);
 int  run(const char *cmd);
 int  is_root(void);
 int  valid_name(const char *s);

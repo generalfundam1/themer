@@ -223,8 +223,8 @@ cmp_depth(const void *a, const void *b)
 void
 dirs_retry(void)
 {
-	char p[PATH_MAX], line[PATH_MAX], *dirs[512];
-	int n = 0, kept = 0;
+	char p[PATH_MAX], line[PATH_MAX], *dirs[512], **rest = NULL;
+	int n = 0, kept = 0, rest_n = 0;
 	FILE *f;
 
 	if (pending_path(p, sizeof p) < 0 || !(f = fopen(p, "r")))
@@ -233,6 +233,14 @@ dirs_retry(void)
 		line[strcspn(line, "\n")] = '\0';
 		if (line[0])
 			dirs[n++] = xstrdup(line);
+	}
+	/* more than fit: the rest are kept for the next time, untried */
+	while (fgets(line, sizeof line, f)) {
+		line[strcspn(line, "\n")] = '\0';
+		if (line[0] && rest_n < 4096) {
+			rest = realloc(rest, (size_t)(rest_n + 1) * sizeof *rest);
+			rest[rest_n++] = xstrdup(line);
+		}
 	}
 	fclose(f);
 	qsort(dirs, n, sizeof dirs[0], cmp_depth);
@@ -244,16 +252,21 @@ dirs_retry(void)
 			kept++;
 		}
 	}
-	if (!kept) {
+	if (!kept && !rest_n) {
 		unlink(p);
 	} else if ((f = fopen(p, "w"))) {
 		for (int i = 0; i < n; i++)
 			if (dirs[i])
 				fprintf(f, "%s\n", dirs[i]);
+		for (int i = 0; i < rest_n; i++)
+			fprintf(f, "%s\n", rest[i]);
 		fclose(f);
 	}
 	for (int i = 0; i < n; i++)
 		free(dirs[i]);
+	for (int i = 0; i < rest_n; i++)
+		free(rest[i]);
+	free(rest);
 }
 
 /* where earlier builds kept it */
@@ -331,6 +344,13 @@ snapshot(const char *path)
 	for (int i = 0; i < nrecs; i++)
 		if (!strcmp(recs[i].path, path))
 			return;
+	/* a copy already there that no manifest covers is from a load that never
+	 * finished (themer killed, the manifest not written) or an undo that could not
+	 * put it back: it is the file from before themer, which the file now is not */
+	if (original_path(o, sizeof o, cur_mod, path) == 0 && !access(o, F_OK)) {
+		rec_add(R_ORIG, path, "", "", "");
+		return;
+	}
 	if (original_path(o, sizeof o, cur_mod, path) < 0 || copy_file(path, o) < 0) {
 		fprintf(stderr, "themer: could not keep a copy of %s; unload will undo it line by line\n", path);
 		return;
@@ -1116,7 +1136,8 @@ json_value_end(const char *s)
 }
 
 /* Where key's value lies in the top-level object of text: *vs..*ve, and *ks the start
- * of "key". 0 when found; -1 when the key is not there (*vs: just past the "{"). */
+ * of "key". 0 when found; -1 when the key is not there (*vs: just past the "{"); -2
+ * when the text is not one themer can edit (*vs NULL). */
 static int
 json_find(const char *text, const char *key, const char **ks, const char **vs, const char **ve)
 {
@@ -1145,12 +1166,23 @@ json_find(const char *text, const char *key, const char **ks, const char **vs, c
 				if (*c == ':') {
 					*ks = s;
 					c++;
-					while (*c == ' ' || *c == '\t')
-						c++;
+					/* the value may start on a later line, after comments */
+					for (;;) {
+						if (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r')
+							c++;
+						else if (json_comment(c) != c)
+							c = json_comment(c);
+						else
+							break;
+					}
 					*vs = c;
 					*ve = json_value_end(c);
 					while (*ve > c && ((*ve)[-1] == ' ' || (*ve)[-1] == '\t'))
 						(*ve)--;
+					if (*ve == c) {
+						*vs = NULL;     /* no value: not JSON themer can edit */
+						return -2;
+					}
 					return 0;
 				}
 			}
@@ -1251,12 +1283,14 @@ json_put(const char *path, const char *key, const char *value, char **old, int s
 		r = text_write(path, t, (size_t)(vs - t), shaped, ve);
 	} else if (vs) {
 		const char *c = vs;
-		int empty, multi = strchr(vs, '\n') != NULL;
+		int empty, multi;
 		size_t n;
 
 		while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r')
 			c++;
 		empty = *c == '}';
+		/* an object on one line ({} or {"a": 1}) stays on one */
+		multi = memchr(vs, '\n', (size_t)(c - vs)) != NULL;
 		n = strlen(key) + strlen(value) + 16;
 		mid = malloc(n);
 		{
@@ -1270,7 +1304,7 @@ json_put(const char *path, const char *key, const char *value, char **old, int s
 			n = strlen(key) + strlen(shaped) + 40;
 			mid = realloc(mid, n);
 			snprintf(mid, n, "%s%.*s\"%s\": %s%s", multi ? "\n" : "", multi ? (w ? w : 2) : 0,
-			         ind && w ? ind : "                ", key, shaped, empty ? "" : ",");
+			         ind && w ? ind : "                ", key, shaped, empty ? "" : multi ? "," : ", ");
 		}
 		if (old)
 			*old = strdup(JSON_ABSENT);
@@ -1302,6 +1336,8 @@ json_drop(const char *path, const char *key)
 			c2++;
 		if (*c2 == ',') {
 			b = c2 + 1;
+			if (*b == ' ' && b[-1] == ',' && c2 == ve)
+				b++;        /* the ", " of a one-line object */
 		} else {                     /* the last key: the comma before it goes */
 			const char *c = a;
 
@@ -1642,7 +1678,12 @@ undo_all(void)
 		if (r->kind != R_ORIG || original_path(o, sizeof o, cur_mod, r->path) < 0 || access(o, R_OK))
 			continue;
 		file_hash(r->path, h, sizeof h);
-		if (r->s[0][0] && !strcmp(h, r->s[0]) && copy_file(o, r->path) == 0) {
+		if (r->s[0][0] && !strcmp(h, r->s[0])) {
+			if (copy_file(o, r->path) < 0) {
+				/* kept: the next load uses it as the original (see snapshot) */
+				fprintf(stderr, "themer: could not put %s back from its copy; undoing line by line\n", r->path);
+				continue;
+			}
 			free(r->s[1]);
 			r->s[1] = xstrdup("restored");
 		}

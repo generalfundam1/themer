@@ -157,7 +157,7 @@ themer scheme restore [NAME]        bring hidden built-in schemes back
 themer template list DIR [SET]      list template sets, or the files in SET
 themer template render MODULE SET FILE [OUT]
                                     render one template with the current theme
-themer system install|remove|sync|status [USER]
+themer system install|remove|sync|watch|status [USER]
                                     as root: the console, GRUB and ly in the theme (see
                                     ly, the console and GRUB)
 themer -v                           version
@@ -448,7 +448,7 @@ All on by default unless noted:
 | **helix** | Helix: a `themer` theme in `~/.config/helix/themes/themer.toml` (the interface in the theme's roles, the syntax in its terminal colors), selected with `theme = "themer"` in `config.toml`: your theme line changed in place, or a marked block at the top when you have none |
 | **vscode** | VS Code, VSCodium and Code - OSS (and their Flatpaks): VS Code's own Default Dark or Light Modern, recolored, through four top-level keys of each one's `User/settings.json`; no extension is installed |
 | **kde** | KDE programs (Dolphin, Kate, Okular, KWin's title bars): the theme as a KDE color scheme, `~/.local/share/color-schemes/Themer.colors`, and the same keys set in `~/.config/kdeglobals` with the fonts |
-| **ly** | the login manager's colours (screen, text, the box, errors, the animations), written to `~/.config/themer/system/ly.conf` and put into `/etc/ly` by the root unit (`sudo themer system install`) |
+| **ly** | the login manager's colours (screen, text, the box, errors, the animations), written to `~/.config/themer/system/ly.conf` and put into `/etc/ly` by the root service (`sudo themer system install`) |
 | **example** *(off)* | the template module to copy |
 
 Built-in targets, not modules: **env** (`environment.d/50-themer.conf` and `env.sh`),
@@ -718,16 +718,40 @@ root can change. Every apply, as you, writes what they should be into
 sudo themer system install
 ```
 
-sets up a systemd path unit, `themer-system-<you>.path`, that watches that directory
-and runs `themer system sync <you>` as root whenever a file there changes, and at boot:
-the palette goes in with setvtrgb (kept in `/etc/themer/tty.palette` for boot), the font
-in `/etc/vconsole.conf`, GRUB's colors in `/etc/default/grub` (and `grub-mkconfig` when
-they changed), ly's colors in `/etc/ly/config.lua` (or `config.ini`). Each file in
-`/etc` it changes is backed up to `/etc/themer/backup/` first, and put back when your
-file goes away (Remove all styles, the ly module off) and by `sudo themer system
-remove`, which also takes the units away. `themer system status` says what is in place.
-Without systemd, install syncs once and tells you the command to run from your init
-system.
+(run it from an installed themer: `make install` puts it where only root can change
+it, and install refuses a binary anyone else could, since the service runs it as root)
+sets up, for the init system that is running, what puts them into effect as root, at
+boot and whenever a file there changes:
+
+| init | what install writes | enabled with |
+| --- | --- | --- |
+| systemd | `themer-system-<you>.path` watching the directory, running `themer-system-<you>.service` (`themer system sync <you>`) | `systemctl enable --now` |
+| OpenRC | `/etc/init.d/themer-system-<you>` | `rc-update add … default` |
+| runit | `/etc/sv/themer-system-<you>` (Artix: `/etc/runit/sv`) | a link in `/var/service` (Artix: `/run/runit/service`) |
+| s6 (s6-rc) | `/etc/s6/sv/themer-system-<you>`, a longrun | added to the `default` bundle, `s6-db-reload` |
+| dinit | `/etc/dinit.d/themer-system-<you>` | `dinitctl enable` |
+| SysV init | `/etc/init.d/themer-system-<you>` (LSB) | `update-rc.d` or `chkconfig` |
+
+Except under systemd, the service runs `themer system watch <you>`, which syncs at start
+and again whenever the directory changes (inotify), and looks every half minute while
+your home is not there yet (mounted or decrypted after boot). With none of these,
+install syncs once and tells you the command for your init to run.
+
+The sync puts the palette in with setvtrgb (kept in `/etc/themer/tty.palette` for boot),
+the font in `/etc/vconsole.conf`, GRUB's colors in `/etc/default/grub` (and runs
+`grub-mkconfig` when they changed), ly's colors in `/etc/ly/config.lua` (or
+`config.ini`). It changes these key by key: for each key, `/etc/themer/backup/` records
+the line that was there (or that there was none) and the line themer wrote. When your
+file goes away (Remove all styles, the ly module off), and on `sudo themer system
+remove`, only the lines that still read as themer wrote them go back, so whatever else
+was changed in those files in the meantime stays. Remove also takes the service away.
+`themer system status` says what is in place. It is installed for one user at a time.
+
+The sync runs as root on files you can write, so it trusts nothing in them: it reads
+them as you (never through a link, only regular files of yours, a few kilobytes at
+most), and takes only what each may hold (sixteen palette lines of 0–255, a font name,
+GRUB's sixteen color names, ly's ten color keys with `0x` values). A file holding
+anything else is refused and the setting is left as it was.
 
 Without root, a console you log in to still gets the palette at once: `env.sh`, sourced
 from your profile (see [Environment](#environment)), sets it with the console's own

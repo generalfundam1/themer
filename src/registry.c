@@ -303,6 +303,12 @@ themer_view(const Config *c, const Scheme *s, TmTheme *t)
 	if (!t->home)
 		t->home = "";
 
+	/* which are on, first: asking may check a program's presence, which builds a view
+	 * of its own in the same arrays this one is about to fill */
+	signed char on[MAX_MODULES];
+
+	for (int i = 0; i < nreg; i++)
+		on[i] = (signed char)themer_module_on(c, i);
 	for (int i = 0; i < nreg; i++) {
 		const TmModule *m = reg[i].m;
 
@@ -313,7 +319,7 @@ themer_view(const Config *c, const Scheme *s, TmTheme *t)
 			view_opts[n].value = view_vals[n];
 			n++;
 		}
-		if (themer_module_on(c, i))
+		if (on[i])
 			view_loaded[nl++] = m->name;
 	}
 	t->opts = view_opts;

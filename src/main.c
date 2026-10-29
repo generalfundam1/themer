@@ -23,7 +23,7 @@ usage(void)
 	      "               server install [SITE] |\n"
 	      "               scheme import FILE [NAME] | scheme remove NAME | scheme restore [NAME] |\n"
 	      "               template list DIR [SET] | template render MODULE SET FILE [OUT] |\n"
-	      "               system install|remove|sync|status [USER] | -v]\n", stderr);
+	      "               system install|remove|sync|watch|status [USER] | -v]\n", stderr);
 }
 
 static int

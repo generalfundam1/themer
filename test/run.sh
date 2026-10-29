@@ -920,7 +920,7 @@ cmp -s "$HOME/orig/.mozilla/firefox/abc.default/chrome/userChrome.css" "$HOME/.m
 cmp -s "$HOME/orig/.config/thunderbird/tb.default/chrome/userChrome.css" "$HOME/.config/thunderbird/tb.default/chrome/userChrome.css" || bad "thunderbird userChrome.css not restored"
 [ ! -e "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" ] || bad "thunderbird userContent.css left behind"
 left=$(cd "$HOME" && find .config .themes .local -type f 2>/dev/null |
-	grep -v '^\.config/themer/\(state\|tty\.rgb\|env\.sh\|templates/\|system/\(tty\.palette\|console\.conf\|grub\.conf\)\)' |
+	grep -v '^\.config/themer/\(state\|tty\.rgb\|env\.sh\|templates/\|undo/dirs\.pending\|system/\(tty\.palette\|console\.conf\|grub\.conf\)\)' |
 	grep -v '^\.config/environment\.d/50-themer\.conf$' |
 	grep -v '^\.config/\(foot\|sway\|waybar\|nvim\|qt6ct\|gtk-3\.0\|thunderbird\)/' |
 	grep -vx '\.config/\(zathura/zathurarc\|lazygit/config\.yml\|rofi/config\.rasi\|mako/config\|starship\.toml\|btop/btop\.conf\|labwc/themerc-override\|labwc/rc\.xml\|openbox/rc\.xml\|bspwm/bspwmrc\|fuzzel/fuzzel\.ini\|hypr/hyprland\.lua\|hypr/hyprland\.conf\|hypr/hyprlock\.conf\|bat/config\|swaylock/config\|river/init\|swaync/style\.css\|niri/config\.kdl\)' || true)

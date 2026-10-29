@@ -87,12 +87,12 @@ gen_env(const Config *c, const Scheme *s)
  * can set them. Every apply, as the user, writes what they should be into
  * ~/.config/themer/system/ (tty.palette in setvtrgb's format, console.conf, grub.conf;
  * the ly module adds ly.conf). Once, as root, "sudo themer system install" sets up a
- * systemd path unit that watches that directory and runs "themer system sync USER",
- * which puts the files into effect: the palette with setvtrgb (and again at boot), the
- * font in /etc/vconsole.conf, the colors in /etc/default/grub (grub-mkconfig when they
- * changed), ly's colors in its config. Whatever it changes in /etc is backed up first
- * and put back by "sudo themer system remove", or when the user's file goes away
- * (Remove all styles, the ly module off).
+ * service for the init system running (see system.c) that puts them into effect at
+ * boot and on every change: the palette with setvtrgb, the font in /etc/vconsole.conf,
+ * the colors in /etc/default/grub (grub-mkconfig when they changed), ly's colors in
+ * its config. What it changes in /etc it records key by key and puts back on
+ * "sudo themer system remove", or when the user's file goes away (Remove all styles,
+ * the ly module off).
  *
  * Without root nothing in /etc is touched. A console you log in to still gets the
  * palette at once: env.sh, sourced from the profile, sets it with the console's own
