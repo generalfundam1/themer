@@ -114,6 +114,8 @@ gui:
 	@echo "Qt platform theme plugin: $(if $(QPA5),Qt 5,)$(if $(and $(QPA5),$(QPA6)), and ,)$(if $(QPA6),Qt 6,)$(if $(QPAS),, none: Qt development files not found; Qt programs then need qt5ct/qt6ct)"
 
 $(OBJ) gui/common.o gui/themer-gtk.o gui/themer-qt.o: $(HDR) gui/common.h
+# the version is compiled into these: a new VERSION rebuilds them
+src/main.o src/text.o src/tui.o: Makefile
 
 src/%.o: src/%.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
