@@ -451,14 +451,14 @@ module reset` puts one back to its default. Two options every module has:
 | qt | `font` | `ui` \| `terminal` | `ui` |
 | | `qt5`, `qt6` | `on` \| `off` | `on` |
 | | `platformtheme` | `auto` \| `themer` \| `qt5ct` | `auto` (the plugin when installed) |
-| firefox | `font` | `ui` \| `terminal` | `ui` |
+| firefox | `font` | `own` (Firefox's, the system font) \| `ui` \| `terminal` | `own` |
 | | `icons` | `0`–`8`, glyph size in points above the text | `2` |
 | | `size` | icon size in pixels, `0` = text size plus `icons` | `0` |
 | | `style` | `firefox` (Firefox's own icons) \| `image` (the icon theme's icons, recoloured) \| `mask` (the icon theme's shapes in the bar ink) | `image` |
 | | `recolor` | `all` \| `symbolic` | `all` |
 | | `raster` | `color` \| `ink` | `color` |
-| thunderbird | `font` | `ui` \| `terminal` | `ui` |
-| stylus | `font` | `ui` \| `terminal` \| `site` (the site's own) | `ui` |
+| thunderbird | `font` | `own` (Thunderbird's, the system font) \| `ui` \| `terminal` | `own` |
+| stylus | `font` | `site` (each site's own) \| `ui` \| `terminal` | `site` |
 | | one per site: `youtube`, ... | `on` \| `off` (off leaves the site alone) | `on` |
 | waybar | `font` | `ui` \| `terminal` | `terminal` |
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |
@@ -670,10 +670,13 @@ the accent for focus rings, the selected suggestion, links and the primary butto
 The tints Firefox works out from those (hovers, presses, the boxes in the URL bar,
 separators) it still works out itself, as for any theme; its layout, icons, corners
 and animations are its own and follow its updates, and so is its font (the system's,
-which the gtk module sets). The same goes for the Stylus styles under Themer Default:
-YouTube and Wikipedia keep their own fonts, shapes and hover effects and take only the
-colours, so the `font` options of firefox, thunderbird and stylus are for sets that set
-fonts, as Themer Chicago does. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
+which the gtk module sets) unless the `font` option says otherwise. The same goes for
+the Stylus styles under Themer Default: YouTube and Wikipedia keep their own shapes and
+hover effects and take only the colours.
+
+**Fonts are an option.** The `font` option of firefox and thunderbird is `own` by
+default (the program's own font, the system's), and stylus's is `site` (each site's
+own); `ui` or `terminal` sets the theme's font instead, in either set. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
 for sets that draw the toolbar icons, as Themer Chicago does; under Themer Default
 Firefox's own icons take the text colour.
 

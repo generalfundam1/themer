@@ -117,12 +117,23 @@ head -c 512 "$HOME/.config/themer/stylus/youtube.user.css" | grep -q 'generated 
 head -1 "$HOME/.config/themer/stylus/youtube.user.css" | grep -q '==UserStyle==' || bad "userstyle does not start with the UserCSS header"
 # Themer Default keeps the sites' own fonts; Themer Chicago sets the font option's
 grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" && bad "Themer Default's YouTube style sets a font"
+./themer module option stylus font ui >/dev/null 2>&1 || bad "set stylus.font ui"
+grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" || bad "Themer Default's YouTube style ignores font=ui"
 ./themer module option stylus template themer_chicago >/dev/null 2>&1
 grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" || bad "userstyle has no font rule"
 ./themer module option stylus font site >/dev/null 2>&1 || bad "set stylus.font"
 grep -q 'font-family' "$HOME/.config/themer/stylus/youtube.user.css" && bad "stylus font=site still sets a font"
-./themer module option stylus font ui >/dev/null 2>&1
+./themer module reset stylus font >/dev/null 2>&1
 ./themer module reset stylus template >/dev/null 2>&1
+# Firefox and Thunderbird: their own font unless the option sets one
+grep -q 'font-family' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" && bad "Themer Default's Firefox sets a font with font=own"
+./themer module option firefox font terminal >/dev/null 2>&1 || bad "set firefox.font"
+grep -q 'font-family: "monospace"' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox font=terminal not set"
+./themer module reset firefox font >/dev/null 2>&1
+grep -q 'font-family' "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" && bad "Themer Default's Thunderbird sets a font with font=own"
+./themer module option thunderbird font ui >/dev/null 2>&1 || bad "set thunderbird.font"
+grep -q 'font-family: "' "$HOME/.config/thunderbird/tb.default/chrome/userContent.css" || bad "thunderbird font=ui not set"
+./themer module reset thunderbird font >/dev/null 2>&1
 grep -q '^@updateURL *http://localhost:7331/stylus/youtube.user.css' "$HOME/.config/themer/stylus/youtube.user.css" || bad "userstyle has no @updateURL"
 # names typed in are checked: no newline into config files, no path as a set
 ./themer font ui "$(printf 'Sans\nexec touch /tmp/x')" 11 >/dev/null 2>&1 && bad "a font name with a newline was taken"

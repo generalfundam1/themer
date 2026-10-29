@@ -26,7 +26,7 @@
 #include "mozprofile.h"
 
 static const TmOption opts[] = {
-	{ "font", "font for the Firefox interface: tabs, URL bar, bookmarks, menus", "ui|terminal", "ui", 0, 0 },
+	{ "font", "font for the Firefox interface (tabs, URL bar, bookmarks, menus): own keeps Firefox's (the system font), ui or terminal sets the theme's", "own|ui|terminal", "own", 0, 0 },
 	{ "icons", "icon glyph size, in points above the text size (sets that size the icons, as Themer Chicago does)", NULL, "2", 0, 8 },
 	{ "size", "icon size in pixels; 0 follows the text size plus the icons option", NULL, "0", 0, 48 },
 	{ "recolor", "icons in the bar's ink: all (every SVG; bitmaps keep their colors) or symbolic only", "all|symbolic", "all", 0, 0 },
@@ -97,7 +97,7 @@ strip_icons(char *s)
 	memmove(w, r, strlen(r) + 1);
 }
 
-#define NVARS (4 + 9 * NGLYPH)  /* tab_font, tab_size, glyph_size, icon_hover_filter, then nine per glyph */
+#define NVARS (5 + 9 * NGLYPH)  /* tab_font, tab_size, glyph_size, icon_hover_filter, font_rule, then nine per glyph */
 
 /* the module's own template variables: the tab and URL font, its size, the glyph size
  * (text size plus the icon option), and per glyph:
@@ -115,7 +115,8 @@ strip_icons(char *s)
 static int
 template_vars(const TmTheme *t, TmVar *v, int max)
 {
-	static char fam[128], tab_size[16], glyph[16];
+	static char fam[128], tab_size[16], glyph[16], font_rule[192];
+	const char *font = tm_opt(t, "firefox.font");
 	static char shapes[6][NGLYPH][ICON_CAP];   /* icon, hover, mask, menu shape, menu, menu hover */
 	static char tints[NGLYPH][3][16];          /* normal and hover tint, the menu tint */
 	static char names[9 * NGLYPH][40];
@@ -126,7 +127,7 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	const int masks = strcmp(tm_opt(t, "firefox.style") ? tm_opt(t, "firefox.style") : "image", "mask") == 0;
 	const int own = own_icons(t);
 	const char *size_opt = tm_opt(t, "firefox.size");
-	int size, k = 4, recolor_all, nn = 0, px = size_opt ? atoi(size_opt) : 0;
+	int size, k = 5, recolor_all, nn = 0, px = size_opt ? atoi(size_opt) : 0;
 
 	if (max < (int)NVARS)
 		return 0;
@@ -139,6 +140,13 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	/* a hovered icon also steps toward the light: brighter on a dark theme, darker on
 	 * a light one, so the hover shows whatever ink the icon has */
 	v[3] = (TmVar){ "icon_hover_filter", t->dark ? "brightness(1.35)" : "brightness(0.75)" };
+	/* a complete font-family declaration, or nothing with font=own (the family is
+	 * then the UI font, the system font Firefox uses itself, for sets that size
+	 * everything from tab_font) */
+	font_rule[0] = '\0';
+	if (font && strcmp(font, "own"))
+		snprintf(font_rule, sizeof font_rule, "font-family: \"%s\" !important;", fam);
+	v[4] = (TmVar){ "font_rule", font_rule };
 	if (tm_shared(t, "bar_text", bar_text, sizeof bar_text) < 0 ||
 	    tm_shared(t, "glyph_hover", glyph_hover, sizeof glyph_hover) < 0 ||
 	    tm_shared(t, "hover_fg", hover_fg, sizeof hover_fg) < 0)

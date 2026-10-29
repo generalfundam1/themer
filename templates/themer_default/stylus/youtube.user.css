@@ -12,8 +12,8 @@
 /* YouTube draws itself from the --yt-spec-* variables, declared on html (light) and
  * html[dark] (dark); setting them on both is most of the work and keeps the page
  * right whichever of YouTube's own modes is on. The rest colors what YouTube paints
- * outside its variables. Shapes, sizes, fonts, hover effects and ambient mode stay
- * YouTube's own. Rendered by the stylus module of themer and
+ * outside its variables. Shapes, sizes, hover effects and ambient mode stay YouTube's
+ * own, and so does the font unless the font option sets one. Rendered by the stylus module of themer and
  * re-read by Stylus when "Live reload" is on. */
 @-moz-document domain("youtube.com") {
   /* on every element, not only on html: YouTube sets these variables again on
@@ -140,6 +140,11 @@
   html, body, ytd-app {
     background: #{{bg}} !important;
     color: #{{fg}} !important;
+  }
+  /* the font option: with ui or terminal the theme's font; with site (the default)
+   * nothing, and YouTube keeps its own */
+  html, body, ytd-app, ytd-app *, .ytp-chrome-bottom, .ytp-popup, .ytp-tooltip {
+    {{font_rule}}
   }
   /* surfaces YouTube paints itself in its dark mode: the bar behind the topic chips,
    * the frosted masthead, the box to write a post or a comment in, the page header

@@ -16,10 +16,10 @@
  * adds a site by adding a file, nothing in the module changes.
  *
  * Options (after the host's mode):
- *   font      ui or terminal: the sites' text in the theme's font; site keeps each
- *             site's own
+ *   font      site (the default) keeps each site's own font; ui or terminal sets
+ *             the theme's
  *   <site>    on or off, one per site (youtube, ...): off leaves that site alone
- *   template  the set under templates/stylus/ */
+ *   template  the set it is drawn from (templates/<set>/stylus/) */
 #include <dirent.h>
 #include <limits.h>
 #include <time.h>
@@ -34,7 +34,7 @@
 #define NVARS     6   /* template_vars: font_family .. image_filter */
 
 static const TmOption opts[] = {
-	{ "font", "font for the sites' text: ui or terminal from the theme, or site to keep each site's own", "ui|terminal|site", "ui", 0, 0 },
+	{ "font", "font for the sites' text: site keeps each site's own, ui or terminal sets the theme's", "site|ui|terminal", "site", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
 

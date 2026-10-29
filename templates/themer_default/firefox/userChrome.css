@@ -110,3 +110,9 @@
   --color-accent-attention: #{{urg}} !important;
   --icon-color: #{{fg}} !important;
 }
+
+/* the font option: with ui or terminal, the tabs, the URL field and the menus in the
+ * theme's font (at Firefox's own sizes); with own (the default) nothing */
+.tabbrowser-tab, #urlbar-input, .urlbar-input, #searchbar .searchbar-textbox, menupopup, panel {
+  {{font_rule}}
+}

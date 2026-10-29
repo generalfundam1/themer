@@ -130,6 +130,13 @@
     color: #{{fg}} !important;
   }
 
+  /* the font option: with ui or terminal the theme's font (code stays monospace and
+   * formulas stay in theirs); with site (the default) nothing */
+  html, body, .mw-body h1, .mw-body-content h1, .mw-body-content h2, .mw-heading h1, .mw-heading h2,
+  #firstHeading, input, button, select, textarea, .cdx-button, .cdx-text-input__input {
+    {{font_rule}}
+  }
+
   /* the header and the sticky header: the bar, a line below */
   .vector-header-container, .vector-header-container .mw-header, .vector-sticky-header, #mw-head,
   .header-container.header-chrome, .minerva-header, .header-chrome {

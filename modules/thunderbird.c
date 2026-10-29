@@ -18,7 +18,7 @@
 #include "mozprofile.h"
 
 static const TmOption opts[] = {
-	{ "font", "font for the interface: tabs, toolbars, folders, message list", "ui|terminal", "ui", 0, 0 },
+	{ "font", "font for the interface (tabs, toolbars, folders, message list): own keeps Thunderbird's (the system font), ui or terminal sets the theme's", "own|ui|terminal", "own", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
 
@@ -31,20 +31,27 @@ static const char *const bases[] = {
 	".var/app/org.mozilla.Thunderbird/.thunderbird",
 };
 
-/* the module's own variables: the font family and size */
+/* the module's own variables: the font family and size, and font_rule, a complete
+ * font-family declaration or nothing with font=own (the family is then the UI font,
+ * the system font Thunderbird uses itself, for sets that size from it) */
 static int
 template_vars(const TmTheme *t, TmVar *v, int max)
 {
-	static char fam[128], size[16];
+	static char fam[128], size[16], rule[192];
+	const char *font = tm_opt(t, "thunderbird.font");
 	int font_size;
 
-	if (max < 2)
+	if (max < 3)
 		return 0;
 	tm_font_for(t, "thunderbird.font", fam, sizeof fam, &font_size);
 	snprintf(size, sizeof size, "%d", font_size);
+	rule[0] = '\0';
+	if (font && strcmp(font, "own"))
+		snprintf(rule, sizeof rule, "font-family: \"%s\" !important;", fam);
 	v[0] = (TmVar){ "font_family", fam };
 	v[1] = (TmVar){ "font_size", size };
-	return 2;
+	v[2] = (TmVar){ "font_rule", rule };
+	return 3;
 }
 
 TM_VARS(template_vars)
@@ -61,7 +68,7 @@ load(const TmTheme *t)
 	static char tokens[128 * 1024], part[128 * 1024], chrome[256 * 1024], content[256 * 1024];
 	char dir[PATH_MAX];
 	const char *set = tm_opt(t, "thunderbird.template");
-	TmVar v[2];
+	TmVar v[3];
 	int nv = template_vars(t, v, TM_COUNT(v));
 
 	if (!moz_profile(t, "thunderbird", bases, TM_COUNT(bases), dir, sizeof dir))
