@@ -115,10 +115,10 @@ themer-web [-p PORT] [-d | -q]      the same in the browser at http://localhost:
                                     while a browser module (firefox, stylus) is on;
                                     started while one runs, it opens that one's page
 themer apply                        re-apply everything and save state (run at login)
-themer remove                       Remove all styles: every module unloaded, your configs
-                                    as they were; the settings stay, and the login's
-                                    apply leaves it so until restore (or Apply)
-themer restore                      the styles back, after remove
+themer originals                    Restore originals: every module unloaded, your
+                                    configs as they were; the settings stay, and the
+                                    login's apply leaves it so until resume (or Apply)
+themer resume                       style everything again, after originals
 themer toggle                       flip dark/light and apply
 themer dark | light                 set mode and apply
 themer theme NAME                   switch theme and apply
@@ -224,11 +224,9 @@ the Flatpak). With several profiles, start Firefox with the one you want, then a
    options (Modules, stylus, What it themes) in any front end, or
    `themer server install` for every site (`themer server install youtube` for one).
    That starts the server if it is stopped and opens the style in your default browser
-   (xdg-open), where Stylus shows its install page: click **Install style**. Apply in
-   a front end does the same for every site that is on (the stylus option `open`,
-   `apply` by default; `never` leaves it to Install). The CLI's `apply`, `toggle`,
-   `dark`/`light` and `theme`, which keybindings and login scripts run, never open
-   the browser. Stylus
+   (xdg-open), where Stylus shows its install page: click **Install style**. Apply
+   never opens the browser; after the first install, Stylus's own update check (or
+   Live reload) brings every later apply in. Stylus
    asks for that click itself, so no program can install a style for you. The server
    keeps running while a browser module (firefox or stylus) is on.
 4. **Later applies** reach Stylus through the style's update address, while the server
@@ -270,13 +268,15 @@ page fills itself from.
 | **Modules** | every module, in three groups: **Loaded**, **Unloaded** and **Not installed** (a module whose program is missing cannot be loaded); the selected one with its switch, its description, and its options under **Look** and **What it themes** |
 | **System** | the server (themer-web: start or stop it, its port), the environment variables, and About |
 
-Apply (Ctrl+S), **Revert to applied**, **Remove all styles** and Quit are the File menu
+Apply (Ctrl+S), **Revert to applied**, **Restore originals** and Quit are the File menu
 in the windows, the buttons at the top of the web page, and the last rows of the TUI's
-menu (`a`, `r`, `x`, `q`). **Remove all styles** (`themer remove`) takes every module's
-work out, so each program is back to its own look and your configs are as they were;
-your settings stay, the login's `themer apply` leaves things so, and Apply (or `themer
-restore`) puts the styles back. Leaving with unapplied changes asks first everywhere,
-and so do removing a scheme and Remove all styles. The status line says the same thing after the same action in every front end.
+menu (`a`, `r`, `x`, `q`); Restore originals and Apply are also the buttons at the
+bottom right of every window and of the web page. **Restore originals** (`themer
+originals`) takes every module's work out, so each program looks as it did before
+themer and your configs are as they were; your settings stay, the login's `themer
+apply` leaves things so, and Apply (or `themer resume`) styles everything again.
+Leaving with unapplied changes asks first everywhere, and so do removing a scheme and
+Restore originals. The status line says the same thing after the same action in every front end.
 
 `themer-gtk` and `themer-qt` are the TUI as a window, like nwg-look: the pages on the
 left, a preview on the right, Apply at the bottom. The preview is the real thing, not
@@ -401,7 +401,7 @@ All on by default unless noted:
 
 | Module | Themes |
 |---|---|
-| **gtk** | a GTK 3/4 theme written to `~/.config/themer/gtk/`, reached by GTK through a link `~/.themes/<set>` named after the template set (`themer_default`, labelled "Themer Default"); no `GTK_THEME` is set, since that would override the file and go stale. libadwaita programs, which load no named theme, get the set's `libadwaita.css` (or its whole `gtk.css`) through `~/.config/gtk-4.0/gtk.css`. Options `gtk2`, `gtk3`, `gtk4` turn each version off. Restarts the GTK file-chooser portal on apply so Firefox's file dialogs on Wayland follow without a logout. A GTK app keeps the theme it loaded at launch: restart it, or log out |
+| **gtk** | a GTK 3/4 theme written to `~/.config/themer/gtk/`, reached by GTK through `~/.themes/<label>/`, named by the set's label ("Themer Default", "Themer Chicago"), so GTK 2, 3 and 4 and the tools that show the GTK theme all report that name; its `gtk-4.0` is linked only for a set with GTK 4 files of its own, so GTK 4 otherwise keeps its own look under the imported CSS. A `gtk-theme-name` in `~/.gtkrc-2.0` that names no installed GTK 2 theme becomes the label too (GTK 2 has no themer theme; a real GTK 2 theme you chose stays); no `GTK_THEME` is set, since that would override the file and go stale. libadwaita programs, which load no named theme, get the set's `libadwaita.css` (or its whole `gtk.css`) through `~/.config/gtk-4.0/gtk.css`. Options `gtk2`, `gtk3`, `gtk4` turn each version off. Restarts the GTK file-chooser portal on apply so Firefox's file dialogs on Wayland follow without a logout. A GTK app keeps the theme it loaded at launch: restart it, or log out |
 | **qt** | Qt 5 and 6: palette, flat stylesheet, icons, fonts, through the platform theme plugin; where qt5ct/qt6ct are installed their configs are written too. Options `qt5`, `qt6`, `platformtheme` |
 | **cursor** | the mouse cursor theme and size: Xcursor default theme, `XCURSOR_*`, Xresources |
 | **fontconfig** | font rendering for everything that reads fontconfig |
@@ -741,7 +741,7 @@ The sync puts the palette in with setvtrgb (kept in `/etc/themer/tty.palette` fo
 the font in `/etc/vconsole.conf`, ly's colors in `/etc/ly/config.lua` (or
 `config.ini`). It does not touch GRUB. It changes these key by key: for each key, `/etc/themer/backup/` records
 the line that was there (or that there was none) and the line themer wrote. When your
-file goes away (Remove all styles, the ly module off), and on `sudo themer system
+file goes away (Restore originals, the ly module off), and on `sudo themer system
 remove`, only the lines that still read as themer wrote them go back, so whatever else
 was changed in those files in the meantime stays. Remove also takes the service away.
 `themer system status` says what is in place. It is installed for one user at a time.
@@ -806,7 +806,6 @@ module reset` puts one back to its default. Two options every module has:
 | | `raster` | `color` \| `ink` | `color` |
 | thunderbird | `font` | `own` (Thunderbird's, the system font) \| `ui` \| `terminal` | `own` |
 | stylus | `font` | `site` (each site's own) \| `ui` \| `terminal` | `site` |
-| | `open` | `apply` (Apply in a front end opens each site that is on in the browser, for Stylus to install or update) \| `never` | `apply` |
 | | one per site: `youtube`, ... | `on` \| `off` (off leaves the site alone) | `on` |
 | waybar | `font` | `ui` \| `terminal` | `terminal` |
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |

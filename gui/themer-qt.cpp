@@ -73,7 +73,7 @@ static Config cfg, applied;
 static bool dirty, updating;
 static QLabel *status, *title;
 static QWidget *swatches, *sample, *cursorArea;
-static QPushButton *applyButton;
+static QPushButton *applyButton, *originalsButton;
 static QListWidget *themeList;
 static char theme_names[MAX_THEMES][NAME_LEN];
 static Theme themes[MAX_THEMES];
@@ -350,7 +350,7 @@ public:
 		split->setSizes(QList<int>() << 780 << 420);   /* the settings get the room they need */
 		v->addWidget(split, 1);
 
-		/* the action bar: status on the left, Apply on the right */
+		/* the action bar: status on the left, Restore originals and Apply on the right */
 		QHBoxLayout *actions = new QHBoxLayout;
 		actions->setContentsMargins(12, 6, 12, 8);
 		status = new QLabel(front_text(cfg.removed ? FT_REMOVED_STATE : FT_UP_TO_DATE));
@@ -359,6 +359,11 @@ public:
 		applyButton->setDefault(true);
 		applyButton->setEnabled(cfg.removed);   /* removed styles: Apply brings them back */
 		QObject::connect(applyButton, &QPushButton::clicked, []() { doApply(); });
+		originalsButton = new QPushButton(front_text(FT_REMOVE));
+		originalsButton->setToolTip(front_text(FT_REMOVE_ASK));
+		originalsButton->setEnabled(!cfg.removed);
+		QObject::connect(originalsButton, &QPushButton::clicked, [this]() { removeAll(); });
+		actions->addWidget(originalsButton);
 		actions->addWidget(applyButton);
 		v->addLayout(actions);
 		setCentralWidget(central);
@@ -433,6 +438,7 @@ private:
 		front_apply(&cfg, msg, sizeof msg);
 		applied = cfg;
 		dirty = false;
+		originalsButton->setEnabled(!cfg.removed);
 		applyButton->setEnabled(false);
 		status->setText(msg);
 	}
@@ -450,7 +456,7 @@ private:
 		quit->setShortcut(QKeySequence("Ctrl+Q"));
 	}
 
-	/* Remove all styles: asked first, then every program back to its own look */
+	/* Restore originals: asked first, then every program back to how it was before themer */
 	void removeAll()
 	{
 		if (QMessageBox::question(this, "themer", QString("%1?\n\n%2").arg(front_text(FT_REMOVE), front_text(FT_REMOVE_ASK)),
@@ -459,8 +465,9 @@ private:
 		char msg[256];
 		front_remove(&cfg, msg, sizeof msg);
 		applied = cfg;
-		dirty = true;            /* Apply puts them back */
+		dirty = true;            /* Apply styles everything again */
 		applyButton->setEnabled(true);
+		originalsButton->setEnabled(false);
 		status->setText(msg);
 		refreshStates();
 		rebuildLater();

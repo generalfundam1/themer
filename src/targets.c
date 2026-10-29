@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include "themer.h"
 
-/* writes ~/rel; the directories it has to make are noted, so Remove all styles
+/* writes ~/rel; the directories it has to make are noted, so Restore originals
  * takes them away again once empty */
 static int
 gen_at(const char *rel, EmitFn fn, const Config *c, const Scheme *s)
@@ -90,7 +90,7 @@ gen_env(const Config *c, const Scheme *s)
  * service for the init system running (see system.c) that puts them into effect at
  * boot and on every change: the palette with setvtrgb, the font in /etc/vconsole.conf,
  * ly's colors in its config. What it changes in /etc it records key by key and puts back on
- * "sudo themer system remove", or when the user's file goes away (Remove all styles,
+ * "sudo themer system remove", or when the user's file goes away (Restore originals,
  * the ly module off).
  *
  * Without root nothing in /etc is touched. A console you log in to still gets the
@@ -159,7 +159,7 @@ tty_escapes(const Config *c, char *out, size_t n)
 		o += (size_t)snprintf(out + o, n - o, "\\033]P%X%s", i, pal[i]);
 }
 
-/* what Remove all styles takes away: the files the system sync reads (it then puts
+/* what Restore originals takes away: the files the system sync reads (it then puts
  * back what it changed in /etc) */
 void
 targets_remove(void)

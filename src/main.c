@@ -9,7 +9,7 @@
 static void
 usage(void)
 {
-	fputs("usage: themer [tui | apply | remove | restore | toggle | dark | light | theme NAME |\n"
+	fputs("usage: themer [tui | apply | originals | resume | toggle | dark | light | theme NAME |\n"
 	      "               list | check |\n"
 	      "               icons [NAME] | cursor [NAME [SIZE]] | font ui|mono FAMILY [SIZE] |\n"
 	      "               font tty [NAME] | color [ROLE HEX|reset] | env [NAME=VALUE] |\n"
@@ -286,13 +286,13 @@ main(int argc, char *argv[])
 	/* commands that change the state, saved below */
 	if (!strcmp(cmd, "apply")) {
 		r = themer_apply(&c);
-	} else if (!strcmp(cmd, "remove") && argc == 2) {
+	} else if ((!strcmp(cmd, "originals") || !strcmp(cmd, "remove")) && argc == 2) {
 		char msg[256];
 
 		r = front_remove(&c, msg, sizeof msg);
 		puts(msg);
 		return r ? 1 : 0;               /* saved by front_remove */
-	} else if (!strcmp(cmd, "restore") && argc == 2) {
+	} else if (!strcmp(cmd, "resume") && argc == 2) {
 		c.removed = 0;
 		r = themer_apply(&c);
 	} else if (!strcmp(cmd, "toggle")) {

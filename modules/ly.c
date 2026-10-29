@@ -5,7 +5,7 @@
  * ~/.config/themer/system/ly.conf, as KEY=VALUE lines in ly's own color format
  * (0xSSRRGGBB: a style byte, then red, green and blue). "sudo themer system install"
  * (once) sets up the service that puts them into ly's config on every change,
- * recording each line it changes; with the module off, or after Remove all styles,
+ * recording each line it changes; with the module off, or after Restore originals,
  * those lines are put back. ly draws on the console, so the console palette (the tty target) is the
  * rest of the picture.
  *

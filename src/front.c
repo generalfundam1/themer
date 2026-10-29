@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include "themer.h"
@@ -343,21 +344,6 @@ front_option_group(int module, int option)
 	return OG_LOOK;
 }
 
-/* stylus.open=apply: after an Apply from a front end, each site that is on opens in
- * the browser, where Stylus offers to install or update it. Not from the CLI's apply,
- * toggle or theme commands, which keybindings and login scripts run. */
-static int
-stylus_open_on_apply(const Config *c, char *note, size_t n)
-{
-	int i = themer_module_find("stylus"), j;
-	const char *sites[64];
-
-	if (i < 0 || !themer_module_on(c, i) || (j = themer_option_find(i, "open")) < 0 ||
-	    strcmp(themer_option_value(c, i, j), "apply") || !front_stylus_sites(c, sites, (int)TM_COUNT(sites)))
-		return 0;
-	return front_stylus_install(c, NULL, note, n);
-}
-
 int
 front_remove(Config *c, char *msg, size_t n)
 {
@@ -378,7 +364,6 @@ front_remove(Config *c, char *msg, size_t n)
 int
 front_apply(Config *c, char *msg, size_t n)
 {
-	char note[160] = "";
 	int fails;
 
 	if (tcfg && c == tcfg)
@@ -389,14 +374,11 @@ front_apply(Config *c, char *msg, size_t n)
 		fails++;
 	else if (tcfg && c == tcfg)
 		*tbase = *c;
-	if (!fails)
-		stylus_open_on_apply(c, note, sizeof note);   /* note: what it opened, or why not */
 	if (msg && n) {
 		if (fails)
 			snprintf(msg, n, "applied with %d failure%s: see the output", fails, fails == 1 ? "" : "s");
 		else
-			snprintf(msg, n, "applied and saved; running programs take it when restarted%s%s",
-			         *note ? "; stylus: " : "", note);
+			snprintf(msg, n, "applied and saved; running programs take it when restarted");
 	}
 	return fails;
 }
@@ -540,22 +522,70 @@ front_set_web_port(Config *c, int port)
 	return 0;
 }
 
-/* true if something listens on localhost:port */
-int
-front_web_running(int port)
+/* something listening on localhost:port: 1, and the pid a themer-web there gives in
+ * its X-Themer-Pid header in *pid (0 when it gave none) */
+static int
+web_probe(int port, long *pid)
 {
 	int s = socket(AF_INET, SOCK_STREAM, 0), r;
 	struct sockaddr_in a;
+	char req[96], head[1024], *h;
+	ssize_t n = 0;
 
+	*pid = 0;
 	if (s < 0)
 		return 0;
 	memset(&a, 0, sizeof a);
 	a.sin_family = AF_INET;
 	a.sin_port = htons((unsigned short)port);
 	a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	r = connect(s, (struct sockaddr *)&a, sizeof a) == 0;
+	if (!(r = connect(s, (struct sockaddr *)&a, sizeof a) == 0)) {
+		close(s);
+		return 0;
+	}
+	snprintf(req, sizeof req, "GET /api/text HTTP/1.1\r\nHost: localhost:%d\r\nConnection: close\r\n\r\n", port);
+	{
+		struct timeval tv = { 1, 0 };
+
+		setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+	}
+	if (write(s, req, strlen(req)) > 0 && (n = read(s, head, sizeof head - 1)) > 0) {
+		head[n] = '\0';
+		if ((h = strstr(head, "X-Themer-Pid: ")))
+			*pid = strtol(h + 14, NULL, 10);
+	}
 	close(s);
-	return r;
+	return 1;
+}
+
+/* true if a themer-web (or anything) listens on localhost:port. A themer-web whose
+ * binary has since been replaced (make install, a rebuild) still serves the old page
+ * and code: it is replaced by the installed one first, so every front end that asks
+ * gets a current server */
+int
+front_web_running(int port)
+{
+	char link[64], exe[PATH_MAX], cmd[64];
+	long pid;
+	ssize_t n;
+
+	if (serving == port)
+		return 1;               /* asked from inside the server itself */
+	if (!web_probe(port, &pid))
+		return 0;
+	if (pid <= 0)
+		return 1;
+	snprintf(link, sizeof link, "/proc/%ld/exe", pid);
+	if ((n = readlink(link, exe, sizeof exe - 1)) < 0)
+		return 1;
+	exe[n] = '\0';
+	if (!strstr(exe, " (deleted)"))
+		return 1;
+	snprintf(cmd, sizeof cmd, "themer-web -d -p %d", port);
+	run(cmd);               /* stops the old one and serves in its place */
+	for (int i = 0; i < 20 && !web_probe(port, &pid); i++)
+		usleep(50000);
+	return web_probe(port, &pid);
 }
 
 /* starts themer-web detached, or stops the one on the port; 0 on success */

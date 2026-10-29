@@ -28,7 +28,7 @@ static int dirty;
 
 static GtkWidget *window, *theme_box, *mode_dark, *mode_light, *set_combo, *ui_font, *mono_font;
 static GtkWidget *icon_combo, *cursor_combo, *cursor_size, *hint_combo, *aa_check, *rgba_combo;
-static GtkWidget *status, *swatches, *sample, *apply_button, *icon_grid, *cursor_area;
+static GtkWidget *status, *swatches, *sample, *apply_button, *originals_button, *icon_grid, *cursor_area;
 static GtkWidget *title_label;
 static GtkCssProvider *provider;
 static char theme_names[MAX_THEMES][NAME_LEN];
@@ -599,6 +599,7 @@ on_apply(GtkButton *b, gpointer data)
 	applied = cfg;
 	dirty = 0;
 	gtk_widget_set_sensitive(apply_button, FALSE);
+	gtk_widget_set_sensitive(originals_button, !cfg.removed);
 	set_status(msg);
 }
 
@@ -628,7 +629,7 @@ sync_tick(gpointer data)
 static void refresh_module_states(void);
 static void module_detail(void);
 
-/* Remove all styles: asked first, then every program back to its own look */
+/* Restore originals: asked first, then every program back to how it was before themer */
 static void
 on_remove(GtkWidget *w, gpointer data)
 {
@@ -647,8 +648,9 @@ on_remove(GtkWidget *w, gpointer data)
 		return;
 	front_remove(&cfg, msg, sizeof msg);
 	applied = cfg;
-	dirty = 1;               /* Apply puts them back */
+	dirty = 1;               /* Apply styles everything again */
 	gtk_widget_set_sensitive(apply_button, TRUE);
+	gtk_widget_set_sensitive(originals_button, FALSE);
 	set_status(msg);
 	refresh_module_states();
 	module_detail();
@@ -2351,7 +2353,7 @@ main(int argc, char *argv[])
 	gtk_paned_pack2(GTK_PANED(paned), build_preview(), TRUE, FALSE);
 	gtk_box_pack_start(GTK_BOX(vbox), paned, TRUE, TRUE, 0);
 
-	/* the action bar: status on the left, Apply on the right */
+	/* the action bar: status on the left, Restore originals and Apply on the right */
 	actions = gtk_action_bar_new();
 	status = gtk_label_new(front_text(cfg.removed ? FT_REMOVED_STATE : FT_UP_TO_DATE));
 	gtk_label_set_ellipsize(GTK_LABEL(status), PANGO_ELLIPSIZE_END);
@@ -2361,6 +2363,11 @@ main(int argc, char *argv[])
 	gtk_widget_set_sensitive(apply_button, cfg.removed);   /* removed styles: Apply brings them back */
 	g_signal_connect(apply_button, "clicked", G_CALLBACK(on_apply), NULL);
 	gtk_action_bar_pack_end(GTK_ACTION_BAR(actions), apply_button);
+	originals_button = gtk_button_new_with_label(front_text(FT_REMOVE));
+	gtk_widget_set_tooltip_text(originals_button, front_text(FT_REMOVE_ASK));
+	gtk_widget_set_sensitive(originals_button, !cfg.removed);
+	g_signal_connect(originals_button, "clicked", G_CALLBACK(on_remove), NULL);
+	gtk_action_bar_pack_end(GTK_ACTION_BAR(actions), originals_button);
 	gtk_box_pack_start(GTK_BOX(vbox), actions, FALSE, FALSE, 0);
 	updating = 0;
 

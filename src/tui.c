@@ -1963,7 +1963,7 @@ static const struct { int page, label, note; } menu_rows[R_N] = {
 };
 #define NOTE_LINES 3   /* the selected row's note, wrapped */
 
-/* Remove all styles, asked first: x (or enter on its row) twice */
+/* Restore originals, asked first: x (or enter on its row) twice */
 static int remove_armed;
 
 static void
@@ -1980,7 +1980,7 @@ remove_all(void)
 	remove_armed = 0;
 	front_remove(cfg, msg, sizeof msg);
 	flash(msg);
-	dirty = 1;                /* Apply puts them back */
+	dirty = 1;                /* Apply styles everything again */
 }
 
 /* back to what was last applied, as Revert to applied in the other front ends */
@@ -2099,7 +2099,7 @@ main_menu(void)
 		         front_text(cfg->removed ? FT_REMOVED_STATE : dirty ? FT_UNAPPLIED : FT_UP_TO_DATE));
 		val[R_REVERT][0] = val[R_REMOVE][0] = val[R_QUIT][0] = '\0';
 
-		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   r revert   x remove all   q quit");
+		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   r revert   x originals   q quit");
 		/* the selected row's line in the panel, kept in view in a short terminal */
 		pfocus = 1;
 		for (int r = 0; r <= sel; r++)

@@ -61,9 +61,9 @@ typedef struct {
 	char cursor[64];
 	int cursor_size;
 	int web_port;                   /* where themer-web listens on localhost */
-	int removed;                    /* the styles were removed (Remove all styles): apply
-	                                   leaves things alone until Apply in a front end or
-	                                   themer restore */
+	int removed;                    /* the originals were restored (Restore originals):
+	                                   apply leaves things alone until Apply in a front
+	                                   end or themer resume */
 	char hinting[16];               /* none, slight, medium, full */
 	int antialias;
 	char rgba[8];                   /* none, rgb, bgr, vrgb, vbgr */
@@ -254,7 +254,7 @@ void front_web_serving(int port);
  * changed them; an immediate save writes base with the one change, never cfg's
  * unapplied browsing. */
 void front_track(Config *cfg, Config *base);
-/* Remove all styles, as every front end offers it: themer_remove_all, and the state
+/* Restore originals, as every front end offers it: themer_remove_all, and the state
  * saved as removed, so the login's themer apply leaves things alone until Apply
  * (front_apply clears it). msg is the status line. */
 int  front_remove(Config *c, char *msg, size_t n);

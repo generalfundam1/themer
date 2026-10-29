@@ -489,8 +489,8 @@ themer_apply(const Config *c)
 	int fails = 0;
 
 	if (c->removed) {
-		fprintf(stderr, "themer: the styles are removed (Remove all styles); themer restore, or "
-		        "Apply in a front end, puts them back\n");
+		fprintf(stderr, "themer: the originals are restored (Restore originals); themer resume, or "
+		        "Apply in a front end, styles everything again\n");
 		return 0;
 	}
 	theme_scheme(c, &s);

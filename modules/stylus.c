@@ -18,9 +18,6 @@
  * Options (after the host's mode):
  *   font      site (the default) keeps each site's own font; ui or terminal sets
  *             the theme's
- *   open      apply (the default): Apply in any front end opens each site that is
- *             on in the browser (through themer-web, started if need be), where
- *             Stylus installs or updates it; never leaves that to Install
  *   <site>    on or off, one per site (youtube, ...): off leaves that site alone
  *   template  the set it is drawn from (templates/<set>/stylus/) */
 #include <dirent.h>
@@ -33,12 +30,11 @@
 #include "themer_module.h"
 
 #define DIR_NAME "stylus"
-#define MAX_SITES 32
+#define MAX_SITES 64
 #define NVARS     6   /* template_vars: font_family .. image_filter */
 
 static const TmOption opts[] = {
 	{ "font", "font for the sites' text: site keeps each site's own, ui or terminal sets the theme's", "site|ui|terminal", "site", 0, 0 },
-	{ "open", "after Apply in a front end, open each site that is on in the browser, for Stylus to install or update", "apply|never", "apply", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
 

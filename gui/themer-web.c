@@ -32,7 +32,7 @@
  *                               changes the browsed settings (not applied yet)
  *   POST /api/apply             applies and saves, as themer apply
  *   POST /api/revert            back to the applied state
- *   POST /api/remove            Remove all styles (front_remove)
+ *   POST /api/remove            Restore originals (front_remove)
  *   POST /api/module            {name, on}: load or unload a module now
  *   POST /api/option            {module, option, value}: set an option now; a new
  *                               stylus port moves the server there ({"moved": PORT})
@@ -597,10 +597,11 @@ respond(int fd, int status, const char *type, const char *body, size_t len)
 	char head[512];
 	int n = snprintf(head, sizeof head,
 	                 "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
-	                 "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
+	                 "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Themer-Pid: %ld\r\n"
+	                 "Connection: close\r\n\r\n",
 	                 status, status == 200 ? "OK" : status == 404 ? "Not Found" : status == 400 ? "Bad Request" :
 	                 status == 403 ? "Forbidden" : status == 413 ? "Payload Too Large" : status == 500 ? "Internal Server Error" : "Error",
-	                 type, len);
+	                 type, len, (long)getpid());
 
 	if (write(fd, head, (size_t)n) < 0)
 		return;
@@ -1037,6 +1038,25 @@ send_request(const char *method, const char *path, char *buf, size_t bufn)
 	return ok ? 0 : -1;
 }
 
+/* whether the themer-web that answered (its X-Themer-Pid in head) runs a binary that
+ * has since been replaced, by make install or a rebuild: its page and its code are
+ * the old ones, so it should make way for this one */
+static int
+stale_server(const char *head)
+{
+	const char *h = strstr(head, "X-Themer-Pid: ");
+	char link[64], exe[PATH_MAX];
+	ssize_t n;
+
+	if (!h)
+		return 1;               /* from before the header: older still */
+	snprintf(link, sizeof link, "/proc/%ld/exe", strtol(h + 14, NULL, 10));
+	if ((n = readlink(link, exe, sizeof exe - 1)) < 0)
+		return 0;               /* not ours to look at: leave it */
+	exe[n] = '\0';
+	return strstr(exe, " (deleted)") != NULL;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1077,12 +1097,19 @@ main(int argc, char *argv[])
 		return 0;
 	}
 	if (port_busy(port)) {
-		char head[256], url[64];
+		char head[1024], url[64];
 
 		/* already running: started by hand (not -d, which the front ends use), the
 		 * page is what was wanted, so it opens in the browser */
 		if (send_request("GET", "/api/state", head, sizeof head) == 0 && !strncmp(head, "HTTP/1.1 200", 12) &&
-		    strstr(head, "application/json")) {
+		    strstr(head, "application/json") && stale_server(head)) {
+			/* an older build still running: stop it and serve in its place */
+			send_request("POST", "/api/quit", NULL, 0);
+			for (int i = 0; i < 50 && port_busy(port); i++)
+				usleep(100000);
+		}
+		if (port_busy(port) && send_request("GET", "/api/state", head, sizeof head) == 0 &&
+		    !strncmp(head, "HTTP/1.1 200", 12) && strstr(head, "application/json")) {
 			snprintf(url, sizeof url, "http://localhost:%d/", port);
 			if (detach)
 				return 0;
@@ -1093,8 +1120,10 @@ main(int argc, char *argv[])
 			fprintf(stderr, "themer-web: already running at %s (no xdg-open to open it)\n", url);
 			return 0;
 		}
-		fprintf(stderr, "themer-web: something else already listens on port %d\n", port);
-		return 1;
+		if (port_busy(port)) {
+			fprintf(stderr, "themer-web: something else already listens on port %d\n", port);
+			return 1;
+		}
 	}
 	signal(SIGPIPE, SIG_IGN);
 	/* the stylus module, run from inside this server (an option set through the

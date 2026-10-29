@@ -205,7 +205,7 @@ code { font-family: var(--mono_font, monospace), monospace; }
     <div class="ansi" id="ansi"></div>
   </aside>
 </main>
-<div class="bar"><span class="status" id="status"></span><span class="spacer"></span><button class="primary" id="applybtn" onclick="apply()" data-t="apply"></button></div>
+<div class="bar"><span class="status" id="status"></span><span class="spacer"></span><button id="origbtn" onclick="removeAll()" data-t="remove" data-t-title="remove_ask"></button><button class="primary" id="applybtn" onclick="apply()" data-t="apply"></button></div>
 <script>
 let S = null, T = {}, PAGES = [];
 const $ = id => document.getElementById(id);
@@ -269,6 +269,7 @@ function render() {
   $('term').innerHTML = `<span style="color:#${c.ansi[2]}">user@host</span>:<span style="color:#${c.ansi[4]}">~/src</span>$ make check<br>ok<br>` +
     c.ansi.slice(0, 8).map((h, i) => `<span style="color:#${h}">■ ansi${i}</span>`).join(' ');
   $('applybtn').disabled = !s.dirty;
+  $('origbtn').disabled = !!s.removed;
   status(s.removed ? T.removed_state : s.dirty ? T.unapplied : T.up_to_date);
   restyle();
 }
@@ -414,7 +415,8 @@ function openHash() {
   if (mod) { selMod = mod; if (S) renderModules(); }
   if (/^[a-z]+$/.test(page || '')) showPage(page);
 }
-document.querySelectorAll('nav a').forEach(a => a.onclick = () => { location.hash = a.dataset.page; });
+// the tabs are made from /api/text after this runs: one handler on the bar serves them all
+$('nav').addEventListener('click', e => { const a = e.target.closest('a[data-page]'); if (a) location.hash = a.dataset.page; });
 window.addEventListener('hashchange', openHash);
 document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); apply(); } });
 // leaving with unapplied changes asks first, as closing the other front ends does
