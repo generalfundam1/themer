@@ -1276,7 +1276,7 @@ private:
 		v->addWidget(cursorArea);
 	}
 
-	/* ---- the Server page: themer-web, started and stopped by hand ---- */
+	/* ---- System, the server: themer-web, started and stopped by hand ---- */
 
 	QVBoxLayout *serverBox = nullptr;
 

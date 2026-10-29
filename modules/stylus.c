@@ -11,7 +11,7 @@
  * @version grows with every apply, so Stylus's update check brings every later
  * apply in without a tab kept open ("Live reload" on the install page does it at
  * once while that page stays open). themer-web is started from the main menu of
- * any front end (Server), or with themer server start. The template set ships
+ * any front end (System, Server), or with themer server start. The template set ships
  * youtube.user.css and wikipedia.user.css; a set
  * adds a site by adding a file, nothing in the module changes.
  *

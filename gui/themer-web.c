@@ -8,7 +8,7 @@
  * It is for the browser, so it runs only while a browser module (firefox or
  * stylus) is on: without one it says so and exits, and a running one exits within
  * a few seconds of the last browser module being turned off. It is started and
- * stopped by hand: Server in any front end (themer-web -d, detached; themer-web -q
+ * stopped by hand: System, Server in any front end (themer-web -d, detached; themer-web -q
  * to stop), themer server start|stop, or a user service.
  *
  * One thread, one request at a time, localhost only: the page is a local control

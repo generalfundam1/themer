@@ -5,7 +5,7 @@
  * preview is the real thing: the window restyles itself from the gtk.css the gtk
  * module would write for the theme being browsed, so the widgets on the Widgets
  * and List tabs look the way every GTK app will after Apply. The Terminal tab draws
- * a transcript in the terminal font and colors, the Icons and Cursor pages show the
+ * a transcript in the terminal font and colors, the Icons page shows the
  * selected icon theme and cursor theme themselves, and the swatches show the roles
  * and the sixteen terminal colors. Nothing is written until Apply, which runs the
  * same apply as "themer apply": every module, the environment, and the TTY, then
@@ -1847,7 +1847,7 @@ module_detail(void)
 	updating--;
 }
 
-/* ---- the Server page: themer-web, started and stopped by hand ---- */
+/* ---- System, the server: themer-web, started and stopped by hand ---- */
 
 static GtkWidget *server_box;
 

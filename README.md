@@ -108,8 +108,8 @@ rebuilt after a Qt minor upgrade; a package makes that one command.
 ```
 themer                              TUI
 themer-gtk | themer-qt [PAGE]       the same settings in a window, with a live preview;
-                                    PAGE: theme, fonts, icons, cursor, modules, env,
-                                    or server (modules NAME opens one module)
+                                    PAGE: theme, fonts, icons, modules or system
+                                    (modules NAME opens one module)
 themer-web [-p PORT] [-d | -q]      the same in the browser at http://localhost:7331/
                                     (-d detach, -q stop the one running); runs only
                                     while a browser module (firefox, stylus) is on;
@@ -248,59 +248,73 @@ The CLI, the TUI, `themer-gtk`, `themer-qt` and `themer-web` are faces of one la
 (`src/front.c`); every setting and action is reachable from each, and Apply runs the
 same `themer apply` whichever one you used.
 
-`themer-gtk` and `themer-qt` are the TUI as a window, like nwg-look: pages for the
-theme (the scheme, the mode, the set, and colors of your own over the scheme's), the
-fonts (the console font too), the icon theme, the cursor, the modules, the environment
-and the server on the left, a preview on
-the right, Apply at the bottom (Ctrl+S; Revert to applied undoes browsing), File and
-Help menus. The preview is the real thing, not a mock-up: the window restyles itself
-from the `gtk.css` (or `qt.qss` and palette) the gtk (or qt) module would write for the
-selected theme, so what the widgets look like there is what every GTK (or Qt) app will
-look like after Apply. The Icons page shows the selected icon theme's own icons, the
-Cursor page draws the cursor theme's own files at the chosen size, the Terminal tab the
-terminal font and colours, and the swatches the roles and the sixteen terminal
-colours. Nothing is written until Apply. Closing with unapplied changes asks first.
+All four are one design. They have the same five pages in the same order, use the
+same words, and draw the same control for the same kind of setting. The words are
+not written into each front end: `src/text.c` holds the pages and every heading,
+label, note, button, tip and status line. The TUI, `themer-gtk` and `themer-qt`
+read it with `front_text()`, and `themer-web` serves it as `/api/text`, which its
+page fills itself from.
 
-Template sets from the window: on the Theme page, **New set** copies the selected set
-under a new name into `~/.config/themer/templates/`, **Import theme** turns a theme you
-already have into part of a set (a GTK theme directory, a `.qss`, a `chrome/`
-directory...), **Check** renders the selected set for every theme and shows the report.
-The TUI has the same under *Template set* (`n`, `i`, `c`).
+| Page | What is on it |
+|---|---|
+| **Theme** | the color scheme (find, Import…, Remove, Restore hidden), the mode, the template set (New set…, Import theme…, Check), and colors of your own over the scheme's |
+| **Fonts** | the interface, terminal and console fonts, and the rendering (hinting, antialiasing, subpixel order) |
+| **Icons** | the icon theme, drawn from its own files, and the mouse cursor and its size |
+| **Modules** | every module with its state (on, off, not installed); the selected one with its switch, its description, and its options under **Look** and **What it themes** |
+| **System** | the server (themer-web: start or stop it, its port), the environment variables, and About |
 
-The four front ends have the same pages in the same order, **Theme**, **Fonts**,
-**Icons**, **Cursor**, **Modules**, **Server** (the TUI's main menu has them as
-sections), and draw the same control for the same kind of setting: on/off is a
-switch, a few short choices are buttons side by side with the chosen one in the
-accent (the mode, a module's font), a number in a range is a slider with its value,
-the template set is a list shown by its title (Themer Default; `themer_default` is its
-directory name). A font is a family and a size, set apart.
+Apply (Ctrl+S), **Revert to applied** and Quit are the File menu in the windows, the
+buttons at the top of the web page, and the last rows of the TUI's menu (`a`, `r`,
+`q`). Leaving with unapplied changes asks first everywhere, and so does removing a
+scheme. The status line says the same thing after the same action in every front end.
 
-**Modules**: the modules on the left with their state (on, off, not installed), the
-selected one on the right with its switch and its options in two sections, in the same
-order everywhere: **Look** (`mode`, `font`, `template` and the module's other settings)
-and **What it themes** (the on/off parts: GTK 2/3/4, Qt 5/6, each Stylus site). Each
-option shows what it does; a changed one shows its default and a Reset button. A
-module's switch and its options take effect at once; Apply is for the theme, fonts,
-icons and cursor. In the TUI: `l` into the options, `h`/`l` change one, enter picks
-from a list or types a value, `r` resets.
+`themer-gtk` and `themer-qt` are the TUI as a window, like nwg-look: the pages on the
+left, a preview on the right, Apply at the bottom. The preview is the real thing, not
+a mock-up. The window restyles itself from the `gtk.css` (or `qt.qss` and palette) the
+gtk (or qt) module would write for the selected theme, so the widgets there look the
+way every GTK (or Qt) app will after Apply. The Icons page shows the icon theme's own
+icons and draws the cursor theme's own files at the chosen size. The Terminal tab
+shows the terminal font and colors, and the swatches show the roles and the sixteen
+terminal colors. Nothing is written until Apply. `themer-web` is the same page in the
+browser, and the page itself is its preview. The TUI's main menu has the pages as
+sections, and shows each section's note under the list.
 
-**Server**: `themer-web`, the same settings as a page on localhost for when the
-browser is what you have open, and what serves the stylus module's userstyles. It is
-started and stopped by hand there (or `themer server start`), on the port set there
-(7331); it runs only while a browser module is on, and stops by itself a few seconds
-after the last one is turned off. It answers only requests for `localhost:PORT` and
-changes nothing without the page's own header, so other sites open in the browser
-cannot drive it.
+Template sets on the Theme page: **New set…** copies the selected set under a new
+name into `~/.config/themer/templates/`. **Import theme…** turns a theme you already
+have into part of a set (a GTK theme directory, a `.qss`, a `chrome/` directory...).
+**Check** renders the selected set for every theme and shows the report. In the TUI
+these are under *Template set* (`n`, `i`, `c`).
+
+Controls: on/off is a switch. A few short choices are buttons side by side, with the
+chosen one in the accent (the mode, a module's font). A number in a range is a slider
+with its value. The template set is a list shown by its title (Themer Default;
+`themer_default` is its directory name). A font is a family and a size, set apart. The
+size limits are the same everywhere (fonts 4 to 72 points, the cursor 8 to 256 pixels).
+
+**Modules**: each option shows what it does; a changed one shows its default and a
+Reset button. A module's switch and its options take effect at once; Apply is for the
+theme, fonts, icons and cursor. In the TUI: `l` into the options, `h`/`l` change one,
+enter picks from a list or types a value, `r` resets, `i` runs an option's action
+(Install for a Stylus site).
+
+**System**, the server: `themer-web` puts the same settings on a page on localhost,
+for when the browser is what you have open, and it serves the stylus module's
+userstyles. Start and stop it here (or with `themer server start`), on the port set
+here (7331). It runs only while a browser module is on, and stops by itself a few
+seconds after the last one is turned off. It answers only requests for
+`localhost:PORT` and changes nothing without the page's own header, so other sites
+open in the browser cannot drive it. Apply in any front end also opens each Stylus
+site that is on (see [Stylus](#stylus-web-sites)), starting the server if it is stopped.
 
 <p align="center">
   <img src="screenshots/themer-qt-dark.png" width="49%" alt="themer-qt, nord dark">
-  <img src="screenshots/themer-qt-cursor.png" width="49%" alt="themer-qt, cursor page">
+  <img src="screenshots/themer-qt-system.png" width="49%" alt="themer-qt, system page">
 </p>
 <p align="center">
   <img src="screenshots/themer-gtk-icons.png" width="49%" alt="themer-gtk, icons page">
   <img src="screenshots/themer-gtk-modules.png" width="49%" alt="themer-gtk, modules page">
 </p>
-<p align="center"><sub>themer-qt (nord dark) and themer-gtk (gruvbox light): the Cursor page draws the cursor theme's own files, the Icons page the icon theme's, and the Modules page holds every module's options.</sub></p>
+<p align="center"><sub>themer-qt and themer-gtk: the System page holds the server, the environment and About; the Icons page draws the icon and cursor themes' own files; the Modules page holds every module's options.</sub></p>
 
 `themer-qt` needs no moc. `make gui` repeats what the build found; `make themer-gtk` or
 `make themer-qt` builds one on purpose.
@@ -464,6 +478,7 @@ module reset` puts one back to its default. Two options every module has:
 | | `raster` | `color` \| `ink` | `color` |
 | thunderbird | `font` | `own` (Thunderbird's, the system font) \| `ui` \| `terminal` | `own` |
 | stylus | `font` | `site` (each site's own) \| `ui` \| `terminal` | `site` |
+| | `open` | `apply` (Apply in a front end opens each site that is on in the browser, for Stylus to install or update) \| `never` | `apply` |
 | | one per site: `youtube`, ... | `on` \| `off` (off leaves the site alone) | `on` |
 | waybar | `font` | `ui` \| `terminal` | `terminal` |
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |

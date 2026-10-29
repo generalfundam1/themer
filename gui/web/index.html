@@ -358,7 +358,7 @@ $('schemeremove').onclick = async () => {
 };
 $('schemerestore').onclick = async () => { const r = await api('/api/scheme/restore', {}); await load(); status(r.report.trim()); };
 $('srvstop').onclick = async () => {
-  if (!confirm('Stop themer-web? This page stops working until the server is started again (Server in any front end, or themer server start).')) return;
+  if (!confirm(`${T.server_stop} themer-web?\n\n${T.server_note}`)) return;
   try { await api('/api/quit', {}); } catch (e) {}
   status(T.server_stopped);
 };

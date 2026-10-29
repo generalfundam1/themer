@@ -1839,7 +1839,7 @@ count_overrides(void)
 }
 
 /* returns 0 when quit was chosen */
-/* the Server screen: themer-web, which serves the web front end and the stylus
+/* the server screen (System, Server): themer-web, which serves the web front end and the stylus
  * module's userstyles. Started and stopped by hand; the port is saved. */
 static void
 server_menu(void)
