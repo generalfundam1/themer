@@ -129,11 +129,6 @@
     background: #{{bg}} !important;
     color: #{{fg}} !important;
   }
-  /* the text in the theme's font; code stays monospace and formulas stay in theirs */
-  html, body, .mw-body h1, .mw-body-content h1, .mw-body-content h2, .mw-heading h1, .mw-heading h2,
-  #firstHeading, input, button, select, textarea, .cdx-button, .cdx-text-input__input {
-    {{font_rule}}
-  }
 
   /* the header and the sticky header: the bar, a line below */
   .vector-header-container, .vector-header-container .mw-header, .vector-sticky-header, #mw-head,
@@ -141,7 +136,6 @@
     background: #{{raised}} !important;
     color: #{{fg}} !important;
   }
-  .vector-header-container .mw-header { border-bottom: none !important; }
   /* the wordmark is black lettering on transparent: drawn light on a dark bar */
   .mw-logo-wordmark, .mw-logo-tagline, .branding-box img {
     filter: {{image_filter}} !important;
@@ -167,42 +161,22 @@
   }
   .cdx-menu-item--highlighted *, .cdx-menu-item:hover * { color: #{{fg}} !important; }
 
-  /* buttons: a tint of the text, the primary action on the accent */
-  .cdx-button, .mw-ui-button, .oo-ui-buttonElement-framed > .oo-ui-buttonElement-button, button.searchButton,
-  input[type="submit"], input[type="button"] {
-    background: #{{control}} !important;
-    color: #{{fg}} !important;
-    text-shadow: none !important;
-  }
-  .cdx-button--weight-quiet, .cdx-button--fake-button--disabled, .vector-pinnable-header-toggle-button,
-  .vector-dropdown-label.cdx-button--weight-quiet {
-    background: transparent !important;
-    border-color: transparent !important;
-  }
-  .cdx-button:hover, .mw-ui-button:hover, .oo-ui-buttonElement-framed > .oo-ui-buttonElement-button:hover,
-  .cdx-button--weight-quiet:hover {
-    background: #{{control_hover}} !important;
-    color: #{{fg}} !important;
-  }
-  .cdx-button:active, .mw-ui-button:active {
-    background: #{{control_active}} !important;
-  }
-  .cdx-button--action-progressive.cdx-button--weight-primary, .mw-ui-button.mw-ui-progressive,
+  /* buttons: Codex's own, from the tokens above (a tint of the text, the primary
+   * action on the accent); legacy and OOUI ones the same way */
+  .mw-ui-button.mw-ui-progressive,
   .oo-ui-flaggedElement-primary.oo-ui-flaggedElement-progressive > .oo-ui-buttonElement-button {
-    background: #{{acc}} !important;
+    background-color: #{{acc}} !important;
     color: #{{accfg}} !important;
   }
 
   /* the page tabs (Article, Talk, Read, Edit, ...): the selected one in the accent */
   .vector-menu-tabs .mw-list-item a, .vector-menu-tabs li a, #p-associated-pages a, #p-views a {
     color: #{{fg}} !important;
-    background: transparent !important;
   }
   .vector-menu-tabs .mw-list-item.selected a, .vector-menu-tabs li.selected a, .minerva__tab.selected {
     color: #{{acc}} !important;
   }
   .vector-menu-tabs .mw-list-item:not(.selected) a:hover { color: #{{acc}} !important; }
-  .vector-menu-tabs, .vector-menu-tabs .mw-list-item, .vector-menu-tabs li { background-image: none !important; }
 
   /* the sidebars: the main menu, the contents, the tools; the current section in the accent */
   .vector-pinned-container, .vector-main-menu, .vector-toc, .vector-page-tools, #mw-panel, .vector-sidebar,
@@ -211,11 +185,10 @@
     color: #{{fg}} !important;
   }
   .vector-pinned-container { border-color: #{{line}} !important; }
-  .vector-pinnable-header { border-bottom: 1px solid #{{line}} !important; }
+  .vector-pinnable-header { border-bottom-color: #{{line}} !important; }
   .vector-toc .vector-toc-list-item-active > .vector-toc-link,
   .vector-toc .vector-toc-list-item-active > .vector-toc-link .vector-toc-text {
     color: #{{acc}} !important;
-    font-weight: bold !important;
   }
 
   /* the article: headings underlined in the line color */
@@ -232,7 +205,6 @@
   }
   .mw-parser-output a:visited, .mw-body-content a:visited { color: #{{ansi5}} !important; }
   .mw-parser-output a.new, .mw-parser-output a.new:visited, .mw-body-content a.new, a.new { color: #{{urg}} !important; }
-  .mw-parser-output a:hover, .mw-body-content a:hover { text-decoration: underline !important; }
   .mw-editsection, .mw-editsection a, .mw-editsection-bracket { color: #{{disabled}} !important; }
 
   /* infoboxes, navboxes, sidebars and quote boxes: the surface, outlined; their

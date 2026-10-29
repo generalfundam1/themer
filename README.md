@@ -669,8 +669,11 @@ little toward the text and a step lighter (`input`) while it has focus, the text
 the accent for focus rings, the selected suggestion, links and the primary button.
 The tints Firefox works out from those (hovers, presses, the boxes in the URL bar,
 separators) it still works out itself, as for any theme; its layout, icons, corners
-and animations are its own and follow its updates. The font option sets the tabs' and
-the URL field's family. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
+and animations are its own and follow its updates, and so is its font (the system's,
+which the gtk module sets). The same goes for the Stylus styles under Themer Default:
+YouTube and Wikipedia keep their own fonts, shapes and hover effects and take only the
+colours, so the `font` options of firefox, thunderbird and stylus are for sets that set
+fonts, as Themer Chicago does. The icon options (`icons`, `size`, `recolor`, `raster`, `style`) are
 for sets that draw the toolbar icons, as Themer Chicago does; under Themer Default
 Firefox's own icons take the text colour.
 

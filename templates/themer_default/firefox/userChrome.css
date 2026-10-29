@@ -110,8 +110,3 @@
   --color-accent-attention: #{{urg}} !important;
   --icon-color: #{{fg}} !important;
 }
-
-/* the tab and URL fonts: the font option's family, at Firefox's own sizes */
-.tabbrowser-tab, #urlbar-input, .urlbar-input, #searchbar .searchbar-textbox {
-  font-family: "{{tab_font}}" !important;
-}

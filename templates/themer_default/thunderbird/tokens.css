@@ -5,9 +5,6 @@
  * its custom elements, on :host in shadow trees a user stylesheet cannot reach; a
  * declaration on every element wins in both places. This file goes into both
  * userChrome.css (the window) and userContent.css (the panes and pages). */
-:root {
-  --tm-font: "{{font_family}}";
-}
 * {
   /* the layout: 0 is content, 1 the center panes and toolbars, 2 the sidebars,
    * 3 and 4 blocks and elements inside the content */
@@ -297,4 +294,4 @@
   --checkbox-border-color: #{{line}} !important;
   --checkbox-unchecked-bgcolor: #{{view}} !important;
 }
-:root { font-family: var(--tm-font) !important; color-scheme: {{mode}} !important; }
+:root { color-scheme: {{mode}} !important; }
