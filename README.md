@@ -5,8 +5,10 @@
 themer is a suckless-style theme manager written in C99. It takes a colour theme and a
 mode (dark or light) and writes the configuration of everything on the desktop from
 them: GTK 2/3/4, Qt 5/6, Firefox, Thunderbird, sway or i3, waybar, foot, nvim, fcitx5,
-launchers, newt dialogs, the TTY — and YouTube and Wikipedia, through Stylus. Every write is recorded, so unloading a module puts
-the user's files back byte for byte.
+launchers, newt dialogs, the TTY — and 22 web sites people have to use (GitHub, Google,
+YouTube, Reddit, Wikipedia…), through Stylus. Every write is recorded, so unloading a module
+puts the user's files back byte for byte. Every module is tested against its real program:
+see [MODULES.md](MODULES.md) for the results and a screenshot of each.
 
 The look itself comes from a template set. Themer Default, the default, is GNOME's
 Adwaita in the theme's colours, with Firefox and the web sites left as they come and
@@ -220,7 +222,7 @@ the Flatpak). With several profiles, start Firefox with the one you want, then a
 1. **Install the Stylus extension** in your browser: from addons.mozilla.org for
    Firefox, from the Chrome Web Store for the Chromium family.
 2. **Apply** with the stylus module on. It renders a style per site into
-   `~/.config/themer/stylus/` (YouTube and Wikipedia ship).
+   `~/.config/themer/stylus/` (22 sites ship: YouTube, Wikipedia and its sister sites, GitHub, Stack Overflow and Stack Exchange, MDN, npm, PyPI, Reddit (new and old), X, Bluesky, Instagram, DuckDuckGo, Google Search, Gmail, Google Drive, Twitch, Spotify, WhatsApp, LinkedIn, ChatGPT, Claude and Canvas).
 3. **Install each style once:** **Install** beside the site in the stylus module's
    options (Modules, stylus, What it themes) in any front end, or
    `themer server install` for every site (`themer server install youtube` for one).
@@ -949,7 +951,7 @@ What each module directory takes, and what becomes of it on apply:
 | | `colors.conf` | the qt5ct/qt6ct palette; `{{qt_active}}`, `{{qt_disabled}}`, `{{qt_inactive}}` are the role lists built from the theme |
 | `firefox/` | `userChrome.css`, `userContent.css` | a marked block at the end of the profile's files; other files copied into `chrome/`. Variables: `{{tab_font}}`, `{{tab_size}}`, `{{glyph_size}}`, `{{icon_hover_filter}}`, and nine per icon, data URIs from the icon theme: `{{icon_X}}` `{{icon_X_hover}}` (the icon in the bar's ink and hover ink), `{{raster_X}}` `{{tint_X}}` `{{tint_X_hover}}` (the icon as a mask and its colours, for bitmaps and `style=mask`), `{{menu_X}}` `{{menu_X_hover}}` `{{mask_X}}` `{{menu_tint_X}}` (the same for menus). Unused forms are `none` or `transparent`. X is one of: back forward reload stop home newtab menu star star_off downloads extensions reader identity close prev next down sidebar history library bookmarks folder search more screenshot account sound muted translate window private password print save zoom_in zoom_out fullscreen settings tools help quit shield tag appearance access info. Rules between `/* themer:icons */` and `/* themer:icons end */` are left out with `style=firefox` |
 | `thunderbird/` | `tokens.css`, `chrome.css`, `content.css` | tokens+chrome → userChrome, tokens+content → userContent. `{{font_family}}`, `{{font_size}}` |
-| `stylus/` | `<site>.user.css` | a UserCSS file (`/* ==UserStyle==` header, `@-moz-document domain(...)`), rendered to `~/.config/themer/stylus/<site>.user.css`; every such file in the set is a site, and the built-in set's sites are kept when a set adds one. `{{font_family}}`, `{{font_size}}`, `{{font_rule}}` (a complete `font-family` declaration, empty with `font=site`). The marker goes in `@description` |
+| `stylus/` | `<site>.user.css` | a UserCSS file (`/* ==UserStyle==` header, `@-moz-document domain(...)`), rendered to `~/.config/themer/stylus/<site>.user.css`; every such file in the set is a site, and the built-in set's sites are kept when a set adds one. `{{font_family}}`, `{{font_size}}`, `{{font_rule}}` (a complete `font-family` declaration, empty with `font=site`), and every role, tone and terminal colour also as `r, g, b` (`{{bg_rgb}}`, `{{acc_rgb}}`, `{{ansi4_rgb}}`…) for sites that keep colours as bare components. The marker goes in `@description` |
 | `wm/` | `themer.conf`, `bar.conf` | included from the sway/i3 config. `{{font_family}}`, `{{font_size}}`, `{{bar_block}}`, `{{cursor_block}}` |
 | `launcher/` | `launcher` | the wmenu/dmenu wrapper script. `{{menu}}`, `{{args}}` |
 | `waybar/` | `style.css` | replaces waybar's `style.css`. `{{font_family}}`, `{{font_size}}`, `{{ws_pad}}`, `{{mod_pad}}` |
@@ -1105,7 +1107,12 @@ The firefox module themes the browser; the stylus module themes pages, through t
 [Stylus](https://github.com/openstyles/stylus) extension, which runs in Firefox and
 the Chromium family. It renders every `<site>.user.css` of the template set into
 `~/.config/themer/stylus/`, as UserCSS: the metadata header Stylus reads, then the
-rules under `@-moz-document domain("...")`. YouTube ships: its `--yt-spec-*`
+rules under `@-moz-document domain("...")`. The sets ship styles for YouTube, Wikipedia and its sister sites, GitHub, Stack Overflow and Stack Exchange, MDN, npm, PyPI, Reddit (new and old), X, Bluesky, Instagram, DuckDuckGo, Google Search, Gmail, Google Drive, Twitch, Spotify, WhatsApp, LinkedIn, ChatGPT, Claude and Canvas: the
+corporate sites people have to use, while sites of individuals keep their own look.
+Each sets the site's own colour variables (most sites draw from a design system's
+custom properties) to the roles, on every one of the site's own modes, and covers what
+it paints by hand; Themer Default leaves every shape alone, Themer Chicago squares the
+corners and gives controls the bevel. YouTube, for instance: its `--yt-spec-*`
 variables set to the roles on both of YouTube's own modes, the accent on the selected
 chip and guide entry and on the player's progress bar; Themer Default keeps YouTube's
 own shapes, Themer Chicago squares the corners and gives buttons and chips the bevel.
@@ -1126,9 +1133,12 @@ back at themer-web and its `@version` grows with every apply, so Stylus's own up
 check brings each apply in while the server runs. Each site has its own switch
 (`themer module option stylus youtube off`): off leaves the site alone. A set adds a
 site by adding `stylus/<site>.user.css`; the module finds it and gives it a switch,
-nothing in the module changes. Not checked against live YouTube or Wikipedia here: the selectors and variable
-names are from their current stylesheets (Wikipedia's from the Codex token list), and the rendered file is checked to
-parse (every rule kept) in Chromium.
+nothing in the module changes. The styles have not been seen on the live sites: their
+variable names come from the sites' own design systems where published (YouTube's,
+GitHub's Primer, Stack Overflow's Stacks, MDN, Wikipedia's Codex) and otherwise from
+catppuccin/userstyles, which tracks the sites; each renders and parses (every rule kept)
+in Chromium. Sites rename their generated class names now and then: a part of a page
+left in the site's own colours is a style gone stale there.
 
 ## Thunderbird
 
@@ -1456,6 +1466,32 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
 
 ## Upgrading
 
+From 0.1 to 1.1:
+
+- **Remove all styles is Restore originals** (`themer originals`; `themer remove` still
+  works), a button beside Apply in every window. The way back from the command line is
+  `themer resume` (`themer restore` is gone).
+- **GRUB is no longer themed.** Its colours only worked on Arch's patched GRUB, and
+  applying them meant running grub-mkconfig. Nothing reads or writes GRUB's files now;
+  a `GRUB_COLOR_*` pair an earlier build added to `/etc/default/grub` stays until you
+  delete it.
+- **Apply no longer opens the Stylus sites**: the stylus option `open` is gone. Install
+  a site once from its Install button; Stylus's update check brings later applies in.
+- **The GTK theme is named by the set's label** ("Themer Default", under
+  `~/.themes/Themer Default/`), for GTK 2, 3 and 4 alike; the old `~/.themes/<set>` link
+  goes on the next apply.
+- **Derived scheme sides are made from the scheme's own colours**: run
+  `themer scheme rederive` to remake the derived side of schemes you imported.
+- **`QT_QPA_PLATFORMTHEME` is the qt module's**: new installs no longer get it as a
+  default environment variable (a saved one stays; the qt module's file is read after it).
+- **The root side** (`sudo themer system install`) supports systemd, OpenRC, runit, s6,
+  dinit and SysV init, and reads your files as you; run `sudo themer system install`
+  again after upgrading so the service is the new one.
+- Unloading a module now leaves a line you changed while themed as you made it, and
+  only programs whose module was loaded or unloaded are told to reload.
+
+From older builds:
+
 - From a build that rendered the theme into `~/.config/gtk-3.0/gtk.css`: the gtk
   module moves that file to `gtk.css.themer-old` on the next apply (a user stylesheet
   outranks the theme, so left there it would keep feeding its colours to programs that
@@ -1487,9 +1523,12 @@ the number, rebuild the modules in `~/.config/themer/modules/`.
 
 ## Status and license
 
-**0.1.** Proven on sway (Wayland) with GTK 3.24 and 4, Qt 5.15 and 6, Firefox 140,
-fcitx5, waybar and foot; the i3/X11 paths run in `make check` but have had less time
-on a real X session. `set import` is a converter of best effort: an imported theme is a
-starting point to edit, not a finished set.
+**1.1.** Every module tested against its real program (built from source or taken from
+its release) in both sets, both modes, several schemes and every option, and unloaded
+back to the user's config byte for byte: see [MODULES.md](MODULES.md). Hyprland,
+hyprlock, river, swaync and ly could not be built in the test environment and were
+checked against their source; the Stylus styles have not been seen on the live sites.
+`set import` is a converter of best effort: an imported theme is a starting point to
+edit, not a finished set.
 
 GPL-2.0-only, see [LICENSE](LICENSE). Copyright (c) 2026 Ronald.
