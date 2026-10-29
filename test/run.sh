@@ -354,6 +354,7 @@ grep -q 'status_command i3blocks' "$HOME/.config/sway/themer.conf" || bad "theme
 ./themer module option firefox template themer_chicago >/dev/null 2>&1 || bad "set firefox.template"
 grep -q 'open-menu\|data:image/svg+xml' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "no icon embedded (fallback icons not found)"
 grep -q '#TabsToolbar)\[collapsed\]:not(\[collapsed="false"\])' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox: a toolbar Firefox hides with a bare collapsed attribute is forced visible"
+grep -q ':root:not(\[inFullscreen\]) #navigator-toolbox { margin-top: 0' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox: Chicago can leave the toolbox pulled up after fullscreen"
 grep -q -- '--toolbar-bgcolor' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome.css" || bad "firefox.template themer_chicago not rendered"
 # firefox icons as masks: no list-style images, the shapes as masks over the ink
 ./themer module option firefox style mask >/dev/null 2>&1 || bad "set firefox.style"

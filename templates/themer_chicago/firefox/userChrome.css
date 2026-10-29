@@ -291,6 +291,19 @@ menupopup, panel, panelview {
   border-bottom: none !important;
 }
 
+/* fullscreen is Firefox's to run. It hides the toolbox by pulling it up with an
+ * inline margin-top, the 1px #fullscr-toggler at the top reveals it again, and it
+ * collapses every toolbar not marked fullscreentoolbar (the bookmarks row). The rows
+ * above force their toolbars visible, so here that collapse is put back. Out of
+ * fullscreen the toolbox is never left pulled up or mid-slide and the toggler is
+ * never left over: these are what left a strip at the top after leaving fullscreen. */
+:root[inFullscreen]:not([macOSNativeFullscreen]) #navigator-toolbox toolbar:not([fullscreentoolbar="true"]) {
+  display: none !important; visibility: collapse !important;
+}
+:root[inFullscreen]:not([macOSNativeFullscreen]) #nav-bar { border-bottom: none !important; }
+:root:not([inFullscreen]) #navigator-toolbox { margin-top: 0 !important; transition: none !important; }
+:root:not([inFullscreen]) #fullscr-toggler { display: none !important; }
+
 /* vertical tabs: the tabs move into the sidebar, and the row they leave would stay
  * as an empty strip */
 #TabsToolbar:not(:has(#tabbrowser-tabs)) {
