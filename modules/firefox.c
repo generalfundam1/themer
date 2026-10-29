@@ -282,7 +282,7 @@ present(const TmTheme *t)
 static int
 load(const TmTheme *t)
 {
-	static char chrome[4 * 1024 * 1024], content[256 * 1024];
+	static char chrome[8 * 1024 * 1024], content[8 * 1024 * 1024];   /* bitmap icons are large */
 	char dir[PATH_MAX];
 	TmVar v[NVARS];
 	const char *set = tm_opt(t, "firefox.template");

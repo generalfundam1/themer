@@ -12,8 +12,10 @@
 /* YouTube draws itself from the --yt-spec-* variables, declared on html (light) and
  * html[dark] (dark); setting them on both is most of the work and keeps the page
  * right whichever of YouTube's own modes is on. The rest colors what YouTube paints
- * outside its variables. Shapes, sizes, hover effects and ambient mode stay YouTube's
- * own, and so does the font unless the font option sets one. Rendered by the stylus module of themer and
+ * outside its variables. Shapes, sizes and hover effects stay YouTube's own, and so
+ * does the font unless the font option sets one. Ambient mode, the glow of the
+ * video's own colors around the player, is the one thing left out: it would paint
+ * colors from outside the theme over its surfaces. Rendered by the stylus module of themer and
  * re-read by Stylus when "Live reload" is on. */
 @-moz-document domain("youtube.com") {
   /* on every element, not only on html: YouTube sets these variables again on
@@ -242,6 +244,11 @@
   /* the player: the progress bar and the volume handle in the accent; the video
    * itself is untouched */
   .ytp-swatch-background-color, .ytp-play-progress, .ytp-volume-slider-handle::before,
+  /* ambient mode: a glow of the video's colors behind the player, the watch page and
+   * Shorts; the page keeps the theme's surfaces instead */
+  #cinematics, #cinematic-container, #cinematics-container, #cinematic-shorts-scrim,
+  .ytdCinematicContainerViewModelHost, ytd-reel-video-renderer #cinematic-container,
+  .ytd-watch-flexy #cinematics canvas { display: none !important; }
   .ytp-scrubber-button, .ytp-swatch-color {
     background: #{{acc}} !important;
     color: #{{acc}} !important;

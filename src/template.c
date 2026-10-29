@@ -155,7 +155,7 @@ static int
 put(char *out, size_t n, size_t *o, const char *s, size_t len)
 {
 	if (*o + len >= n) {
-		fprintf(stderr, "themer: template output too large\n");
+		fprintf(stderr, "themer: template output too large (over %zu bytes)\n", n);
 		return -1;
 	}
 	memcpy(out + *o, s, len);

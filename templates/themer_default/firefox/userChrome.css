@@ -10,7 +10,8 @@
  *
  * Firefox declares its colors on :root and, inside its custom elements (moz-button,
  * panel-list), on :host, which a user stylesheet cannot reach; a declaration on every
- * element wins over both. The names of Firefox 115 up to 158 are covered. */
+ * element wins over both. The names of Firefox 115 up to 158 are covered, the new
+ * design (Nova) included. */
 :root {
   color-scheme: {{mode}} !important;
 }
@@ -109,6 +110,66 @@
   --text-color-error: #{{urg}} !important;
   --color-accent-attention: #{{urg}} !important;
   --icon-color: #{{fg}} !important;
+
+  /* Firefox's new design (browser.nova.enabled) draws from two palettes of its own:
+   * a violet-grey for text, borders and tints, and a violet for the accent. Here they
+   * run from the theme's light end to its dark end (the background and the text,
+   * whichever is lighter in this mode) and through the accent, so everything Firefox
+   * works out from them follows the theme as well. */
+  --color-violet-desaturated-0: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 0%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-5: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 5%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-10: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 9%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-20: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 18%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-30: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 27%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-40: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 36%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-50: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 45%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-60: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 55%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-70: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 64%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-80: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 73%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-90: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 82%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-100: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 91%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-desaturated-110: color-mix(in srgb, light-dark(#{{fg}}, #{{bg}}) 100%, light-dark(#{{bg}}, #{{fg}})) !important;
+  --color-violet-0: color-mix(in srgb, #{{acc}} 20%, white) !important;
+  --color-violet-10: color-mix(in srgb, #{{acc}} 36%, white) !important;
+  --color-violet-20: color-mix(in srgb, #{{acc}} 52%, white) !important;
+  --color-violet-30: color-mix(in srgb, #{{acc}} 68%, white) !important;
+  --color-violet-40: color-mix(in srgb, #{{acc}} 84%, white) !important;
+  --color-violet-50: color-mix(in srgb, #{{acc}} 100%, white) !important;
+  --color-violet-60: color-mix(in srgb, #{{acc}}, black 13%) !important;
+  --color-violet-70: color-mix(in srgb, #{{acc}}, black 27%) !important;
+  --color-violet-80: color-mix(in srgb, #{{acc}}, black 40%) !important;
+  --color-violet-90: color-mix(in srgb, #{{acc}}, black 53%) !important;
+  --color-violet-100: color-mix(in srgb, #{{acc}}, black 67%) !important;
+  --color-violet-110: color-mix(in srgb, #{{acc}}, black 80%) !important;
+
+  /* the new design's gradients: the tab strip's glow, the selected tab's outline, the
+   * focused address field's border, Firefox's own "ask" button; the same shapes, in
+   * the theme's background and accent */
+  --toolbox-background-gradient-leading: #{{bg}} !important;
+  --toolbox-background-gradient-trailing: color-mix(in srgb, #{{acc}} 35%, #{{bg}}) !important;
+  --tab-border-color-selected-leading: color-mix(in srgb, #{{acc}} 60%, transparent) !important;
+  --tab-border-color-selected-trailing: color-mix(in srgb, #{{acc}} 60%, transparent) !important;
+  --tab-border-color-accent: linear-gradient(96deg, color-mix(in srgb, #{{acc}} 60%, transparent), color-mix(in srgb, #{{acc}} 60%, transparent)) !important;
+  --smartbar-border-color-gradient: linear-gradient(95deg, #{{acc}}, #{{acc}}) !important;
+  --smartbar-glow-color: color-mix(in srgb, #{{acc}} 50%, transparent) !important;
+  --smartbar-outline-color: #{{acc}} !important;
+  --smartbar-background-color: #{{input}} !important;
+  --smartbar-inactive-background-color: color-mix(in srgb, #{{raised}}, #{{fg}} 6%) !important;
+  --multiline-editor-selection-color: color-mix(in srgb, #{{acc}} 40%, #{{input}}) !important;
+  --smartwindow-ask-btn-gradient: linear-gradient(117deg, color-mix(in srgb, #{{acc}} 30%, transparent), color-mix(in srgb, #{{acc}} 30%, transparent)) !important;
+  --panel-separator-zap-gradient: linear-gradient(90deg, #{{acc}}, #{{acc}}) !important;
+
+  /* the tints and lines Firefox otherwise takes from fixed greys or violets */
+  --toolbarbutton-background-color-hover: color-mix(in srgb, currentColor 17%, transparent) !important;
+  --toolbarbutton-background-color-active: color-mix(in srgb, currentColor 30%, transparent) !important;
+  --chrome-content-separator-color: color-mix(in srgb, #{{fg}} 12%, #{{bg}}) !important;
+  --chrome-box-shadow: color-mix(in srgb, black 15%, transparent) !important;
+  --popup-border-color: color-mix(in srgb, #{{fg}} 20%, #{{raised}}) !important;
+  --info-bar-border-color: color-mix(in srgb, #{{fg}} 20%, #{{bg}}) !important;
+  --border-color: color-mix(in srgb, #{{fg}} 30%, #{{raised}}) !important;
+  --border-color-interactive: color-mix(in srgb, #{{fg}} 50%, #{{raised}}) !important;
+  --background-color-box: #{{input}} !important;
+  --button-text-color: #{{fg}} !important;
 }
 
 /* the font option: with ui or terminal, the tabs, the URL field and the menus in the
