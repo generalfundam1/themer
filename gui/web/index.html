@@ -22,6 +22,7 @@ main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; overflow: aut
 .page { display: none; min-width: 0; }
 .page.sel { display: block; }
 h2 { font-size: inherit; margin: 0 0 8px; font-weight: bold; }
+h2:not(:first-child) { margin-top: 16px; }
 .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
 .bar .spacer { flex: 1; }
 button, .btn { font: inherit; cursor: default; }
@@ -62,7 +63,6 @@ input, select, textarea { font: inherit; }
 .opt .reset { font-size: smaller; justify-self: start; }
 .opt select, .opt input:not([type=checkbox]):not([type=range]) { width: 14em; max-width: 100%; }
 .opt > span { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
-.seg { flex-wrap: wrap; }
 /* narrower windows: the preview goes under the page, then the module list over its
  * detail, then each option's control under its name, so nothing is squeezed or cut */
 @media (max-width: 1100px) { main { grid-template-columns: minmax(0, 1fr); } }
@@ -78,7 +78,7 @@ input, select, textarea { font: inherit; }
   .opt > label { grid-column: 1 / -1; font-weight: bold; }
   .opt .what { grid-column: 1 / -1; }
 }
-.seg { display: inline-flex; }
+.seg { display: inline-flex; flex-wrap: nowrap; }
 .slide { display: inline-flex; align-items: center; gap: 8px; }
 .slide input { width: 12em; }
 .slide output { min-width: 2em; font-family: var(--mono_font, monospace), monospace; }
@@ -101,96 +101,88 @@ code { font-family: var(--mono_font, monospace), monospace; }
 </style>
 </head>
 <body>
+<!-- The words come from themer's text table (GET /api/text): data-t fills the text,
+     data-t-title the tip, data-t-ph the placeholder, so the page reads as every
+     other front end does. -->
 <div class="menu">
-  <button onclick="apply()" title="Ctrl+S">Apply</button>
-  <button onclick="revert()">Revert to applied</button>
-  <button onclick="location.reload()">Reload</button>
+  <button onclick="apply()" title="Ctrl+S" data-t="apply"></button>
+  <button onclick="revert()" data-t="revert"></button>
   <span class="title">themer-web · this page is the preview</span>
 </div>
-<nav>
-  <a data-page="theme" class="sel">Theme</a>
-  <a data-page="fonts">Fonts</a>
-  <a data-page="icons">Icons</a>
-  <a data-page="cursor">Cursor</a>
-  <a data-page="modules">Modules</a>
-  <a data-page="env">Environment</a>
-  <a data-page="server">Server</a>
-</nav>
+<nav id="nav"></nav>
 <main>
   <div>
     <section class="page sel" id="page-theme">
-      <h2>Color scheme</h2>
-      <div class="inline"><input id="themefind" type="search" placeholder="Find a scheme" style="flex:1"></div>
+      <h2 data-t="scheme"></h2>
+      <div class="inline"><input id="themefind" type="search" data-t-ph="scheme_find" style="flex:1"></div>
       <div class="list" id="themes"></div>
       <div class="inline" style="margin-top:6px">
-        <button id="schemeimport" title="A .theme file, Xresources, kitty, foot or alacritty colors, or Gogh lines">Import…</button>
-        <button id="schemeremove" title="Delete the selected scheme if it is yours, or hide it if it is built in">Remove</button>
-        <button id="schemerestore" title="Bring back every built-in scheme that was removed">Restore hidden</button>
+        <button id="schemeimport" data-t="scheme_import" data-t-title="scheme_import_tip"></button>
+        <button id="schemeremove" data-t="scheme_remove" data-t-title="scheme_remove_tip"></button>
+        <button id="schemerestore" data-t="scheme_restore" data-t-title="scheme_restore_tip"></button>
         <input id="schemefile" type="file" hidden>
       </div>
-      <div class="inline" style="margin-top:8px">
-        Mode <span class="seg" id="modeseg"><button data-mode="dark">dark</button><button data-mode="light">light</button></span>
+      <div class="form">
+        <label data-t="mode"></label><span class="seg" id="modeseg"><button data-mode="dark">dark</button><button data-mode="light">light</button></span>
+        <label data-t="set"></label><select id="set" onchange="set({set:this.value})"></select>
+        <label></label><div class="inline">
+          <button onclick="newSet()" data-t="set_new" data-t-title="set_new_tip"></button>
+          <button onclick="importSet()" data-t="set_import" data-t-title="set_import_tip"></button>
+          <button onclick="checkSet()" data-t="set_check" data-t-title="set_check_tip"></button>
+        </div>
       </div>
-      <div class="inline">Template set <select id="set" onchange="set({set:this.value})"></select>
-        <button onclick="newSet()">New set…</button>
-        <button onclick="importSet()">Import theme…</button>
-        <button onclick="checkSet()">Check</button>
-      </div>
-      <p class="note">A template set is the look: the widgets, bars, and chrome every module draws. What a set lacks comes from Themer Default.</p>
+      <p class="note" data-t="set_note"></p>
       <pre class="report" id="setreport" style="display:none"></pre>
-      <h2 style="margin-top:12px">Colors</h2>
+      <h2 data-t="colors"></h2>
       <div class="colors" id="colors"></div>
-      <p class="note">A color of your own over the scheme's, in both modes: pick one, or Scheme to go back to the scheme's.</p>
+      <p class="note" data-t="colors_note"></p>
     </section>
     <section class="page" id="page-fonts">
-      <h2>Fonts</h2>
+      <h2 data-t="fonts"></h2>
       <div class="form">
-        <label>Interface</label><div class="inline"><select id="ui_font" onchange="set({ui_font:this.value})"></select><input type="number" id="ui_size" min="6" max="32" style="width:5em" onchange="set({ui_size:+this.value})"></div>
-        <label>Terminal</label><div class="inline"><select id="mono_font" onchange="set({mono_font:this.value})"></select><input type="number" id="mono_size" min="6" max="32" style="width:5em" onchange="set({mono_size:+this.value})"></div>
-        <label>Console</label><div class="inline" id="ttybox"></div>
+        <label data-t="font_ui"></label><div class="inline"><select id="ui_font" data-t-title="font_family_tip" onchange="set({ui_font:this.value})"></select><input type="number" id="ui_size" class="fontsize" data-t-title="font_size_tip" style="width:5em" onchange="set({ui_size:+this.value})"></div>
+        <label data-t="font_mono"></label><div class="inline"><select id="mono_font" data-t-title="font_family_tip" onchange="set({mono_font:this.value})"></select><input type="number" id="mono_size" class="fontsize" data-t-title="font_size_tip" style="width:5em" onchange="set({mono_size:+this.value})"></div>
+        <label data-t="font_tty"></label><div class="inline" id="ttybox"></div>
       </div>
-      <p class="note">The interface font goes to GTK, Qt, the window manager, and the browsers; the terminal font to the terminals, editors, and Qt's fixed font; the console font to the Linux console (vconsole.conf).</p>
-      <h2>Rendering</h2>
+      <p class="note" data-t="fonts_note"></p>
+      <h2 data-t="rendering"></h2>
       <div class="form">
-        <label>Hinting</label><select id="hinting" onchange="set({hinting:this.value})"></select>
-        <label></label><label><input type="checkbox" id="antialias" onchange="set({antialias:this.checked})"> Antialiasing</label>
-        <label>Subpixel order</label><select id="rgba" onchange="set({rgba:this.value})"></select>
+        <label data-t="hinting"></label><select id="hinting" onchange="set({hinting:this.value})"></select>
+        <label></label><label><input type="checkbox" id="antialias" onchange="set({antialias:this.checked})"> <span data-t="antialias"></span></label>
+        <label data-t="rgba"></label><select id="rgba" onchange="set({rgba:this.value})"></select>
       </div>
-      <p class="note">Written to the GTK settings, xsettingsd, gsettings, and fontconfig, so every toolkit draws text the same way.</p>
+      <p class="note" data-t="rendering_note"></p>
     </section>
     <section class="page" id="page-icons">
-      <h2>Icon theme</h2>
+      <h2 data-t="icons"></h2>
       <div class="inline"><select id="icons" onchange="set({icons:this.value})"></select></div>
-      <p class="note">Set for GTK, Qt, xsettingsd, and gsettings; Firefox's toolbar takes its icons from it too. Below, the theme's own icons, found as GTK and Qt find them (the theme, the themes it inherits, hicolor).</p>
+      <p class="note" data-t="icons_note"></p>
       <div class="icons" id="iconprev"></div>
-    </section>
-    <section class="page" id="page-cursor">
-      <h2>Mouse cursor</h2>
+      <h2 data-t="cursor"></h2>
       <div class="form">
-        <label>Theme</label><select id="cursor" onchange="set({cursor:this.value})"></select>
-        <label>Size</label><input type="number" id="cursor_size" min="8" max="96" style="width:5em" onchange="set({cursor_size:+this.value})">
+        <label data-t="cursor_theme"></label><select id="cursor" onchange="set({cursor:this.value})"></select>
+        <label data-t="cursor_size"></label><input type="number" id="cursor_size" style="width:5em" onchange="set({cursor_size:+this.value})">
       </div>
-      <p class="note">Applied through the cursor module (the Xcursor default theme, XCURSOR_THEME and XCURSOR_SIZE, Xresources), the GTK settings, gsettings, and sway's seat.</p>
+      <p class="note" data-t="cursor_note"></p>
     </section>
     <section class="page" id="page-modules">
-      <h2>Modules</h2>
-      <p class="note">Each module themes one program: turned on it writes that program's settings, turned off it removes them. Switches and options take effect at once.</p>
+      <h2 data-t="modules"></h2>
+      <p class="note" data-t="modules_note"></p>
       <div class="mods"><div class="list modlist" id="modlist"></div><div class="moddetail" id="moddetail"></div></div>
     </section>
-    <section class="page" id="page-env">
-      <h2>Environment</h2>
-      <p class="note">Variables for the whole session, written to environment.d on apply, where login sessions and systemd user services read them.</p>
+    <section class="page" id="page-system">
+      <h2 data-t="server"></h2>
+      <p class="note" data-t="server_note"></p>
+      <div class="server"><span class="dot up"></span> <span data-t="server_up"></span> <code id="srvurl"></code>
+        <button id="srvstop" data-t="server_stop"></button></div>
+      <div class="form"><label for="webport" data-t="port"></label><input id="webport" type="number" min="1024" max="65535" style="width:7em"></div>
+      <p class="note" data-t="port_note"></p>
+      <h2 data-t="env"></h2>
+      <p class="note" data-t="env_note"></p>
       <div id="envlist"></div>
-      <div class="inline" style="margin-top:8px"><input id="envname" placeholder="NAME" style="width:14em"><input id="envvalue" placeholder="value" style="width:20em"><button id="envadd">Add</button></div>
-    </section>
-    <section class="page" id="page-server">
-      <h2>Server</h2>
-      <div class="server"><span class="dot up"></span> themer-web is running at <code id="srvurl"></code> (this page)
-        <button id="srvstop">Stop</button></div>
-      <div class="opt"><label for="webport">Port</label><input id="webport" type="number" min="1024" max="65535"><span></span>
-        <small class="what">on localhost; the server moves to a new port, and this page with it</small></div>
-      <p class="note">themer-web is started and stopped by hand (here, in any front end's main menu, or <code>themer server start</code>), and stops by itself when no browser module (firefox, stylus) is on.</p>
-      <p class="note">Stylus installs the userstyles from here and keeps them current through their <code>@updateURL</code> while the server runs. Each site, with its Install link, is under <a href="#modules/stylus">Modules, stylus</a>.</p>
+      <div class="inline" style="margin-top:8px"><input id="envname" data-t-ph="env_name" style="width:14em"><input id="envvalue" data-t-ph="env_value" style="width:20em"><button id="envadd" data-t="env_add"></button></div>
+      <h2 data-t="about"></h2>
+      <p class="note" data-t="about_note"></p>
     </section>
   </div>
   <aside class="preview">
@@ -210,9 +202,9 @@ code { font-family: var(--mono_font, monospace), monospace; }
     <div class="ansi" id="ansi"></div>
   </aside>
 </main>
-<div class="bar"><span class="status" id="status">loading…</span><span class="spacer"></span><button class="primary" id="applybtn" onclick="apply()">Apply</button></div>
+<div class="bar"><span class="status" id="status"></span><span class="spacer"></span><button class="primary" id="applybtn" onclick="apply()" data-t="apply"></button></div>
 <script>
-let S = null;
+let S = null, T = {}, PAGES = [];
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function api(path, body) {
@@ -222,6 +214,17 @@ async function api(path, body) {
   return r.json();
 }
 function status(t) { $('status').textContent = t; }
+// the words, the pages and the limits, from themer's text table (text.c)
+async function loadText() {
+  const r = await api('/api/text');
+  T = r.text; PAGES = r.pages;
+  $('nav').innerHTML = PAGES.map(p => `<a data-page="${esc(p.id)}">${esc(p.title)}</a>`).join('');
+    document.querySelectorAll('[data-t]').forEach(e => e.textContent = T[e.dataset.t] || '');
+  document.querySelectorAll('[data-t-title]').forEach(e => e.title = T[e.dataset.tTitle] || '');
+  document.querySelectorAll('[data-t-ph]').forEach(e => e.placeholder = T[e.dataset.tPh] || '');
+  document.querySelectorAll('.fontsize').forEach(e => { e.min = r.limits.font_min; e.max = r.limits.font_max; });
+  Object.assign($('cursor_size'), {min: r.limits.cursor_min, max: r.limits.cursor_max});
+}
 function restyle() {
   // re-fetch /theme.css so the page redraws in the browsed theme
   const l = $('themecss'); l.href = '/theme.css?' + Date.now();
@@ -251,7 +254,7 @@ function render() {
   // the icon theme's own files, served by themer-web (the same icons as themer-gtk's)
   $('iconprev').innerHTML = s.preview_icons.map(([icon, label]) =>
     `<div><img src="/icon/${esc(icon)}?t=${encodeURIComponent(s.icons)}" alt="" width="48" height="48"
-      onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'missing', textContent: 'none'}))"><br>${esc(label)}</div>`).join('');
+      onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'missing', textContent: T.icon_missing}))"><br>${esc(label)}</div>`).join('');
   renderModules();
   renderExtras();
   $('srvurl').textContent = location.origin + '/';
@@ -263,7 +266,7 @@ function render() {
   $('term').innerHTML = `<span style="color:#${c.ansi[2]}">user@host</span>:<span style="color:#${c.ansi[4]}">~/src</span>$ make check<br>ok<br>` +
     c.ansi.slice(0, 8).map((h, i) => `<span style="color:#${h}">■ ansi${i}</span>`).join(' ');
   $('applybtn').disabled = !s.dirty;
-  status(s.dirty ? 'changes not applied' : 'up to date');
+  status(s.dirty ? T.unapplied : T.up_to_date);
   restyle();
 }
 // the colors of your own, the console font, and the environment
@@ -271,47 +274,46 @@ function renderExtras() {
   const s = S;
   $('colors').innerHTML = Object.keys(s.overrides).map(r => {
     const mine = s.overrides[r], hex = mine || s.colors[r];
-    return `<label>${esc(r)}</label><input type="color" data-role="${esc(r)}" value="#${esc(hex)}"><code>${esc(hex)}</code>` +
-      (mine ? `<button data-scheme="${esc(r)}" title="back to the scheme's color">Scheme</button>` : '<small class="what">the scheme\'s</small>');
+    return `<label>${esc(r)}</label><input type="color" data-role="${esc(r)}" value="#${esc(hex)}" title="${esc(mine ? T.color_yours_tip : T.color_pick_tip)}"><code>${esc(hex)}</code>` +
+      (mine ? `<button data-scheme="${esc(r)}" title="${esc(T.color_reset_tip)}">${esc(T.color_reset)}</button>` : `<small class="what">${esc(T.color_schemes)}</small>`);
   }).join('');
   $('colors').querySelectorAll('[data-role]').forEach(e => e.onchange = () => set({color: e.dataset.role, value: e.value.slice(1)}));
   $('colors').querySelectorAll('[data-scheme]').forEach(e => e.onclick = () => set({color: e.dataset.scheme, value: ''}));
   $('ttybox').innerHTML = s.tty_fonts.length
-    ? `<select id="tty_font">${[...new Set([s.tty_font, ...s.tty_fonts])].map(f => `<option${f === s.tty_font ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>`
+    ? `<select id="tty_font" title="${esc(T.font_tty_tip)}">${[...new Set([s.tty_font, ...s.tty_fonts])].map(f => `<option${f === s.tty_font ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>`
     : `<input id="tty_font" value="${esc(s.tty_font)}" title="no console fonts found here: type the name, as in ter-v16n">`;
   $('tty_font').onchange = e => set({tty_font: e.target.value});
   $('envlist').innerHTML = s.env.length ? '<div class="envrow">' + s.env.map(([n, v]) =>
-    `<label>${esc(n)}</label><input data-env="${esc(n)}" value="${esc(v)}"><button data-envdel="${esc(n)}">Remove</button>`).join('') + '</div>'
-    : '<p class="note">No variables.</p>';
+    `<label>${esc(n)}</label><input data-env="${esc(n)}" value="${esc(v)}"><button data-envdel="${esc(n)}">${esc(T.env_remove)}</button>`).join('') + '</div>'
+    : `<p class="note">${esc(T.env_none)}</p>`;
   $('envlist').querySelectorAll('[data-env]').forEach(e => e.onchange = () => set({env: e.dataset.env, value: e.value}));
   $('envlist').querySelectorAll('[data-envdel]').forEach(e => e.onclick = () => set({env: e.dataset.envdel, value: ''}));
 }
 $('envadd').onclick = async () => {
   const name = $('envname').value.trim(), value = $('envvalue').value;
-  if (!name || !value) { status('a variable needs a name and a value'); return; }
+  if (!name || !value) { status(T.env_incomplete); return; }
   await set({env: name, value});
   $('envname').value = $('envvalue').value = '';
 };
 let selMod = null;
-function modState(m) { return !m.present ? 'not installed' : m.on ? 'on' : 'off'; }
 function renderModules() {
   const s = S;
   if (!selMod || !s.modules.find(m => m.name === selMod)) selMod = s.modules.length ? s.modules[0].name : null;
   $('modlist').innerHTML = s.modules.map(m =>
-    `<div class="row${m.name === selMod ? ' sel' : ''}" data-mod="${esc(m.name)}"><span>${esc(m.name)}</span><small>${modState(m)}</small></div>`).join('');
+    `<div class="row${m.name === selMod ? ' sel' : ''}" data-mod="${esc(m.name)}"><span>${esc(m.name)}</span><small>${esc(m.state)}</small></div>`).join('');
   $('modlist').querySelectorAll('.row').forEach(r => r.onclick = () => { location.hash = 'modules/' + r.dataset.mod; });
   const m = s.modules.find(m => m.name === selMod);
   if (!m) { $('moddetail').innerHTML = ''; return; }
-  let h = `<div class="top"><h3>${esc(m.name)}</h3><label><input type="checkbox" id="modon" ${m.on ? 'checked' : ''}> On</label></div>
+  let h = `<div class="top"><h3>${esc(m.name)}</h3><label title="${esc(T.module_switch_tip)}"><input type="checkbox" id="modon" ${m.on ? 'checked' : ''}> ${esc(m.on ? T.state_on : T.state_off)}</label></div>
     <p class="desc">${esc(m.desc)}</p>`;
-  if (!m.present) h += `<p class="note">Its program is not installed here. The module stays ${m.on ? 'on and takes effect once the program appears' : 'off'}.</p>`;
+  if (m.note) h += `<p class="note">${esc(m.note)}</p>`;
   for (let g = 0; g < s.groups.length; g++) {
     const opts = m.options.filter(o => o.group === g);
     if (!opts.length) continue;
     h += `<div class="section"><h4>${esc(s.groups[g])}</h4>`;
     h += opts.map(o => optionRow(m.name, o)).join('') + '</div>';
   }
-  if (!m.options.length) h += '<p class="note">This module has no options.</p>';
+  if (!m.options.length) h += `<p class="note">${esc(T.no_options)}</p>`;
   $('moddetail').innerHTML = h;
   $('modon').onchange = e => module(m.name, e.target.checked);
   $('moddetail').querySelectorAll('[data-opt]').forEach(el => {
@@ -335,13 +337,11 @@ function optionRow(mod, o) {
   else if (o.control === 'list') field = `<select id="${id}" data-opt="${key}">${o.choices.split('|').map(v => `<option${v === o.value ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
   else if (o.control === 'slider') field = `<span class="slide"><input id="${id}" data-opt="${key}" type="range" min="${o.min}" max="${o.max}" value="${esc(o.value)}" oninput="this.nextElementSibling.textContent = this.value"><output>${esc(o.value)}</output></span>`;
   else field = `<input id="${id}" data-opt="${key}" value="${esc(o.value)}" placeholder="${esc(o.default)}">`;
-  const setTitle = id => (S.sets.find(t => t.id === id) || {title: id}).title;
-  const dflt = o.name === 'template' ? `the global set (${esc(setTitle(S.set))})` : esc(o.default);
-  const reset = o.set ? `<button class="reset" data-opt="${key}" data-reset="1" title="back to the default: ${dflt}">Reset</button>` : '<span></span>';
+  const reset = o.set ? `<button class="reset" data-opt="${key}" data-reset="1" title="${esc(T.option_reset_tip)}">${esc(T.option_reset)}</button>` : '<span></span>';
   // an action beside it (front_option_action): Install for a stylus site, as a link
-  const action = o.action && o.link ? ` <a class="btn" href="${esc(o.link)}" target="_blank" title="Stylus offers to install it">${esc(o.action)}</a>` : '';
+  const action = o.action && o.link ? ` <a class="btn" href="${esc(o.link)}" target="_blank" title="${esc(T.install_tip)}">${esc(o.action)}</a>` : '';
   return `<div class="opt"><label for="${id}">${esc(o.name)}</label><span>${field}${action}</span>${reset}
-    <small class="what">${esc(o.desc)}${o.set ? ` · default: ${dflt}` : ''}</small></div>`;
+    <small class="what">${esc(o.note)}</small></div>`;
 }
 $('themefind').oninput = () => render();
 document.querySelectorAll('#modeseg button').forEach(b => b.onclick = () => set({mode: b.dataset.mode}));
@@ -359,7 +359,7 @@ $('schemerestore').onclick = async () => { report(await api('/api/scheme/restore
 $('srvstop').onclick = async () => {
   if (!confirm('Stop themer-web? This page stops working until the server is started again (Server in any front end, or themer server start).')) return;
   try { await api('/api/quit', {}); } catch (e) {}
-  status('themer-web stopped');
+  status(T.server_stopped);
 };
 $('webport').onchange = async e => {
   const r = await api('/api/set', {web_port: +e.target.value});
@@ -368,28 +368,32 @@ $('webport').onchange = async e => {
 };
 async function load() { S = await api('/api/state'); render(); }
 async function set(kv) { S = await api('/api/set', kv); render(); }
-async function apply() { status('applying…'); const r = await api('/api/apply', {}); await load(); status(r.message); }
-async function revert() { S = await api('/api/revert', {}); render(); }
+async function apply() { status(T.applying); const r = await api('/api/apply', {}); await load(); status(r.message); }
+async function revert() { S = await api('/api/revert', {}); render(); status(T.reverted); }
 async function module(name, on) { const r = await api('/api/module', {name, on}); status(r.msg); await load(); }
 async function option(module, option, value) {
   const r = await api('/api/option', {module, option, value});
-  status(r.msg || 'option set');
+  status(r.msg || T.option_saved);
   if (r.moved) { status(`themer-web moved to port ${r.moved}`); setTimeout(() => { location.port = r.moved; }, 600); return; }
   if (r.stopping) { status('themer-web stopped (server is off); start it again with: themer server start'); return; }
   await load();
 }
 async function resetOption(module, option) { const r = await api('/api/option/reset', {module, option}); status(r.msg); await load(); }
 function report(r) { const p = $('setreport'); p.style.display = 'block'; p.textContent = (r.ok ? '' : 'failed\n') + r.report; }
-async function newSet() { const to = prompt('Name of the new set (a copy of ' + S.set + '):'); if (to) report(await api('/api/set/copy', {from: S.set, to})); await load(); }
+async function newSet() { const to = prompt(`${T.set_new_title}\n${T.set_new_prompt}`); if (to) report(await api('/api/set/copy', {from: S.set, to})); await load(); }
+// the same three fields as the dialogs in themer-gtk and themer-qt, asked in turn
 async function importSet() {
-  const set = prompt('Set to import into:', S.set); if (!set) return;
-  const module = prompt('Module (gtk, qt, firefox, waybar, …):'); if (!module) return;
-  const path = prompt('Path of the theme file or directory:'); if (!path) return;
+  const set = prompt(`${T.set_import_title}\n${T.set_import_note}\n\n${T.set_import_set} (${T.set_import_set_hint})`, S.set); if (!set) return;
+  const mods = S.modules.filter(m => m.templates).map(m => m.name).join(', ');
+  const module = prompt(`${T.set_import_module} (${mods})`); if (!module) return;
+  const path = prompt(`${T.set_import_path} (${T.set_import_path_hint})`); if (!path) return;
   report(await api('/api/set/import', {set, module, path})); await load();
 }
 async function checkSet() { report(await api('/api/set/check', {name: S.set})); }
 // the page in the address (#theme, #modules/foot), so Back and links work
+const MOVED = {cursor: 'icons', server: 'system', env: 'system'};   // old addresses
 function showPage(name) {
+  name = MOVED[name] || name;
   const a = document.querySelector(`nav a[data-page="${name}"]`);
   if (!a) return;
   document.querySelectorAll('nav a, .page').forEach(e => e.classList.remove('sel'));
@@ -403,8 +407,8 @@ function openHash() {
 document.querySelectorAll('nav a').forEach(a => a.onclick = () => { location.hash = a.dataset.page; });
 window.addEventListener('hashchange', openHash);
 document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); apply(); } });
-openHash();
-load().catch(e => status('could not reach themer-web: ' + e));
+loadText().then(() => { openHash(); if (!location.hash) showPage(PAGES[0].id); return load(); })
+  .catch(e => status('could not reach themer-web: ' + e));
 </script>
 </body>
 </html>

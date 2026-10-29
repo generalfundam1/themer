@@ -233,6 +233,11 @@ if command -v curl >/dev/null 2>&1; then
 	grep -q '"dirty":true' "$HOME/state.json" && bad "themer-web: a fresh server says it has unapplied changes"
 	post /api/apply '{}' | grep -q '"failures":0' || bad "themer-web: apply failed"
 	curl -s "$w/api/state" | grep -q '"dirty":false' || bad "themer-web: still unapplied after apply"
+	# the words: the five pages every front end has, and no text left empty
+	curl -s "$w/api/text" | grep -q '"pages":\[{"id":"theme","title":"Theme"},{"id":"fonts","title":"Fonts"},{"id":"icons","title":"Icons"},{"id":"modules","title":"Modules"},{"id":"system","title":"System"}\]' ||
+		bad "themer-web: the pages are not the five every front end has"
+	curl -s "$w/api/text" | grep -q '":""' && bad "themer-web: a text is empty"
+	curl -s "$w/api/state" | grep -q '"state":"on","note":"",' || bad "themer-web: a module's state is not the shared one"
 	sleep 0.3
 	grep -q '/stylus/youtube.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open the stylus sites"
 	grep -q '/stylus/wikipedia.user.css$' "$HOME/opened" 2>/dev/null || bad "Apply did not open every stylus site"

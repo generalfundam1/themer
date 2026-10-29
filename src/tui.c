@@ -22,6 +22,7 @@ enum { ST_NORM, ST_SEL, ST_DIM, ST_INPUT };
 
 #define MAXL     2048
 #define PANEL_W  72
+#define MOD_HEAD 2     /* the module's description, in the modules screen */
 
 extern char **environ;
 
@@ -153,7 +154,7 @@ tui_sync(void)
 {
 	if (front_sync()) {
 		dirty = !config_same(cfg, &base);
-		flash("updated with changes made in another front end");
+		flash(front_text(FT_SYNCED));
 	}
 }
 
@@ -423,6 +424,35 @@ pline(int st, const char *s)
 	pstart(st);
 	pput(s);
 	pend();
+}
+
+/* text over n dim lines w wide, broken at spaces; always n lines */
+static void
+note_lines(const char *text, int n, int w)
+{
+	char b[256];
+
+	if (w < 16)
+		w = 16;
+	for (int k = 0; k < n; k++) {
+		int len = (int)strlen(text), cut = len;
+
+		if (len > w) {
+			cut = w;
+			while (cut > w / 2 && text[cut] != ' ')
+				cut--;
+			if (text[cut] != ' ')
+				cut = w;
+		}
+		if (k == n - 1 && len > cut)   /* the last line: what is left, cut with ... */
+			snprintf(b, sizeof b, "  %.*s...", w - 3 > 0 ? w - 3 : 0, text);
+		else
+			snprintf(b, sizeof b, "  %.*s", cut, text);
+		pline(ST_DIM, b);
+		text += cut;
+		while (*text == ' ')
+			text++;
+	}
 }
 
 static void
@@ -864,7 +894,7 @@ theme_menu(void)
 			break;
 		case '/':
 			what[0] = '\0';
-			if (input("Find a scheme", "part of its name", what, sizeof what) && what[0])
+			if (input(front_text(FT_SCHEME_FIND), "part of its name", what, sizeof what) && what[0])
 				for (i = 1; i <= n; i++)
 					if (strstr(items[(sel + i) % n], what)) {
 						sel = (sel + i) % n;
@@ -875,7 +905,7 @@ theme_menu(void)
 		case 'i':
 			/* a scheme file: .theme, Gogh lines, Xresources, kitty, foot, alacritty */
 			path[0] = '\0';
-			if (!input("Import a colour scheme", "path of a .theme, Xresources, kitty, foot or alacritty file",
+			if (!input(front_text(FT_SCHEME_IMPORT_TITLE), front_text(FT_SCHEME_IMPORT_TIP),
 			           path, sizeof path) || !path[0])
 				break;
 			with_report("scheme import", import_scheme_cb, path);
@@ -887,14 +917,14 @@ theme_menu(void)
 			break;
 		case 'd':
 			if (!strcmp(items[sel], orig_th.name)) {
-				flash("that is the scheme in use: keep another first");
+				flash(front_text(FT_SCHEME_IN_USE));
 				break;
 			}
 			snprintf(what, sizeof what, "%s", items[sel]);
 			switch (scheme_remove(what)) {
 			case 0: flash("deleted"); break;
 			case 1: flash("hidden (a built-in scheme: r brings every hidden one back)"); break;
-			default: flash("could not remove it");
+			default: flash(front_text(FT_SCHEME_REMOVE_FAILED));
 			}
 			n = theme_list(names, MAX_THEMES);
 			for (i = 0; i < n; i++)
@@ -905,7 +935,7 @@ theme_menu(void)
 			break;
 		case 'r':
 			if (scheme_restore(NULL) == 0)
-				flash("every hidden built-in scheme is back");
+				flash(front_text(FT_SCHEME_RESTORED));
 			n = theme_list(names, MAX_THEMES);
 			for (i = 0; i < n; i++) {
 				items[i] = names[i];
@@ -959,7 +989,7 @@ colors_menu(void)
 			         cfg->color[i][0] ? "  (override)" : "");
 			items[i] = it[i];
 		}
-		r = pick("Colors", "override single colors. theme values apply otherwise",
+		r = pick(front_text(FT_COLORS), front_text(FT_COLORS_NOTE),
 		         items, C_N, &sel, "enter edit   x clear override   q back");
 		if (r == -1)
 			return;
@@ -1048,7 +1078,7 @@ env_menu(void)
 		items[n++] = "+ new variable";
 		items[n++] = "> view process environment";
 
-		r = pick("Environment", "applied through environment.d on apply",
+		r = pick(front_text(FT_ENV), front_text(FT_ENV_NOTE),
 		         items, n, &sel, "enter edit   n new   d delete   q back");
 		if (r == -1)
 			return;
@@ -1300,7 +1330,7 @@ modules_menu(void)
 
 			snprintf(b, sizeof b, "%c [%c] %-12s %s", off + i == sel ? '>' : ' ',
 			         themer_module_on(cfg, m) ? 'x' : ' ', themer_module_name(m),
-			         themer_module_present(cfg, m) ? "" : "not installed");
+			         themer_module_present(cfg, m) ? "" : front_text(FT_STATE_ABSENT));
 			pline(off + i == sel && !focus ? ST_SEL : ST_NORM, b);
 		}
 		for (; i < inner; i++)
@@ -1310,17 +1340,24 @@ modules_menu(void)
 		pfocus = -1;
 		if (focus) {
 			/* the selected option's line: the status line, its section headers, the rows */
-			pfocus = 2 + osel;
+			pfocus = 2 + MOD_HEAD + osel;
 			for (int g = 0, last = -1; g <= osel && g < no; g++)
 				if (front_option_group(mod, oo[g]) != last)
 					pfocus++, last = front_option_group(mod, oo[g]);
 		}
 		pbegin_at(no ? "options" : "options (none)", inner, pane, left + pane + 2, top);
-		snprintf(b, sizeof b, "%s: %s", themer_module_name(mod),
-		         !themer_module_present(cfg, mod) ? "program not installed" :
-		         themer_module_on(cfg, mod) ? "on" : "off");
+		snprintf(b, sizeof b, "%s: %s", themer_module_name(mod), front_module_state(cfg, mod));
 		pline(ST_DIM, b);
-		i = 1;
+		{
+			/* what it themes, and why it does nothing here, as the GUIs say it */
+			char about[512];
+
+			snprintf(about, sizeof about, "%s%s%s", themer_module_desc(mod),
+			         front_module_note(cfg, mod) ? ". " : "",
+			         front_module_note(cfg, mod) ? front_module_note(cfg, mod) : "");
+			note_lines(about, MOD_HEAD, pane - 4 > 10 ? pane - 4 : 10);
+		}
+		i = 1 + MOD_HEAD;
 		for (j = 0; j < no; j++) {
 			int g = front_option_group(mod, oo[j]);
 			const TmOption *o = themer_option(mod, oo[j]);
@@ -1340,32 +1377,20 @@ modules_menu(void)
 			i++;
 		}
 		if (!no) {
-			pline(ST_DIM, "  this module has no options");
+			pline(ST_DIM, front_text(FT_NO_OPTIONS));
 			i++;
 		} else {
 			const TmOption *o = themer_option(mod, oo[osel]);
-
-			int w = pane - 2 > 10 ? pane - 2 : 10, len = (int)strlen(o->desc), cut = len;
+			char note[512];
 
 			pline(ST_NORM, "");
-			/* the description over two lines, broken at a space */
-			if (len > w) {
-				cut = w;
-				while (cut > w / 2 && o->desc[cut] != ' ')
-					cut--;
-				if (o->desc[cut] != ' ')
-					cut = w;
-			}
-			snprintf(b, sizeof b, "%.*s", cut, o->desc);
-			pline(ST_DIM, b);
-			snprintf(b, sizeof b, "%s", o->desc[cut] == ' ' ? o->desc + cut + 1 : o->desc + cut);
-			pline(ST_DIM, b);
+			/* the line the other front ends show under the option: its description,
+			 * and its default when it is set; then the values it takes */
+			front_option_note(cfg, mod, oo[osel], note, sizeof note);
+			note_lines(note, 3, pane - 4 > 10 ? pane - 4 : 10);
 			option_range(o, b, sizeof b);
-			if (themer_option_is_set(cfg, mod, oo[osel]))
-				snprintf(b + strlen(b), sizeof b - strlen(b), "; default %s",
-				         !strcmp(o->name, "template") ? "the global set" : o->def);
 			pline(ST_DIM, b);
-			i += 4;
+			i += 5;
 		}
 		for (; i < inner; i++)
 			pline(ST_NORM, "");
@@ -1395,7 +1420,7 @@ modules_menu(void)
 			else if (no)
 				focus = 1;
 			else
-				flash("this module has no options");
+				flash(front_text(FT_NO_OPTIONS));
 			break;
 		case 'h':
 		case K_LEFT:
@@ -1470,9 +1495,9 @@ modules_menu(void)
 				int on = themer_module_on(cfg, mod);
 
 				if (front_module_set(cfg, mod, !on) < 0)
-					flash(on ? "unload had errors" : "load failed (see stderr)");
+					flash(front_text(on ? FT_MODULE_UNLOAD_FAILED : FT_MODULE_LOAD_FAILED));
 				else
-					flash(on ? "module unloaded" : "module loaded");
+					flash(front_text(on ? FT_MODULE_UNLOADED : FT_MODULE_LOADED));
 			}
 			break;
 		case 'q':
@@ -1549,12 +1574,12 @@ set_new(const char *from)
 	char name[NAME_LEN] = "";
 	const char *args[2];
 
-	if (!input("New template set", "name for the copy (letters, digits, - and _)", name, sizeof name) || !name[0])
+	if (!input(front_text(FT_SET_NEW_TITLE), front_text(FT_SET_NEW_PROMPT), name, sizeof name) || !name[0])
 		return;
 	args[0] = from;
 	args[1] = name;
 	if (with_report("set copy", do_copy, args) < 0) {
-		flash("could not copy; the name may be taken or not valid");
+		flash(front_text(FT_SET_COPY_FAILED));
 		return;
 	}
 	if (front_set_set(cfg, name) == 0)
@@ -1570,22 +1595,22 @@ set_import_tui(const char *into)
 	int nm = 0, sel = 0, r;
 
 	snprintf(name, sizeof name, "%s", strcmp(into, TM_DEFAULT_SET) ? into : "");
-	if (!input("Import into set", "name of the set to add to (new or existing)", name, sizeof name) || !name[0])
+	if (!input(front_text(FT_SET_IMPORT_SET), front_text(FT_SET_IMPORT_SET_HINT), name, sizeof name) || !name[0])
 		return;
 	for (int i = 0; i < themer_module_count(); i++)
 		if (themer_module_templates(i))
 			mods[nm++] = themer_module_name(i);
-	r = pick("Module", "whose files are you importing?", mods, nm, &sel, "j/k move   enter select   esc back");
+	r = pick(front_text(FT_SET_IMPORT_MODULE), front_text(FT_SET_IMPORT_NOTE), mods, nm, &sel, "j/k move   enter select   esc back");
 	if (r < 0)
 		return;
 	snprintf(module, sizeof module, "%s", mods[r]);
-	if (!input("Path", "the theme: a file or a directory (a GTK theme dir, a chrome/ dir, a .qss)", path, sizeof path) || !path[0])
+	if (!input(front_text(FT_SET_IMPORT_PATH), front_text(FT_SET_IMPORT_PATH_HINT), path, sizeof path) || !path[0])
 		return;
 	args[0] = name;
 	args[1] = module;
 	args[2] = path;
 	if (with_report("set import", do_import, args) < 0) {
-		flash("import failed; see the report");
+		flash(front_text(FT_SET_IMPORT_FAILED));
 		return;
 	}
 	if (front_set_set(cfg, name) == 0)
@@ -1618,7 +1643,7 @@ set_pick(void)
 			if (!strcmp(names[i], cfg->set))
 				sel = i;
 		}
-		r = pick("template sets", "the look every module renders; what a set lacks comes from Themer Default",
+		r = pick(front_text(FT_SET), front_text(FT_SET_NOTE),
 		         items, n, &sel, "enter select   n new (copy)   i import a theme   c check   esc back");
 		if (r == -1)
 			return;
@@ -1649,7 +1674,7 @@ tty_pick(void)
 		load_dir(dirs[i], 1, 0);
 	finish_list();
 	if (!lstn) {
-		if (input("TTY font", "console font name", cfg->tty_font, sizeof cfg->tty_font))
+		if (input(front_text(FT_FONT_TTY), front_text(FT_FONT_TTY_TIP), cfg->tty_font, sizeof cfg->tty_font))
 			dirty = 1;
 		return;
 	}
@@ -1701,7 +1726,7 @@ render_menu(void)
 		snprintf(val[2], sizeof val[2], "  %-16s%s", labels[2], cfg->rgba);
 		for (int i = 0; i < 3; i++)
 			items[i] = val[i];
-		r = pick("Font rendering", "how text is drawn; GTK, Qt, and X apps follow",
+		r = pick(front_text(FT_RENDERING), front_text(FT_RENDERING_NOTE),
 		         items, 3, &sel, "j/k move   enter change   esc back");
 		if (r < 0)
 			return;
@@ -1711,7 +1736,7 @@ render_menu(void)
 			for (int i = 0; i < 4; i++)
 				if (!strcmp(hinting_values[i], cfg->hinting))
 					s = i;
-			k = pick("Hinting", "slight suits most screens; full is crisp but uneven",
+			k = pick(front_text(FT_HINTING), "slight suits most screens; full is crisp but uneven",
 			         (const char **)hinting_values, 4, &s, "j/k move   enter select   esc back");
 			if (k >= 0 && strcmp(cfg->hinting, hinting_values[k]) &&
 			    front_set_hinting(cfg, hinting_values[k]) == 0)
@@ -1725,7 +1750,7 @@ render_menu(void)
 			for (int i = 0; i < 5; i++)
 				if (!strcmp(rgba_values[i], cfg->rgba))
 					s = i;
-			k = pick("Subpixel order", "rgb for most LCDs; none for HiDPI or rotated screens",
+			k = pick(front_text(FT_RGBA), "rgb for most LCDs; none for HiDPI or rotated screens",
 			         (const char **)rgba_values, 5, &s, "j/k move   enter select   esc back");
 			if (k >= 0 && strcmp(cfg->rgba, rgba_values[k]) && front_set_rgba(cfg, rgba_values[k]) == 0)
 				dirty = 1;
@@ -1844,15 +1869,14 @@ server_menu(void)
 			return;
 		else if (k == K_ENTER && sel == 0) {
 			if ((up ? front_web_stop(port) : front_web_start(port)) < 0)
-				flash(up ? "could not stop themer-web"
-				         : "could not start themer-web: is a browser module (firefox, stylus) on?");
+				flash(front_text(up ? FT_SERVER_STOP_FAILED : FT_SERVER_START_FAILED));
 			else
-				flash(up ? "themer-web stopped" : "themer-web started");
+				flash(front_text(up ? FT_SERVER_STOPPED : FT_SERVER_STARTED));
 		} else if (k == K_ENTER && sel == 1) {
 			char buf[16];
 
 			snprintf(buf, sizeof buf, "%d", port);
-			if (input("Port", "1024 to 65535; a running server moves to it", buf, sizeof buf) &&
+			if (input(front_text(FT_PORT), front_text(FT_PORT_NOTE), buf, sizeof buf) &&
 			    front_set_web_port(cfg, atoi(buf)) < 0)
 				flash("the port is a number from 1024 to 65535");
 		} else if (k == K_ENTER && sel == 2) {
@@ -1861,35 +1885,52 @@ server_menu(void)
 	}
 }
 
-/* The main menu: one row per setting, in the sections of the graphical front ends'
- * pages, so the four front ends read the same. */
+
+/* The main menu: one row per setting, under the pages of the graphical front ends
+ * (front_pages) and with their words (front_text), so the four front ends read the
+ * same; the line under the selected row's section in the GUIs is shown under the
+ * list. The actions close it, as the File menu does. */
 enum {
 	R_THEME, R_MODE, R_SET, R_COLORS,
 	R_UIFONT, R_UISIZE, R_MONOFONT, R_MONOSIZE, R_TTYFONT, R_RENDER,
 	R_ICONS, R_CURSOR, R_CURSIZE,
-	R_MODULES, R_SERVER, R_ENV, R_APPLY, R_QUIT, R_N
+	R_MODULES,
+	R_SERVER, R_ENV, R_ABOUT,
+	R_APPLY, R_REVERT, R_QUIT, R_N
 };
 
-static const struct { const char *section, *label; } menu_rows[R_N] = {
-	[R_THEME]    = { "Theme", "Color scheme" },
-	[R_MODE]     = { NULL,    "Mode" },
-	[R_SET]      = { NULL,    "Template set" },
-	[R_COLORS]   = { NULL,    "Color overrides" },
-	[R_UIFONT]   = { "Fonts", "Interface font" },
-	[R_UISIZE]   = { NULL,    "Interface size" },
-	[R_MONOFONT] = { NULL,    "Terminal font" },
-	[R_MONOSIZE] = { NULL,    "Terminal size" },
-	[R_TTYFONT]  = { NULL,    "Console font" },
-	[R_RENDER]   = { NULL,    "Rendering" },
-	[R_ICONS]    = { "Icons and cursor", "Icon theme" },
-	[R_CURSOR]   = { NULL,    "Cursor theme" },
-	[R_CURSIZE]  = { NULL,    "Cursor size" },
-	[R_MODULES]  = { "System", "Modules" },
-	[R_SERVER]   = { NULL,    "Server" },
-	[R_ENV]      = { NULL,    "Environment" },
-	[R_APPLY]    = { NULL,    "Apply" },
-	[R_QUIT]     = { NULL,    "Quit" },
+static const struct { int page, label, note; } menu_rows[R_N] = {
+	[R_THEME]    = { FP_THEME,   FT_SCHEME,           -1 },
+	[R_MODE]     = { -1,         FT_MODE,             -1 },
+	[R_SET]      = { -1,         FT_SET,              FT_SET_NOTE },
+	[R_COLORS]   = { -1,         FT_COLORS,           FT_COLORS_NOTE },
+	[R_UIFONT]   = { FP_FONTS,   FT_FONT_UI,          FT_FONTS_NOTE },
+	[R_UISIZE]   = { -1,         FT_ROW_UI_SIZE,      FT_FONTS_NOTE },
+	[R_MONOFONT] = { -1,         FT_FONT_MONO,        FT_FONTS_NOTE },
+	[R_MONOSIZE] = { -1,         FT_ROW_MONO_SIZE,    FT_FONTS_NOTE },
+	[R_TTYFONT]  = { -1,         FT_FONT_TTY,         FT_FONTS_NOTE },
+	[R_RENDER]   = { -1,         FT_RENDERING,        FT_RENDERING_NOTE },
+	[R_ICONS]    = { FP_ICONS,   FT_ICONS,            FT_ICONS_NOTE },
+	[R_CURSOR]   = { -1,         FT_CURSOR,           FT_CURSOR_NOTE },
+	[R_CURSIZE]  = { -1,         FT_ROW_CURSOR_SIZE,  FT_CURSOR_NOTE },
+	[R_MODULES]  = { FP_MODULES, FT_MODULES,          FT_MODULES_NOTE },
+	[R_SERVER]   = { FP_SYSTEM,  FT_SERVER,           FT_SERVER_NOTE },
+	[R_ENV]      = { -1,         FT_ENV,              FT_ENV_NOTE },
+	[R_ABOUT]    = { -1,         FT_ABOUT,            FT_ABOUT_NOTE },
+	[R_APPLY]    = { -2,         FT_APPLY,            -1 },
+	[R_REVERT]   = { -1,         FT_REVERT,           -1 },
+	[R_QUIT]     = { -1,         FT_QUIT,             -1 },
 };
+#define NOTE_LINES 3   /* the selected row's note, wrapped */
+
+/* back to what was last applied, as Revert to applied in the other front ends */
+static void
+revert_all(void)
+{
+	*cfg = base;
+	dirty = 0;
+	flash(front_text(FT_REVERTED));
+}
 
 /* a size row: left/right steps it, enter types it */
 static void
@@ -1914,7 +1955,7 @@ type_size(int row)
 	int mono = row == R_MONOSIZE, cur = row == R_CURSIZE ? cfg->cursor_size : mono ? cfg->mono_size : cfg->ui_size;
 
 	snprintf(buf, sizeof buf, "%d", cur);
-	if (!input(menu_rows[row].label, row == R_CURSIZE ? "pixels (24, 32, 48...)" : "points", buf, sizeof buf))
+	if (!input(front_text(menu_rows[row].label), row == R_CURSIZE ? "pixels (24, 32, 48...)" : "points", buf, sizeof buf))
 		return;
 	step_size(row, atoi(buf) - cur);
 }
@@ -1932,7 +1973,7 @@ font_family_pick(int mono)
 	if (front_set_font(cfg, mono, f, 0) == 0)
 		dirty = 1;
 	else
-		flash("not a font name");
+		flash(front_text(FT_FONT_INVALID));
 }
 
 static int
@@ -1953,7 +1994,9 @@ main_action(int row)
 	case R_MODULES:  modules_menu(); break;
 	case R_SERVER:   server_menu(); break;
 	case R_ENV:      env_menu(); break;
+	case R_ABOUT:    break;
 	case R_APPLY:    apply_all(); break;
+	case R_REVERT:   revert_all(); break;
 	default:         return 0;
 	}
 	return 1;
@@ -1965,7 +2008,7 @@ main_menu(void)
 	int sel = 0, armed = 0, k, nsec = 0;
 
 	for (int r = 0; r < R_N; r++)
-		nsec += menu_rows[r].section != NULL;
+		nsec += menu_rows[r].page >= 0 ? 2 : menu_rows[r].page == -2;
 	for (;;) {
 		char val[R_N][128], line[200], title[NAME_LEN];
 		int port = front_web_port(cfg);
@@ -1990,30 +2033,37 @@ main_menu(void)
 		else
 			snprintf(val[R_SERVER], sizeof val[0], "stopped");
 		snprintf(val[R_ENV], sizeof val[0], "%d variable%s", cfg->nenv, cfg->nenv == 1 ? "" : "s");
-		snprintf(val[R_APPLY], sizeof val[0], "%s", dirty ? "unapplied changes" : "up to date");
-		val[R_QUIT][0] = '\0';
+		snprintf(val[R_ABOUT], sizeof val[0], "themer %s", VERSION);
+		snprintf(val[R_APPLY], sizeof val[0], "%s", front_text(dirty ? FT_UNAPPLIED : FT_UP_TO_DATE));
+		val[R_REVERT][0] = val[R_QUIT][0] = '\0';
 
-		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   q quit");
+		frame_begin("j/k move   enter change   h/l adjust   m mode   a apply   r revert   q quit");
 		/* the selected row's line in the panel, kept in view in a short terminal */
 		pfocus = 1;
 		for (int r = 0; r <= sel; r++)
-			pfocus += (menu_rows[r].section ? (r ? 2 : 1) : 0) + (r < sel);
-		pbegin("themer", R_N + nsec + 4, PANEL_W);
+			pfocus += (menu_rows[r].page >= 0 ? (r ? 2 : 1) : menu_rows[r].page == -2) + (r < sel);
+		pbegin("themer", R_N + nsec + 4 + NOTE_LINES, PANEL_W);
 		for (int r = 0; r < R_N; r++) {
-			if (menu_rows[r].section) {
+			if (menu_rows[r].page != -1) {
 				if (r)
 					pline(ST_NORM, "");
-				pline(ST_DIM, menu_rows[r].section);
+				if (menu_rows[r].page >= 0)
+					pline(ST_DIM, front_pages[menu_rows[r].page].title);
 			}
-			snprintf(line, sizeof line, "  %-17s%.120s", menu_rows[r].label, val[r]);
+			snprintf(line, sizeof line, "  %-17s%.120s", front_text(menu_rows[r].label), val[r]);
 			pline(r == sel ? ST_SEL : ST_NORM, line);
 		}
+		pline(ST_NORM, "");
+		note_lines(menu_rows[sel].note >= 0 ? front_text(menu_rows[sel].note) : "", NOTE_LINES,
+		           PANEL_W - 4 > cols - 10 ? cols - 10 : PANEL_W - 4);
 		pline(ST_NORM, "");
 		preview_lines();
 		pbottom();
 		frame_end();
 
 		k = readkey();
+		if (k == K_ENTER && sel == R_QUIT)
+			k = 'q';       /* the Quit row asks as q does */
 		if (k != 'q' && k != K_ESC)
 			armed = 0;
 		switch (k) {
@@ -2042,6 +2092,9 @@ main_menu(void)
 			break;
 		case 'a':
 			apply_all();
+			break;
+		case 'r':
+			revert_all();
 			break;
 		case 'q':
 		case K_ESC:

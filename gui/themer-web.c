@@ -26,6 +26,7 @@
  *   GET  /theme.css             the browsed theme as CSS variables
  *   GET  /page.css              the page's look: the web module's template, web/page.css
  *   GET  /api/state             everything the page shows, as JSON
+ *   GET  /api/text              the pages and every word on them (text.c), the size limits
  *   POST /api/set               {theme|mode|set|ui_font|ui_size|mono_font|mono_size|
  *                                icons|cursor|cursor_size|hinting|antialias|rgba}
  *                               changes the browsed settings (not applied yet)
@@ -360,9 +361,12 @@ state_json(Buf *b)
 		bprintf(b, "%s{\"name\":", k ? "," : "");
 		jstr(b, themer_module_name(i));
 		bputs(b, ",\"desc\":"); jstr(b, themer_module_desc(i));
-		bprintf(b, ",\"on\":%s,\"present\":%s,\"options\":[",
+		bputs(b, ",\"state\":"); jstr(b, front_module_state(&cfg, i));
+		bputs(b, ",\"note\":"); jstr(b, front_module_note(&cfg, i) ? front_module_note(&cfg, i) : "");
+		bprintf(b, ",\"on\":%s,\"present\":%s,\"templates\":%s,\"options\":[",
 		        themer_module_on(&cfg, i) ? "true" : "false",
-		        themer_module_present(&cfg, i) ? "true" : "false");
+		        themer_module_present(&cfg, i) ? "true" : "false",
+		        themer_module_templates(i) ? "true" : "false");
 		for (int j = 0; j < themer_option_count(i); j++) {
 			const TmOption *o = themer_option(i, j);
 			const char *v = themer_option_value(&cfg, i, j);
@@ -380,6 +384,12 @@ state_json(Buf *b)
 			        front_option_is_switch(i, j) ? "true" : "false",
 			        controls[front_option_control(i, j)]);
 			jstr(b, v ? v : "");
+			{
+				char note[512];
+
+				front_option_note(&cfg, i, j, note, sizeof note);
+				bputs(b, ",\"note\":"); jstr(b, note);
+			}
 			if (front_option_action(&cfg, i, j)) {
 				char link[160];
 
@@ -393,6 +403,31 @@ state_json(Buf *b)
 		bputs(b, "]}");
 	}
 	bputs(b, "]}");
+}
+
+/* the pages, the words (front_text, by key) and the limits: the page fills itself from
+ * these, so it reads as the other front ends do */
+static void
+text_json(Buf *b)
+{
+	bputs(b, "{\"pages\":[");
+	for (int p = 0; p < FP_N; p++) {
+		bputs(b, p ? ",{\"id\":" : "{\"id\":");
+		jstr(b, front_pages[p].id);
+		bputs(b, ",\"title\":");
+		jstr(b, front_pages[p].title);
+		bput(b, "}", 1);
+	}
+	bputs(b, "],\"text\":{");
+	for (int t = 0; t < FT_N; t++) {
+		if (t)
+			bput(b, ",", 1);
+		jstr(b, front_text_key(t));
+		bput(b, ":", 1);
+		jstr(b, front_text(t));
+	}
+	bprintf(b, "},\"limits\":{\"font_min\":%d,\"font_max\":%d,\"cursor_min\":%d,\"cursor_max\":%d}}",
+	        FRONT_FONT_MIN, FRONT_FONT_MAX, FRONT_CURSOR_MIN, FRONT_CURSOR_MAX);
 }
 
 /* the browsed theme as CSS variables: the page restyles itself from them */
@@ -654,6 +689,9 @@ handle(int fd, const char *method, const char *path, const char *body)
 		respond(fd, 200, "text/css; charset=utf-8", b.s, b.n);
 	} else if (!strcmp(method, "GET") && !strcmp(path, "/api/state")) {
 		state_json(&b);
+		respond_json(fd, &b);
+	} else if (!strcmp(method, "GET") && !strcmp(path, "/api/text")) {
+		text_json(&b);
 		respond_json(fd, &b);
 	} else if (!strcmp(method, "GET") && !strncmp(path, "/icon/", 6)) {
 		serve_icon(fd, path + 6);

@@ -59,7 +59,7 @@ front_set_font(Config *c, int mono, const char *family, int size)
 
 	char copy[sizeof c->ui_font];
 
-	if (!valid_text(family, mono ? sizeof c->mono_font : sizeof c->ui_font) || size < 0 || size > 200)
+	if (!valid_text(family, mono ? sizeof c->mono_font : sizeof c->ui_font) || size < 0 || (size && (size < FRONT_FONT_MIN || size > FRONT_FONT_MAX)))
 		return -1;
 	/* family may be the field itself (a size change keeps it): copy it first */
 	snprintf(copy, sizeof copy, "%s", family);
@@ -81,7 +81,7 @@ front_set_icons(Config *c, const char *name)
 int
 front_set_cursor(Config *c, const char *name, int size)
 {
-	if (size < 0 || size > 512 || (name && !valid_text(name, sizeof c->cursor)))
+	if (size < 0 || (size && (size < FRONT_CURSOR_MIN || size > FRONT_CURSOR_MAX)) || (name && !valid_text(name, sizeof c->cursor)))
 		return -1;
 	if (name)
 		snprintf(c->cursor, sizeof c->cursor, "%s", name);
@@ -299,6 +299,38 @@ front_option_control(int module, int option)
 	if (o->max > o->min)
 		return OC_SLIDER;
 	return OC_TEXT;
+}
+
+const char *
+front_module_state(const Config *c, int module)
+{
+	return front_text(!themer_module_present(c, module) ? FT_STATE_ABSENT
+	                  : themer_module_on(c, module) ? FT_STATE_ON : FT_STATE_OFF);
+}
+
+const char *
+front_module_note(const Config *c, int module)
+{
+	if (themer_module_present(c, module))
+		return NULL;
+	return front_text(themer_module_on(c, module) ? FT_ABSENT_ON_NOTE : FT_ABSENT_OFF_NOTE);
+}
+
+void
+front_option_note(const Config *c, int module, int option, char *out, size_t n)
+{
+	const TmOption *o = themer_option(module, option);
+	char title[NAME_LEN];
+
+	if (!themer_option_is_set(c, module, option)) {
+		snprintf(out, n, "%s", o->desc);
+		return;
+	}
+	if (!strcmp(o->name, "template"))
+		snprintf(out, n, "%s \u00b7 %s: %s (%s)", o->desc, front_text(FT_DEFAULT), front_text(FT_GLOBAL_SET),
+		         front_set_title(c->set, title, sizeof title));
+	else
+		snprintf(out, n, "%s \u00b7 %s: %s", o->desc, front_text(FT_DEFAULT), o->def ? o->def : "");
 }
 
 int
