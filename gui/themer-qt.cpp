@@ -1270,6 +1270,7 @@ private:
 		g->addWidget(cursorBox, 0, 1);
 		g->addWidget(new QLabel(front_text(FT_CURSOR_SIZE)), 1, 0, Qt::AlignRight);
 		g->addWidget(cursorSize, 1, 1);
+		g->setColumnStretch(1, 1);
 		v->addLayout(g);
 		v->addWidget(caption(front_text(FT_CURSOR_NOTE)));
 		cursorArea = new Cursors;

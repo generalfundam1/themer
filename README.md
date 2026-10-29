@@ -311,7 +311,7 @@ site that is on (see [Stylus](#stylus-web-sites)), starting the server if it is 
   <img src="screenshots/themer-qt-system.png" width="49%" alt="themer-qt, system page">
 </p>
 <p align="center">
-  <img src="screenshots/themer-gtk-icons.png" width="49%" alt="themer-gtk, icons page">
+  <img src="screenshots/themer-qt-icons.png" width="49%" alt="themer-qt, icons page">
   <img src="screenshots/themer-gtk-modules.png" width="49%" alt="themer-gtk, modules page">
 </p>
 <p align="center"><sub>themer-qt and themer-gtk: the System page holds the server, the environment and About; the Icons page draws the icon and cursor themes' own files; the Modules page holds every module's options.</sub></p>
