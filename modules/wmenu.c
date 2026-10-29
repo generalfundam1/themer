@@ -2,7 +2,8 @@
  * its template (templates/launcher/) are shared with dmenu through launcher.h. */
 #include "launcher.h"
 
-/* wmenu's flags: normal, selected, and match colors, and the font */
+/* wmenu's flags (wmenu 0.2.0 menu.c): normal (-N/-n), prompt (-M/-m, drawn only
+ * when a -p prompt is given) and selected (-S/-s) colors, and the font (-f) */
 static const char *
 args(const TmTheme *t)
 {

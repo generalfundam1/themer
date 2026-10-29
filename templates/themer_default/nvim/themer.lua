@@ -6,6 +6,7 @@ vim.o.termguicolors = true
 vim.o.background = '{{mode}}'
 local c = {
   bg='#{{bg}}', fg='#{{fg}}', surf='#{{surf}}', acc='#{{acc}}', accfg='#{{accfg}}', urg='#{{urg}}', warn='#{{warn}}',
+  on_urg='#{{on_urg}}', on_warn='#{{on_warn}}',
   dim='#{{ansi8}}', green='#{{ansi2}}', yellow='#{{ansi3}}', blue='#{{ansi4}}', magenta='#{{ansi5}}', cyan='#{{ansi6}}',
 }
 local function hl(g, o) vim.api.nvim_set_hl(0, g, o) end
@@ -15,8 +16,8 @@ hl('CursorLine', {bg=c.surf})
 hl('CursorLineNr', {fg=c.acc, bold=true})
 hl('LineNr', {fg=c.dim})
 hl('Visual', {bg=c.acc, fg=c.accfg})
-hl('Search', {bg=c.warn, fg=c.accfg})
-hl('IncSearch', {bg=c.urg, fg=c.accfg})
+hl('Search', {bg=c.warn, fg=c.on_warn})
+hl('IncSearch', {bg=c.urg, fg=c.on_urg})
 hl('StatusLine', {fg=c.accfg, bg=c.acc})
 hl('StatusLineNC', {fg=c.fg, bg=c.surf})
 hl('Pmenu', {fg=c.fg, bg=c.surf})

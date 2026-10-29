@@ -369,12 +369,33 @@ themer_module_view(const Config *c, int i, Scheme *s, TmTheme *t)
 
 /* Every module's reload hook. A change to one module can affect another's files
  * (a launcher is named in the sway config), so all running programs are told. */
+/* the modules loaded or unloaded since the last reload_all: only their programs are
+ * told to reload (a kitty is signalled only while the kitty module is or was on) */
+static char touched[MAX_MODULES];
+
 static void
 reload_all(void)
 {
-	for (int i = 0; i < nreg; i++)
-		if (reg[i].m->reload)
+	for (int i = 0; i < nreg; i++) {
+		if (touched[i] && reg[i].m->reload)
 			reg[i].m->reload();
+		touched[i] = 0;
+	}
+}
+
+/* load and unload, noting the modules whose running programs need telling */
+static int
+load_one(int i, const TmTheme *t)
+{
+	touched[i] = 1;
+	return mod_load(reg[i].m, t);
+}
+
+static void
+unload_one(int i)
+{
+	if (mod_unload(reg[i].m) > 0)
+		touched[i] = 1;
 }
 
 /* records the new state, then loads or unloads the module right away */
@@ -389,12 +410,17 @@ themer_module_set(Config *c, int i, int on)
 		return -3;             /* its program is not installed: it cannot be switched on */
 	config_set_module(c, reg[i].m->name, on);
 	themer_module_view(c, i, &s, &t);
-	r = on ? mod_load(reg[i].m, &t) : mod_unload(reg[i].m);
+	if (on) {
+		r = load_one(i, &t);
+	} else {
+		unload_one(i);
+		r = 0;
+	}
 	/* the modules that follow the others (sway's bar is waybar while waybar is on) */
 	for (int k = 0; k < nreg; k++)
 		if (k != i && reg[k].m->watches_modules && themer_module_on(c, k)) {
 			themer_module_view(c, k, &s, &t);
-			mod_load(reg[k].m, &t);
+			load_one(k, &t);
 		}
 	reload_all();
 	return r;
@@ -426,7 +452,6 @@ option_restore(Config *c, const char *key, int had, const char *prev)
 int
 themer_option_set(Config *c, int i, int j, const char *value)
 {
-	const TmModule *m = reg[i].m;
 	char key[2 * NAME_LEN], prev[NAME_LEN];
 	const char *stored;
 	int had;
@@ -446,10 +471,11 @@ themer_option_set(Config *c, int i, int j, const char *value)
 		TmTheme t;
 
 		themer_module_view(c, i, &s, &t);
-		if (mod_load(m, &t) < 0) {
+		if (load_one(i, &t) < 0) {
 			option_restore(c, key, had, prev);
 			themer_module_view(c, i, &s, &t);
-			mod_load(m, &t);
+			load_one(i, &t);
+			reload_all();
 			return -2;
 		}
 		reload_all();
@@ -467,7 +493,7 @@ themer_remove_all(void)
 	char p[PATH_MAX];
 
 	for (int i = 0; i < nreg; i++)
-		mod_unload(reg[i].m);
+		unload_one(i);
 	targets_remove();
 	for (size_t i = 0; i < TM_COUNT(ours); i++)
 		if (path_under_home(p, sizeof p, ours[i]) == 0)
@@ -502,13 +528,13 @@ themer_apply(const Config *c)
 	for (int i = 0; i < nreg; i++) {
 		if (themer_module_on(c, i)) {
 			themer_module_view(c, i, &s, &t);
-			if (mod_load(reg[i].m, &t) < 0) {
+			if (load_one(i, &t) < 0) {
 				fprintf(stderr, "themer: module %s failed\n", reg[i].m->name);
 				fails++;
 			}
 		} else {
 			/* off, or its program missing: removes what an earlier load left */
-			mod_unload(reg[i].m);
+			unload_one(i);
 		}
 	}
 	reload_all();

@@ -24,20 +24,41 @@ static const TmOption opts[] = {
 	TM_OPT_TEMPLATE,
 };
 
-/* the module's own variables: the font family and size */
+/* "r, g, b" of the shared color name, for swaync's --noti-bg (see template_vars) */
+static void
+rgb_triple(const TmTheme *t, const char *name, char *out, size_t n)
+{
+	char hex[TM_COLOR_LEN + 1] = "000000";
+	unsigned r = 0, g = 0, b = 0;
+
+	tm_shared(t, name, hex, sizeof hex);
+	if (sscanf(hex, "%2x%2x%2x", &r, &g, &b) != 3)
+		r = g = b = 0;
+	snprintf(out, n, "%u, %u, %u", r, g, b);
+}
+
+/* the module's own variables: the font family and size, and the two background
+ * tones as "r, g, b" triples. swaync 0.12 declares --noti-bg as a bare triple
+ * (--noti-bg: 48, 48, 48) and draws with rgba(var(--noti-bg), var(--noti-bg-alpha)),
+ * so a #rrggbb there makes that rgba() invalid and the notifications lose their
+ * background. */
 static int
 template_vars(const TmTheme *t, TmVar *v, int max)
 {
-	static char fam[128], size[16];
+	static char fam[128], size[16], raised[16], face[16];
 	int font_size;
 
-	if (max < 2)
+	if (max < 4)
 		return 0;
 	tm_font_for(t, "swaync.font", fam, sizeof fam, &font_size);
 	snprintf(size, sizeof size, "%d", font_size);
+	rgb_triple(t, "raised", raised, sizeof raised);
+	rgb_triple(t, "face", face, sizeof face);
 	v[0] = (TmVar){ "font_family", fam };
 	v[1] = (TmVar){ "font_size", size };
-	return 2;
+	v[2] = (TmVar){ "raised_rgb", raised };
+	v[3] = (TmVar){ "face_rgb", face };
+	return 4;
 }
 
 TM_VARS(template_vars)
@@ -68,7 +89,7 @@ static int
 load(const TmTheme *t)
 {
 	char p[PATH_MAX], text[8192];
-	TmVar v[2];
+	TmVar v[4];
 	int nv = template_vars(t, v, TM_COUNT(v));
 
 	if (tm_render(text, sizeof text, "swaync", tm_opt(t, "swaync.template"), "style.css", t, v, nv) < 0)

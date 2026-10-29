@@ -13,6 +13,12 @@
  * config.yml when that is the one there) is created when there is none, holding an
  * empty marked block; unload removes it again if nothing else was written to it.
  *
+ * lazygit draws a selected line's text in selectedLineFgColor whether its panel has
+ * the focus or not, on selectedLineBgColor or inactiveViewSelectedLineBgColor. The
+ * template's text there is accfg, which reads on acc but not always on surf (white
+ * on a light grey), so the module gives the template inactive_sel: surf moved
+ * toward acc until accfg reads on it.
+ *
  * Options (after the host's mode):
  *   template  the set it is drawn from (templates/<set>/lazygit/) */
 #include <limits.h>
@@ -23,6 +29,22 @@
 static const TmOption opts[] = {
 	TM_OPT_TEMPLATE,
 };
+
+/* inactive_sel: the selected line of a panel without the focus, a muted accent that
+ * the selected text (accfg) still reads on */
+static int
+template_vars(const TmTheme *t, TmVar *v, int max)
+{
+	static char sel[TM_COLOR_LEN];
+
+	if (max < 1)
+		return 0;
+	tm_ensure_contrast(sel, sizeof sel, t->surf, t->accfg, t->acc, 4.5);
+	v[0] = (TmVar){ "inactive_sel", sel };
+	return 1;
+}
+
+TM_VARS(template_vars)
 
 static int
 present(const TmTheme *t)
@@ -36,8 +58,10 @@ load(const TmTheme *t)
 {
 	static char body[8192];
 	char user[PATH_MAX], ours[PATH_MAX], env[PATH_MAX];
+	TmVar v[1];
+	int nv = template_vars(t, v, TM_COUNT(v));
 
-	if (tm_render(body, sizeof body, "lazygit", tm_opt(t, "lazygit.template"), "config.yml", t, NULL, 0) < 0)
+	if (tm_render(body, sizeof body, "lazygit", tm_opt(t, "lazygit.template"), "config.yml", t, v, nv) < 0)
 		return -1;
 	tm_path(ours, sizeof ours, t, ".config/themer/lazygit/config.yml");
 	if (tm_writef(ours, "%s", body) < 0)

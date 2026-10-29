@@ -135,7 +135,7 @@
   }
   html, body { background-color: #{{bg}} !important; color: #{{fg}} !important; }
   body, .main-content, #categories, .sidebar-footer-list, .category, .navigation {
-    font-family: "{{ui_font}}" !important;
+    font-family: "{{ui_font}}", sans-serif !important;
   }
   /* buttons and fields take the Chicago bevel */
   button:not(.ghost-button):not(.close-icon):not(.text-link),
@@ -183,7 +183,7 @@
 
 /* ---- directory listings (file:///...): the page is a plain box on the theme ---- */
 @-moz-document url-prefix("file://") {
-  :root { background-color: #{{bg}} !important; color: #{{fg}} !important; color-scheme: {{mode}} !important; font-family: "{{ui_font}}" !important; }
+  :root { background-color: #{{bg}} !important; color: #{{fg}} !important; color-scheme: {{mode}} !important; font-family: "{{ui_font}}", sans-serif !important; }
   body { background-color: #{{field}} !important; color: #{{fg}} !important; border: 1px solid #{{line}} !important; border-radius: 0 !important; }
   h1 { border-bottom: 1px solid #{{line}} !important; }
   a, a:link, a:visited { color: #{{acc}} !important; }

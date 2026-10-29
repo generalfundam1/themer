@@ -1,6 +1,14 @@
 /* fcitx.c: fcitx5 input method. Only acts when fcitx5 (or fcitx) is installed.
- * Sets the input-method variables for GTK and Qt, writes the candidate-window
- * theme from templates/<set>/fcitx/theme.conf, and selects it in classicui.conf. */
+ * Sets the input-method variables for GTK and Qt, writes the classic UI theme
+ * "themer" (the candidate window and the menu) to ~/.local/share/fcitx5/themes/themer/
+ * from templates/<set>/fcitx/: theme.conf in fcitx5's theme format ([InputPanel],
+ * [InputPanel/Background], [Menu], ...) and the page, check and submenu marks it
+ * names (prev.svg, next.svg, radio.svg, arrow.svg), drawn in the theme's text color.
+ * In classicui.conf it selects the theme as Theme and as DarkTheme (themer follows
+ * dark and light itself, so UseDarkTheme=True must not switch to fcitx's own dark
+ * theme), and sets Font and MenuFont, which fcitx5 reads there, not from the theme.
+ * fcitx5 reads its config at start; a running one picks it up with
+ * fcitx5-remote -r (or the tray's Restart). */
 #include <limits.h>
 #include <stdio.h>
 #include "themer_module.h"
@@ -38,7 +46,9 @@ present(const TmTheme *t)
 static int
 load(const TmTheme *t)
 {
-	char p[PATH_MAX], body[4096];
+	static const char *const files[] = { "theme.conf", "prev.svg", "next.svg", "radio.svg", "arrow.svg" };
+	const char *set = tm_opt(t, "fcitx.template");
+	char p[PATH_MAX], body[8192], font[192], rel[96];
 	TmVar v[2];
 	int nv;
 
@@ -48,15 +58,21 @@ load(const TmTheme *t)
 		return -1;
 
 	nv = template_vars(t, v, TM_COUNT(v));
-	if (tm_render(body, sizeof body, "fcitx", tm_opt(t, "fcitx.template"), "theme.conf",
-	              t, v, nv) < 0)
-		return -1;
-	tm_path(p, sizeof p, t, ".local/share/fcitx5/themes/themer/theme.conf");
-	if (tm_writef(p, "%s", body) < 0)
-		return -1;
+	for (size_t i = 0; i < TM_COUNT(files); i++) {
+		if (tm_render(body, sizeof body, "fcitx", set, files[i], t, v, nv) < 0)
+			return -1;
+		snprintf(rel, sizeof rel, ".local/share/fcitx5/themes/themer/%s", files[i]);
+		tm_path(p, sizeof p, t, rel);
+		if (tm_writef(p, "%s", body) < 0)
+			return -1;
+	}
 
+	/* fcitx5 writes values with spaces in quotes; it reads them either way */
+	snprintf(font, sizeof font, "\"%s %s\"", v[0].value, v[1].value);
 	tm_path(p, sizeof p, t, ".config/fcitx5/conf/classicui.conf");
-	tm_ini(p, "", "Theme", "themer");
+	if (tm_ini(p, "", "Theme", "themer") < 0 || tm_ini(p, "", "DarkTheme", "themer") < 0 ||
+	    tm_ini(p, "", "Font", font) < 0 || tm_ini(p, "", "MenuFont", font) < 0)
+		return -1;
 	return 0;
 }
 

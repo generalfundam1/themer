@@ -17,7 +17,7 @@
 :root {
   --cc-bg: #{{bg}};
   --noti-border-color: #{{line}};
-  --noti-bg: #{{raised}};
+  --noti-bg: {{raised_rgb}};
   --noti-bg-darker: #{{view}};
   --noti-bg-hover: #{{control_hover}};
   --noti-bg-focus: #{{control_active}};

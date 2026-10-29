@@ -1,9 +1,10 @@
 /* waybar.c: the bar's look, from the template set (Themer Default's after GNOME's
  * top bar, Themer Chicago's dwm-style), in the terminal font by default.
  *
- * The module owns ~/.config/waybar/style.css. Your original is kept as
- * style.css.themer-orig and restored on unload, byte for byte. config.jsonc
- * is left alone, so your modules and format strings stay as they are.
+ * The module owns ~/.config/waybar/style.css: it is replaced whole (tm_replacef), your
+ * original is kept under ~/.config/themer/originals and put back on unload, byte for
+ * byte; edits made to the themed file are not kept. config.jsonc is left alone, so
+ * your modules and format strings stay as they are.
  *
  * The look is in templates/<set>/waybar/style.css. This module supplies the font
  * and the padding: "padding" picks the spacing around workspaces and status
@@ -80,8 +81,6 @@ load(const TmTheme *t)
 	return tm_replacef(css, "%s", body);
 }
 
-/* Sends SIGUSR2 (re-read style.css) to each running waybar, found through /proc (tm_signal).
- * Nothing is started: a bar that is not running is simply not signalled. */
 static int
 present(const TmTheme *t)
 {
@@ -89,6 +88,9 @@ present(const TmTheme *t)
 	return tm_have("waybar");
 }
 
+/* Sends SIGUSR2 (waybar reloads its config and style.css) to each running waybar, found
+ * through /proc (tm_signal). Nothing is started: a bar that is not running is simply not
+ * signalled. */
 static void
 reload(void)
 {

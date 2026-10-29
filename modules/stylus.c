@@ -31,7 +31,17 @@
 
 #define DIR_NAME "stylus"
 #define MAX_SITES 64
-#define NVARS     6   /* template_vars: font_family .. image_filter */
+/* the colors offered as "r, g, b" too (<name>_rgb), for sites that keep a copy of
+ * each color as bare components for their translucent layers (WhatsApp's --WDS-*-rgb) */
+static const char *const rgb_names[] = {
+	"bg", "fg", "surf", "acc", "accfg", "urg", "warn", "line", "on_urg", "on_warn",
+	"view", "raised", "sidebar", "control", "control_hover", "control_active",
+	"face", "light", "shade", "pressed", "field", "hover_bg", "hover_fg", "disabled", "glyph_hover",
+	"ansi0", "ansi1", "ansi2", "ansi3", "ansi4", "ansi5", "ansi6", "ansi7",
+	"ansi8", "ansi9", "ansi10", "ansi11", "ansi12", "ansi13", "ansi14", "ansi15",
+};
+#define NRGB  (sizeof rgb_names / sizeof rgb_names[0])
+#define NVARS (6 + NRGB)  /* template_vars: font_family .. image_filter, then the _rgb ones */
 
 static const TmOption opts[] = {
 	{ "font", "font for the sites' text: site keeps each site's own, ui or terminal sets the theme's", "site|ui|terminal", "site", 0, 0 },
@@ -90,7 +100,7 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	time_t now = time(NULL);
 	int size;
 
-	if (max < NVARS)
+	if (max < (int)NVARS)
 		return 0;
 	snprintf(url, sizeof url, "http://localhost:%d/stylus", t->web_port);
 	snprintf(version, sizeof version, "1.%ld.%ld", (long)(now / 86400), (long)(now % 86400) / 60);
@@ -106,6 +116,20 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	v[4] = (TmVar){ "version", version };
 	snprintf(filter, sizeof filter, "%s", t->dark ? "invert(1) hue-rotate(180deg)" : "none");
 	v[5] = (TmVar){ "image_filter", filter };
+	{
+		static char names[NRGB][32], vals[NRGB][16];
+
+		for (size_t k = 0; k < NRGB; k++) {
+			char hex[16] = "000000";
+			unsigned long c;
+
+			tm_shared(t, rgb_names[k], hex, sizeof hex);
+			c = strtoul(hex, NULL, 16);
+			snprintf(names[k], sizeof names[k], "%s_rgb", rgb_names[k]);
+			snprintf(vals[k], sizeof vals[k], "%lu, %lu, %lu", c >> 16 & 255, c >> 8 & 255, c & 255);
+			v[6 + k] = (TmVar){ names[k], vals[k] };
+		}
+	}
 	return NVARS;
 }
 
@@ -170,7 +194,7 @@ present(const TmTheme *t)
 static int
 load(const TmTheme *t)
 {
-	static char body[65536];
+	static char body[1024 * 1024];   /* the largest site styles (GitHub) are over 100 KB */
 	char names[MAX_SITES][64], p[PATH_MAX], rel[PATH_MAX];
 	TmVar v[NVARS];
 	int nv = template_vars(t, v, TM_COUNT(v));

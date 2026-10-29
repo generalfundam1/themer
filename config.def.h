@@ -14,4 +14,4 @@
 #define DEF_THEME  "habamax"
 
 /* environment variables used when there is no state file yet */
-#define DEF_ENV { {"QT_QPA_PLATFORMTHEME", "qt5ct"}, {"MOZ_ENABLE_WAYLAND", "1"} }
+#define DEF_ENV { {"MOZ_ENABLE_WAYLAND", "1"} }   /* QT_QPA_PLATFORMTHEME is the qt module's */

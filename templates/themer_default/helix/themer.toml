@@ -8,6 +8,9 @@
 "ui.text.focus" = { fg = "accfg", bg = "acc" }
 "ui.text.inactive" = { fg = "dim" }
 "ui.text.info" = { fg = "fg" }
+# the directory part of a path in the file picker: no color of its own, so it takes
+# the row's (fg, or accfg on the selected row) instead of falling back to fg on both
+"ui.text.directory" = {}
 "ui.cursor" = { fg = "bg", bg = "fg" }
 "ui.cursor.primary" = { fg = "bg", bg = "acc" }
 "ui.cursor.match" = { fg = "acc", modifiers = ["bold", "underlined"] }
@@ -72,7 +75,9 @@
 "namespace" = { fg = "cyan" }
 "attribute" = { fg = "yellow" }
 "tag" = { fg = "magenta" }
-"special" = { fg = "acc" }
+# fuzzy matches in pickers and menus: drawn on the selected line (acc) as well as
+# on the others, so a weight and an underline rather than a color
+"special" = { modifiers = ["bold", "underlined"] }
 
 "markup.heading" = { fg = "blue", modifiers = ["bold"] }
 "markup.bold" = { modifiers = ["bold"] }

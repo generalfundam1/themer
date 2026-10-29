@@ -68,7 +68,7 @@
   --sidebar-background-color: #{{bg}} !important;
   --sidebar-color: #{{fg}} !important;
   --sidebar-text-color: #{{fg}} !important;
-  --sidebar-border: 1px solid #{{line}} !important;
+  --sidebar-border: #{{line}} !important;
   --sidebar-border-color: #{{line}} !important;
   --folderpane-unread-count-background: #{{acc}} !important;
   --folderpane-unread-count-text: #{{accfg}} !important;
@@ -128,7 +128,6 @@
   --tree-pane-background: #{{bg}} !important;
   --tree-view-header-hover-bg: #{{control_hover}} !important;
   --tree-view-header-hover-active-bg: #{{control_active}} !important;
-  --tree-card-background: #{{view}} !important;
   --tree-card-background-current: #{{raised}} !important;
   --tree-card-background-current-spam: #{{raised}} !important;
   --tree-card-background-current-unfocused: #{{raised}} !important;
@@ -136,16 +135,15 @@
   --tree-card-background-selected-spam: #{{control_hover}} !important;
   --tree-card-background-selected-current: #{{acc}} !important;
   --tree-card-background-selected-current-spam: #{{acc}} !important;
-  --tree-card-background-selected-unfocused: #{{raised}} !important;
-  --tree-card-background-selected-current-unfocused: #{{raised}} !important;
+  --tree-card-background-selected-unfocused: #{{control}} !important;
+  --tree-card-background-selected-current-unfocused: #{{control}} !important;
   --tree-card-background-selected-current-unfocused-hover: #{{control_hover}} !important;
-  --tree-card-border: #{{line}} !important;
   --tree-card-border-hover: #{{acc}} !important;
   --tree-card-border-focus: #{{acc}} !important;
   --tree-card-border-selected: #{{acc}} !important;
   --tree-card-border-selected-spam: #{{urg}} !important;
   --tree-card-border-selected-unfocused: #{{line}} !important;
-  --tree-focus-outline: 1px solid #{{acc}} !important;
+  --tree-focus-outline: #{{acc}} !important;
   --listbox-selected-bg: #{{control_hover}} !important;
   --listbox-selected-color: #{{fg}} !important;
   --listbox-focused-selected-bg: #{{acc}} !important;
@@ -160,7 +158,7 @@
   --list-container-background-selected-focused: #{{acc}} !important;
   --list-container-background-selected-current: #{{control_hover}} !important;
   --list-container-background-selected-current-focused: #{{acc}} !important;
-  --list-container-border: #{{line}} !important;
+  --list-container-border: transparent !important;
   --list-container-border-hover: #{{acc}} !important;
   --list-container-border-selected: #{{acc}} !important;
   --list-container-border-selected-focused: #{{acc}} !important;
@@ -293,5 +291,14 @@
   --checkbox-checked-color: #{{accfg}} !important;
   --checkbox-border-color: #{{line}} !important;
   --checkbox-unchecked-bgcolor: #{{view}} !important;
+}
+
+/* the message cards' current colors: Thunderbird points these at its -selected,
+ * -current and -unfocused colors on the rows themselves, so they are set only where
+ * Thunderbird sets their base, on the root; on every element they would hide the
+ * selection */
+:root {
+  --tree-card-background: #{{view}} !important;
+  --tree-card-border: #{{line}} !important;
 }
 :root { color-scheme: {{mode}} !important; }

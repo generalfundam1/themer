@@ -4,7 +4,7 @@
  * declaration on every element wins in both places. This file goes into both
  * userChrome.css (the window) and userContent.css (the panes and pages). */
 :root {
-  --tm-font: "{{font_family}}";
+  --tm-font: "{{font_family}}", sans-serif;
   --tm-size: {{font_size}}pt;
   --tm-row: calc(1.6em + 4px);
 }
@@ -71,7 +71,7 @@
   --sidebar-background-color: #{{bg}} !important;
   --sidebar-color: #{{fg}} !important;
   --sidebar-text-color: #{{fg}} !important;
-  --sidebar-border: 1px solid #{{line}} !important;
+  --sidebar-border: #{{line}} !important;
   --sidebar-border-color: #{{line}} !important;
   --folderpane-unread-count-background: #{{acc}} !important;
   --folderpane-unread-count-text: #{{accfg}} !important;
@@ -147,7 +147,6 @@
   --tree-pane-background: #{{bg}} !important;
   --tree-view-header-hover-bg: #{{hover_bg}} !important;
   --tree-view-header-hover-active-bg: #{{pressed}} !important;
-  --tree-card-background: #{{field}} !important;
   --tree-card-background-current: #{{surf}} !important;
   --tree-card-background-current-spam: #{{surf}} !important;
   --tree-card-background-current-unfocused: #{{surf}} !important;
@@ -158,13 +157,12 @@
   --tree-card-background-selected-unfocused: #{{surf}} !important;
   --tree-card-background-selected-current-unfocused: #{{surf}} !important;
   --tree-card-background-selected-current-unfocused-hover: #{{hover_bg}} !important;
-  --tree-card-border: #{{line}} !important;
   --tree-card-border-hover: #{{acc}} !important;
   --tree-card-border-focus: #{{acc}} !important;
   --tree-card-border-selected: #{{acc}} !important;
   --tree-card-border-selected-spam: #{{urg}} !important;
   --tree-card-border-selected-unfocused: #{{line}} !important;
-  --tree-focus-outline: 1px solid #{{acc}} !important;
+  --tree-focus-outline: #{{acc}} !important;
   --listbox-selected-bg: #{{hover_bg}} !important;
   --listbox-selected-color: #{{hover_fg}} !important;
   --listbox-focused-selected-bg: #{{acc}} !important;
@@ -183,7 +181,7 @@
   --list-container-background-selected-focused: #{{acc}} !important;
   --list-container-background-selected-current: #{{hover_bg}} !important;
   --list-container-background-selected-current-focused: #{{acc}} !important;
-  --list-container-border: #{{line}} !important;
+  --list-container-border: transparent !important;
   --list-container-border-hover: #{{acc}} !important;
   --list-container-border-selected: #{{acc}} !important;
   --list-container-border-selected-focused: #{{acc}} !important;
@@ -328,6 +326,15 @@
   --checkbox-checked-color: #{{accfg}} !important;
   --checkbox-border-color: #{{shade}} !important;
   --checkbox-unchecked-bgcolor: #{{field}} !important;
+}
+
+/* the message cards' current colors: Thunderbird points these at its -selected,
+ * -current and -unfocused colors on the rows themselves, so they are set only where
+ * Thunderbird sets their base, on the root; on every element they would hide the
+ * selection */
+:root {
+  --tree-card-background: #{{field}} !important;
+  --tree-card-border: #{{line}} !important;
 }
 /* nothing rounded, nothing shadowed */
 *, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; }

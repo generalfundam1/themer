@@ -118,6 +118,17 @@ button:disabled > *, button:disabled > box > *, .button:disabled > * { color: #{
 notebook > header tab:hover *, notebook > header tab:checked * { color: #{{hover_fg}}; }
 row:selected *, treeview:selected *, .view:selected *, listview row:selected *,
 iconview:selected *, flowboxchild:selected *, calendar:selected * { color: #{{hover_fg}}; }
+/* check boxes and radio buttons: sunken boxes on the field color, as the text fields
+ * are, the radio round. The set is the whole theme for GTK 3, so without these the
+ * indicators had no box at all and an unchecked one did not show. The mark is GTK's
+ * own (drawn in the text color). */
+check, radio {
+  min-width: 13px; min-height: 13px; margin: 0 4px 0 0;
+  background-color: #{{field}}; color: #{{fg}};
+  border: 1px solid; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}};
+}
+radio { border-radius: 50%; }
+check:disabled, radio:disabled { background-color: #{{face}}; color: #{{disabled}}; }
 /* menus: the same menu as Firefox's. A dark surface (bg) with a 1px outline, rows
  * padded like controls, the hovered row in the hover color, accelerators dimmed,
  * check and radio marks as small outlined boxes, a submenu arrow in the text color.

@@ -159,7 +159,12 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 		return 0;
 	tm_font_for(t, "firefox.font", fam, sizeof fam, &size);
 	snprintf(tab_size, sizeof tab_size, "%d", size);
-	snprintf(glyph, sizeof glyph, "%d", px > 0 ? px : size + icons_of(t));
+	/* the templates give it in points (it follows the text size); the size option is
+	 * in pixels, 96 to the inch: 3/4 of a point each */
+	if (px > 0)
+		snprintf(glyph, sizeof glyph, "%g", px * 0.75);
+	else
+		snprintf(glyph, sizeof glyph, "%d", size + icons_of(t));
 	v[0] = (TmVar){ "tab_font", fam };
 	v[1] = (TmVar){ "tab_size", tab_size };
 	v[2] = (TmVar){ "glyph_size", glyph };
@@ -171,7 +176,10 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	 * everything from tab_font) */
 	font_rule[0] = '\0';
 	if (font && strcmp(font, "own"))
-		snprintf(font_rule, sizeof font_rule, "font-family: \"%s\" !important;", fam);
+		/* with the generic family after it, so a font that is not installed falls
+		 * back to its kind, not to Firefox's default serif */
+		snprintf(font_rule, sizeof font_rule, "font-family: \"%s\", %s !important;", fam,
+		         strcmp(font, "terminal") ? "sans-serif" : "monospace");
 	v[4] = (TmVar){ "font_rule", font_rule };
 	if (tm_shared(t, "bar_text", bar_text, sizeof bar_text) < 0 ||
 	    tm_shared(t, "glyph_hover", glyph_hover, sizeof glyph_hover) < 0 ||

@@ -3,7 +3,10 @@
  * it, edit st's config.h once: delete its colorname[] array and add
  *   #include "themer-colors.h"
  * in its place. The header goes to ~/.config/themer/st/ and, if ST_SRC is set, to
- * $ST_SRC. Rebuild st after applying a change. */
+ * $ST_SRC. Rebuild st after applying a change.
+ * The array is st's whole one: the 16 colors, then the cursor, the reverse cursor,
+ * the foreground and the background at 256-259, where config.h's defaultcs,
+ * defaultrcs, defaultfg and defaultbg point as st ships them (keep those as they are). */
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>

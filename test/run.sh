@@ -284,13 +284,13 @@ fi
 expect .config/themer/qt/themer.qss
 grep -q '^active=#' "$HOME/.config/themer/qt/theme.conf" || bad "theme.conf has no palette"
 if [ -e gui/qpa/qt5/platformthemes/libthemer.so ] || [ -e gui/qpa/qt6/platformthemes/libthemer.so ]; then
-	grep -q '^QT_QPA_PLATFORMTHEME=themer$' "$HOME/.config/environment.d/40-themer-qt.conf" || bad "env: themer platform theme not selected"
-	grep -q '^QT_PLUGIN_PATH=' "$HOME/.config/environment.d/40-themer-qt.conf" || bad "env: QT_PLUGIN_PATH missing"
+	grep -q '^QT_QPA_PLATFORMTHEME=themer$' "$HOME/.config/environment.d/60-themer-qt.conf" || bad "env: themer platform theme not selected"
+	grep -q '^QT_PLUGIN_PATH=' "$HOME/.config/environment.d/60-themer-qt.conf" || bad "env: QT_PLUGIN_PATH missing"
 else
-	grep -q '^QT_QPA_PLATFORMTHEME=qt5ct$' "$HOME/.config/environment.d/40-themer-qt.conf" || bad "env: qt5ct fallback not selected"
+	grep -q '^QT_QPA_PLATFORMTHEME=qt5ct$' "$HOME/.config/environment.d/60-themer-qt.conf" || bad "env: qt5ct fallback not selected"
 fi
 ./themer module option qt platformtheme qt5ct >/dev/null 2>&1 || bad "set qt.platformtheme"
-grep -q '^QT_QPA_PLATFORMTHEME=qt5ct$' "$HOME/.config/environment.d/40-themer-qt.conf" || bad "qt.platformtheme=qt5ct not applied"
+grep -q '^QT_QPA_PLATFORMTHEME=qt5ct$' "$HOME/.config/environment.d/60-themer-qt.conf" || bad "qt.platformtheme=qt5ct not applied"
 ./themer module option qt platformtheme auto >/dev/null 2>&1
 expect .config/nvim/colors/themer.lua
 expect .config/sway/themer.conf
@@ -318,9 +318,13 @@ grep -q 'border-radius: 0' "$HOME/.mozilla/firefox/abc.default/chrome/userChrome
 grep -q 'border-radius: 0' "$HOME/.config/themer/stylus/youtube.user.css" && bad "themer_default squared YouTube's corners"
 grep -q -- '--yt-spec-base-background: #' "$HOME/.config/themer/stylus/youtube.user.css" || bad "youtube colors not set"
 grep -q -- '--background-color-base: #' "$HOME/.config/themer/stylus/wikipedia.user.css" || bad "wikipedia colors not set"
+# every site of the set is rendered, the largest (GitHub) included
+for f in templates/themer_default/stylus/*.user.css; do
+	[ -s "$HOME/.config/themer/stylus/${f##*/}" ] || bad "stylus: ${f##*/} not rendered"
+done
 # every module's Themer Default files: its own, rendered
 grep -q 'as it comes' "$HOME/.config/themer/stylus/youtube.user.css" || bad "stylus: youtube is not Themer Default's"
-grep -q 'as it comes' "$HOME/.config/themer/stylus/wikipedia.user.css" || bad "stylus: wikipedia is not Themer Default's"
+grep -q 'as they come' "$HOME/.config/themer/stylus/wikipedia.user.css" || bad "stylus: wikipedia is not Themer Default's"
 grep -q '^@updateURL *http://localhost:7331/stylus/youtube.user.css' "$HOME/.config/themer/stylus/youtube.user.css" || bad "stylus: youtube has no @updateURL"
 grep -q 'as it comes' "$HOME/.config/thunderbird/tb.default/chrome/userChrome.css" || bad "thunderbird is not Themer Default's"
 grep -q "after GNOME's top bar" "$HOME/.config/waybar/style.css" || bad "waybar is not Themer Default's"
@@ -343,6 +347,15 @@ grep -q 'gtk-application-prefer-dark-theme=1' "$HOME/.config/gtk-3.0/settings.in
 ./themer module option foot mode auto >/dev/null 2>&1
 grep -q '^initial-color-theme=dark' "$HOME/.config/foot/foot.ini" || bad "foot.mode auto did not follow the global mode"
 grep -q '^font=monospace:size=10' "$HOME/.config/foot/foot.ini" || bad "foot top-level font not updated"
+# a line the user changes while themed stays theirs on unload; the rest comes back
+cp "$HOME/.config/foot/foot.ini" "$HOME/foot.themed"
+sed -i 's/^background=2e3440$/background=123456/' "$HOME/.config/foot/foot.ini"
+./themer module unload foot >/dev/null 2>&1
+grep -q '^background=123456$' "$HOME/.config/foot/foot.ini" || bad "unload put back a line the user had changed"
+grep -q '^font=monospace:size=9$' "$HOME/.config/foot/foot.ini" || bad "unload did not put back the user's font line"
+grep -q '^foreground=' "$HOME/.config/foot/foot.ini" && bad "unload left themer's foreground"
+printf 'font=monospace:size=9\n[colors]\nbackground=000000\n' > "$HOME/.config/foot/foot.ini"
+./themer module load foot >/dev/null 2>&1
 grep -q 'themer:wm begin' "$HOME/.config/sway/config" || bad "sway include block missing"
 grep -q 'set \$menu .*themer-wmenu\|set \$menu .*themer-dmenu' "$HOME/.config/sway/config" ||
 	t "  (no wmenu/dmenu installed here: \$menu left as is)"
@@ -430,7 +443,7 @@ grep -q 'themer:gtk begin' "$HOME/.config/gtk-4.0/gtk.css" 2>/dev/null && bad "g
 ./themer module option gtk gtk4 on >/dev/null 2>&1
 [ -e "$HOME/.config/themer/gtk/gtk-4.0/gtk.css" ] || bad "gtk-4.0 theme not back with gtk4 on"
 ./themer module option qt qt5 off >/dev/null 2>&1 || bad "set qt.qt5"
-grep -q '/qt5' "$HOME/.config/environment.d/40-themer-qt.conf" && bad "qt5 plugin path still in env with qt5 off"
+grep -q '/qt5' "$HOME/.config/environment.d/60-themer-qt.conf" && bad "qt5 plugin path still in env with qt5 off"
 ./themer module option qt qt5 on >/dev/null 2>&1
 grep -q '^gtk-icon-theme-name=Papirus$' "$HOME/.config/gtk-3.0/settings.ini" || bad "gtk3 icon theme"
 ./themer render hinting full antialias off >/dev/null 2>&1 || bad "render command"
@@ -715,7 +728,7 @@ expect .config/dunst/dunstrc
 grep -q 'frame_color = "#[0-9a-f]\{6\}"' "$HOME/.config/dunst/dunstrc.d/90-themer.conf" || bad "dunst: no frame color"
 grep -q '^\.notification { margin: 4px; }$' "$HOME/.config/swaync/style.css" || bad "swaync: the user's rule lost"
 grep -q 'themer:swaync begin' "$HOME/.config/swaync/style.css" || bad "swaync: no block"
-grep -q -- '--noti-bg: #' "$HOME/.config/swaync/style.css" || bad "swaync: no custom properties"
+grep -q -- '--noti-bg: [0-9]' "$HOME/.config/swaync/style.css" || bad "swaync: no custom properties"
 grep -q '^ignore-empty-password$' "$HOME/.config/swaylock/config" || bad "swaylock: the user's flag lost"
 [ "$(grep -c '^color=' "$HOME/.config/swaylock/config")" = 1 ] || bad "swaylock: color repeated"
 grep -q '^ring-wrong-color=[0-9a-f]\{6\}$' "$HOME/.config/swaylock/config" || bad "swaylock: no wrong-password ring"

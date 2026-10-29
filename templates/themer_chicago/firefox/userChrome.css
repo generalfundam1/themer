@@ -13,7 +13,7 @@
  * stylesheet cannot reach; a declaration on every element wins over both. Names from
  * Firefox 115 up to 158 are covered. */
 :root {
-  --tab-font: "{{tab_font}}";
+  --tab-font: "{{tab_font}}", sans-serif;
   --tab-size: {{tab_size}}pt;
   --glyph-size: {{glyph_size}}pt;
   --row-height: calc(1.6em + 4px);
@@ -472,7 +472,7 @@ toolbar .toolbarbutton-1:hover, toolbar .toolbarbutton-1[open], toolbar .toolbar
 #urlbar-input, .urlbar-input, .urlbar-input-box {
   margin: 0 0.4em !important; background: transparent !important;
   color: #{{fg}} !important; caret-color: #{{acc}} !important; line-height: 1 !important;
-  font-family: "{{mono_font}}" !important; font-size: var(--tab-size) !important;
+  font-family: "{{mono_font}}", monospace !important; font-size: var(--tab-size) !important;
 }
 #urlbar-input::placeholder { color: #{{disabled}} !important; opacity: 1 !important; }
 #urlbar-input::selection { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
@@ -508,7 +508,7 @@ toolbar .toolbarbutton-1:hover, toolbar .toolbarbutton-1[open], toolbar .toolbar
   margin: 0 !important; padding: 0 !important;
   background-color: #{{field}} !important; color: #{{fg}} !important;
   border: 1px solid #{{line}} !important; border-top: none !important; box-shadow: none !important;
-  font-family: "{{mono_font}}" !important; font-size: var(--tab-size) !important;
+  font-family: "{{mono_font}}", monospace !important; font-size: var(--tab-size) !important;
 }
 .urlbarView-body-outer, .urlbarView-body-inner { margin: 0 !important; padding: 0 !important; border: none !important; }
 .urlbarView-row { padding: {{pad_cell}} !important; margin: 0 !important; }
@@ -617,7 +617,8 @@ input:focus, textarea:focus, html|input:focus { border-color: #{{acc}} !importan
 /* themer:icons end */
 /* a hovered icon steps toward the light as well as changing ink (brighter on dark
  * themes, darker on light): icon_hover_filter comes from the module */
-toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton-icon,
+toolbarbutton:hover > .toolbarbutton-icon, toolbarbutton:hover > .toolbarbutton-badge-stack > .toolbarbutton-icon,
+.subviewbutton:hover > .toolbarbutton-icon,
 #star-button-box:hover #star-button, .tab-close-button:hover, #identity-box:hover #identity-icon,
 #reader-mode-button:hover #reader-mode-button-icon, .tab-icon-overlay:hover, .tab-audio-button:hover,
 #tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, #tabbrowser-arrowscrollbox::part(scrollbutton-down):hover {
@@ -628,25 +629,25 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
  * mask (raster_* and tint_*: bitmaps with raster=ink, every icon with style=mask) is
  * its shape over the ink color instead; otherwise those are none and transparent. */
 #back-button { list-style-image: {{icon_back}} !important; }
-#back-button > .toolbarbutton-icon { -webkit-mask: {{raster_back}} center / contain no-repeat !important; mask: {{raster_back}} center / contain no-repeat !important; background-color: {{tint_back}} !important; }
+#back-button .toolbarbutton-icon { -webkit-mask: {{raster_back}} center / contain no-repeat !important; mask: {{raster_back}} center / contain no-repeat !important; background-color: {{tint_back}} !important; }
 #back-button:hover { list-style-image: {{icon_back_hover}} !important; }
-#back-button:hover > .toolbarbutton-icon { background-color: {{tint_back_hover}} !important; }
+#back-button:hover .toolbarbutton-icon { background-color: {{tint_back_hover}} !important; }
 #forward-button { list-style-image: {{icon_forward}} !important; }
-#forward-button > .toolbarbutton-icon { -webkit-mask: {{raster_forward}} center / contain no-repeat !important; mask: {{raster_forward}} center / contain no-repeat !important; background-color: {{tint_forward}} !important; }
+#forward-button .toolbarbutton-icon { -webkit-mask: {{raster_forward}} center / contain no-repeat !important; mask: {{raster_forward}} center / contain no-repeat !important; background-color: {{tint_forward}} !important; }
 #forward-button:hover { list-style-image: {{icon_forward_hover}} !important; }
-#forward-button:hover > .toolbarbutton-icon { background-color: {{tint_forward_hover}} !important; }
+#forward-button:hover .toolbarbutton-icon { background-color: {{tint_forward_hover}} !important; }
 #reload-button { list-style-image: {{icon_reload}} !important; }
-#reload-button > .toolbarbutton-icon { -webkit-mask: {{raster_reload}} center / contain no-repeat !important; mask: {{raster_reload}} center / contain no-repeat !important; background-color: {{tint_reload}} !important; }
+#reload-button .toolbarbutton-icon { -webkit-mask: {{raster_reload}} center / contain no-repeat !important; mask: {{raster_reload}} center / contain no-repeat !important; background-color: {{tint_reload}} !important; }
 #reload-button:hover { list-style-image: {{icon_reload_hover}} !important; }
-#reload-button:hover > .toolbarbutton-icon { background-color: {{tint_reload_hover}} !important; }
+#reload-button:hover .toolbarbutton-icon { background-color: {{tint_reload_hover}} !important; }
 #stop-button { list-style-image: {{icon_stop}} !important; }
-#stop-button > .toolbarbutton-icon { -webkit-mask: {{raster_stop}} center / contain no-repeat !important; mask: {{raster_stop}} center / contain no-repeat !important; background-color: {{tint_stop}} !important; }
+#stop-button .toolbarbutton-icon { -webkit-mask: {{raster_stop}} center / contain no-repeat !important; mask: {{raster_stop}} center / contain no-repeat !important; background-color: {{tint_stop}} !important; }
 #stop-button:hover { list-style-image: {{icon_stop_hover}} !important; }
-#stop-button:hover > .toolbarbutton-icon { background-color: {{tint_stop_hover}} !important; }
+#stop-button:hover .toolbarbutton-icon { background-color: {{tint_stop_hover}} !important; }
 #home-button { list-style-image: {{icon_home}} !important; }
-#home-button > .toolbarbutton-icon { -webkit-mask: {{raster_home}} center / contain no-repeat !important; mask: {{raster_home}} center / contain no-repeat !important; background-color: {{tint_home}} !important; }
+#home-button .toolbarbutton-icon { -webkit-mask: {{raster_home}} center / contain no-repeat !important; mask: {{raster_home}} center / contain no-repeat !important; background-color: {{tint_home}} !important; }
 #home-button:hover { list-style-image: {{icon_home_hover}} !important; }
-#home-button:hover > .toolbarbutton-icon { background-color: {{tint_home_hover}} !important; }
+#home-button:hover .toolbarbutton-icon { background-color: {{tint_home_hover}} !important; }
 #tabs-newtab-button, #new-tab-button { list-style-image: {{icon_newtab}} !important; }
 #tabs-newtab-button .toolbarbutton-icon, #new-tab-button .toolbarbutton-icon { -webkit-mask: {{raster_newtab}} center / contain no-repeat !important; mask: {{raster_newtab}} center / contain no-repeat !important; background-color: {{tint_newtab}} !important; }
 #tabs-newtab-button:hover, #new-tab-button:hover { list-style-image: {{icon_newtab_hover}} !important; }
@@ -660,9 +661,9 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
 #downloads-button:hover, #downloads-button:hover #downloads-indicator-icon { list-style-image: {{icon_downloads_hover}} !important; }
 #downloads-button:hover .toolbarbutton-icon, #downloads-button:hover #downloads-indicator-icon { background-color: {{tint_downloads_hover}} !important; }
 #unified-extensions-button { list-style-image: {{icon_extensions}} !important; }
-#unified-extensions-button > .toolbarbutton-icon { -webkit-mask: {{raster_extensions}} center / contain no-repeat !important; mask: {{raster_extensions}} center / contain no-repeat !important; background-color: {{tint_extensions}} !important; }
+#unified-extensions-button .toolbarbutton-icon { -webkit-mask: {{raster_extensions}} center / contain no-repeat !important; mask: {{raster_extensions}} center / contain no-repeat !important; background-color: {{tint_extensions}} !important; }
 #unified-extensions-button:hover { list-style-image: {{icon_extensions_hover}} !important; }
-#unified-extensions-button:hover > .toolbarbutton-icon { background-color: {{tint_extensions_hover}} !important; }
+#unified-extensions-button:hover .toolbarbutton-icon { background-color: {{tint_extensions_hover}} !important; }
 #star-button { list-style-image: {{icon_star_off}} !important; }
 #star-button { -webkit-mask: {{raster_star_off}} center / contain no-repeat !important; mask: {{raster_star_off}} center / contain no-repeat !important; background-color: {{tint_star_off}} !important; }
 #star-button-box:hover #star-button { list-style-image: {{icon_star_off_hover}} !important; }
@@ -688,81 +689,84 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
  * account, screenshot and overflow buttons, and the bookmarks toolbar's folders,
  * the same way */
 #sidebar-button { list-style-image: {{icon_sidebar}} !important; }
-#sidebar-button > .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
+#sidebar-button .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
 #sidebar-button:hover { list-style-image: {{icon_sidebar_hover}} !important; }
-#sidebar-button:hover > .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
+#sidebar-button:hover .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
 #history-panelmenu { list-style-image: {{icon_history}} !important; }
-#history-panelmenu > .toolbarbutton-icon { -webkit-mask: {{raster_history}} center / contain no-repeat !important; mask: {{raster_history}} center / contain no-repeat !important; background-color: {{tint_history}} !important; }
+#history-panelmenu .toolbarbutton-icon { -webkit-mask: {{raster_history}} center / contain no-repeat !important; mask: {{raster_history}} center / contain no-repeat !important; background-color: {{tint_history}} !important; }
 #history-panelmenu:hover { list-style-image: {{icon_history_hover}} !important; }
-#history-panelmenu:hover > .toolbarbutton-icon { background-color: {{tint_history_hover}} !important; }
+#history-panelmenu:hover .toolbarbutton-icon { background-color: {{tint_history_hover}} !important; }
 #library-button { list-style-image: {{icon_library}} !important; }
-#library-button > .toolbarbutton-icon { -webkit-mask: {{raster_library}} center / contain no-repeat !important; mask: {{raster_library}} center / contain no-repeat !important; background-color: {{tint_library}} !important; }
+#library-button .toolbarbutton-icon { -webkit-mask: {{raster_library}} center / contain no-repeat !important; mask: {{raster_library}} center / contain no-repeat !important; background-color: {{tint_library}} !important; }
 #library-button:hover { list-style-image: {{icon_library_hover}} !important; }
-#library-button:hover > .toolbarbutton-icon { background-color: {{tint_library_hover}} !important; }
+#library-button:hover .toolbarbutton-icon { background-color: {{tint_library_hover}} !important; }
 #bookmarks-menu-button { list-style-image: {{icon_bookmarks}} !important; }
-#bookmarks-menu-button > .toolbarbutton-icon { -webkit-mask: {{raster_bookmarks}} center / contain no-repeat !important; mask: {{raster_bookmarks}} center / contain no-repeat !important; background-color: {{tint_bookmarks}} !important; }
+#bookmarks-menu-button .toolbarbutton-icon { -webkit-mask: {{raster_bookmarks}} center / contain no-repeat !important; mask: {{raster_bookmarks}} center / contain no-repeat !important; background-color: {{tint_bookmarks}} !important; }
 #bookmarks-menu-button:hover { list-style-image: {{icon_bookmarks_hover}} !important; }
-#bookmarks-menu-button:hover > .toolbarbutton-icon { background-color: {{tint_bookmarks_hover}} !important; }
+#bookmarks-menu-button:hover .toolbarbutton-icon { background-color: {{tint_bookmarks_hover}} !important; }
 #screenshot-button { list-style-image: {{icon_screenshot}} !important; }
-#screenshot-button > .toolbarbutton-icon { -webkit-mask: {{raster_screenshot}} center / contain no-repeat !important; mask: {{raster_screenshot}} center / contain no-repeat !important; background-color: {{tint_screenshot}} !important; }
+#screenshot-button .toolbarbutton-icon { -webkit-mask: {{raster_screenshot}} center / contain no-repeat !important; mask: {{raster_screenshot}} center / contain no-repeat !important; background-color: {{tint_screenshot}} !important; }
 #screenshot-button:hover { list-style-image: {{icon_screenshot_hover}} !important; }
-#screenshot-button:hover > .toolbarbutton-icon { background-color: {{tint_screenshot_hover}} !important; }
+#screenshot-button:hover .toolbarbutton-icon { background-color: {{tint_screenshot_hover}} !important; }
+/* Firefox 13x and later draw the account picture in an image of its own beside the
+ * button's icon (#fxa-avatar-image); the theme's icon takes its place */
+#fxa-toolbar-menu-button #fxa-avatar-image, #fxa-toolbar-menu-button .avatar-container { display: none !important; }
 #fxa-toolbar-menu-button { list-style-image: {{icon_account}} !important; }
-#fxa-toolbar-menu-button > .toolbarbutton-icon { -webkit-mask: {{raster_account}} center / contain no-repeat !important; mask: {{raster_account}} center / contain no-repeat !important; background-color: {{tint_account}} !important; }
+#fxa-toolbar-menu-button .toolbarbutton-icon { -webkit-mask: {{raster_account}} center / contain no-repeat !important; mask: {{raster_account}} center / contain no-repeat !important; background-color: {{tint_account}} !important; }
 #fxa-toolbar-menu-button:hover { list-style-image: {{icon_account_hover}} !important; }
-#fxa-toolbar-menu-button:hover > .toolbarbutton-icon { background-color: {{tint_account_hover}} !important; }
+#fxa-toolbar-menu-button:hover .toolbarbutton-icon { background-color: {{tint_account_hover}} !important; }
 #translations-button { list-style-image: {{icon_translate}} !important; }
-#translations-button > .toolbarbutton-icon { -webkit-mask: {{raster_translate}} center / contain no-repeat !important; mask: {{raster_translate}} center / contain no-repeat !important; background-color: {{tint_translate}} !important; }
+#translations-button .toolbarbutton-icon { -webkit-mask: {{raster_translate}} center / contain no-repeat !important; mask: {{raster_translate}} center / contain no-repeat !important; background-color: {{tint_translate}} !important; }
 #translations-button:hover { list-style-image: {{icon_translate_hover}} !important; }
-#translations-button:hover > .toolbarbutton-icon { background-color: {{tint_translate_hover}} !important; }
+#translations-button:hover .toolbarbutton-icon { background-color: {{tint_translate_hover}} !important; }
 #print-button { list-style-image: {{icon_print}} !important; }
-#print-button > .toolbarbutton-icon { -webkit-mask: {{raster_print}} center / contain no-repeat !important; mask: {{raster_print}} center / contain no-repeat !important; background-color: {{tint_print}} !important; }
+#print-button .toolbarbutton-icon { -webkit-mask: {{raster_print}} center / contain no-repeat !important; mask: {{raster_print}} center / contain no-repeat !important; background-color: {{tint_print}} !important; }
 #print-button:hover { list-style-image: {{icon_print_hover}} !important; }
-#print-button:hover > .toolbarbutton-icon { background-color: {{tint_print_hover}} !important; }
+#print-button:hover .toolbarbutton-icon { background-color: {{tint_print_hover}} !important; }
 #save-page-button { list-style-image: {{icon_save}} !important; }
-#save-page-button > .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
+#save-page-button .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
 #save-page-button:hover { list-style-image: {{icon_save_hover}} !important; }
-#save-page-button:hover > .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
+#save-page-button:hover .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
 #preferences-button { list-style-image: {{icon_settings}} !important; }
-#preferences-button > .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
+#preferences-button .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
 #preferences-button:hover { list-style-image: {{icon_settings_hover}} !important; }
-#preferences-button:hover > .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
+#preferences-button:hover .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
 #zoom-in-button { list-style-image: {{icon_zoom_in}} !important; }
-#zoom-in-button > .toolbarbutton-icon { -webkit-mask: {{raster_zoom_in}} center / contain no-repeat !important; mask: {{raster_zoom_in}} center / contain no-repeat !important; background-color: {{tint_zoom_in}} !important; }
+#zoom-in-button .toolbarbutton-icon { -webkit-mask: {{raster_zoom_in}} center / contain no-repeat !important; mask: {{raster_zoom_in}} center / contain no-repeat !important; background-color: {{tint_zoom_in}} !important; }
 #zoom-in-button:hover { list-style-image: {{icon_zoom_in_hover}} !important; }
-#zoom-in-button:hover > .toolbarbutton-icon { background-color: {{tint_zoom_in_hover}} !important; }
+#zoom-in-button:hover .toolbarbutton-icon { background-color: {{tint_zoom_in_hover}} !important; }
 #zoom-out-button { list-style-image: {{icon_zoom_out}} !important; }
-#zoom-out-button > .toolbarbutton-icon { -webkit-mask: {{raster_zoom_out}} center / contain no-repeat !important; mask: {{raster_zoom_out}} center / contain no-repeat !important; background-color: {{tint_zoom_out}} !important; }
+#zoom-out-button .toolbarbutton-icon { -webkit-mask: {{raster_zoom_out}} center / contain no-repeat !important; mask: {{raster_zoom_out}} center / contain no-repeat !important; background-color: {{tint_zoom_out}} !important; }
 #zoom-out-button:hover { list-style-image: {{icon_zoom_out_hover}} !important; }
-#zoom-out-button:hover > .toolbarbutton-icon { background-color: {{tint_zoom_out_hover}} !important; }
+#zoom-out-button:hover .toolbarbutton-icon { background-color: {{tint_zoom_out_hover}} !important; }
 #fullscreen-button { list-style-image: {{icon_fullscreen}} !important; }
-#fullscreen-button > .toolbarbutton-icon { -webkit-mask: {{raster_fullscreen}} center / contain no-repeat !important; mask: {{raster_fullscreen}} center / contain no-repeat !important; background-color: {{tint_fullscreen}} !important; }
+#fullscreen-button .toolbarbutton-icon { -webkit-mask: {{raster_fullscreen}} center / contain no-repeat !important; mask: {{raster_fullscreen}} center / contain no-repeat !important; background-color: {{tint_fullscreen}} !important; }
 #fullscreen-button:hover { list-style-image: {{icon_fullscreen_hover}} !important; }
-#fullscreen-button:hover > .toolbarbutton-icon { background-color: {{tint_fullscreen_hover}} !important; }
+#fullscreen-button:hover .toolbarbutton-icon { background-color: {{tint_fullscreen_hover}} !important; }
 #search-button { list-style-image: {{icon_search}} !important; }
-#search-button > .toolbarbutton-icon { -webkit-mask: {{raster_search}} center / contain no-repeat !important; mask: {{raster_search}} center / contain no-repeat !important; background-color: {{tint_search}} !important; }
+#search-button .toolbarbutton-icon { -webkit-mask: {{raster_search}} center / contain no-repeat !important; mask: {{raster_search}} center / contain no-repeat !important; background-color: {{tint_search}} !important; }
 #search-button:hover { list-style-image: {{icon_search_hover}} !important; }
-#search-button:hover > .toolbarbutton-icon { background-color: {{tint_search_hover}} !important; }
+#search-button:hover .toolbarbutton-icon { background-color: {{tint_search_hover}} !important; }
 #nav-bar-overflow-button { list-style-image: {{icon_next}} !important; }
-#nav-bar-overflow-button > .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
+#nav-bar-overflow-button .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
 #nav-bar-overflow-button:hover { list-style-image: {{icon_next_hover}} !important; }
-#nav-bar-overflow-button:hover > .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
+#nav-bar-overflow-button:hover .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
 #pageActionButton { list-style-image: {{icon_more}} !important; }
-#pageActionButton > .toolbarbutton-icon { -webkit-mask: {{raster_more}} center / contain no-repeat !important; mask: {{raster_more}} center / contain no-repeat !important; background-color: {{tint_more}} !important; }
+#pageActionButton .toolbarbutton-icon { -webkit-mask: {{raster_more}} center / contain no-repeat !important; mask: {{raster_more}} center / contain no-repeat !important; background-color: {{tint_more}} !important; }
 #pageActionButton:hover { list-style-image: {{icon_more_hover}} !important; }
-#pageActionButton:hover > .toolbarbutton-icon { background-color: {{tint_more_hover}} !important; }
+#pageActionButton:hover .toolbarbutton-icon { background-color: {{tint_more_hover}} !important; }
 #add-ons-button { list-style-image: {{icon_extensions}} !important; }
-#add-ons-button > .toolbarbutton-icon { -webkit-mask: {{raster_extensions}} center / contain no-repeat !important; mask: {{raster_extensions}} center / contain no-repeat !important; background-color: {{tint_extensions}} !important; }
+#add-ons-button .toolbarbutton-icon { -webkit-mask: {{raster_extensions}} center / contain no-repeat !important; mask: {{raster_extensions}} center / contain no-repeat !important; background-color: {{tint_extensions}} !important; }
 #add-ons-button:hover { list-style-image: {{icon_extensions_hover}} !important; }
-#add-ons-button:hover > .toolbarbutton-icon { background-color: {{tint_extensions_hover}} !important; }
+#add-ons-button:hover .toolbarbutton-icon { background-color: {{tint_extensions_hover}} !important; }
 #tabbrowser-arrowscrollbox::part(scrollbutton-up), .findbar-find-previous { list-style-image: {{icon_prev}} !important; }
-#tabbrowser-arrowscrollbox::part(scrollbutton-up), .findbar-find-previous > .toolbarbutton-icon { -webkit-mask: {{raster_prev}} center / contain no-repeat !important; mask: {{raster_prev}} center / contain no-repeat !important; background-color: {{tint_prev}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up), .findbar-find-previous .toolbarbutton-icon { -webkit-mask: {{raster_prev}} center / contain no-repeat !important; mask: {{raster_prev}} center / contain no-repeat !important; background-color: {{tint_prev}} !important; }
 #tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, .findbar-find-previous:hover { list-style-image: {{icon_prev_hover}} !important; }
-#tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, .findbar-find-previous:hover > .toolbarbutton-icon { background-color: {{tint_prev_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-up):hover, .findbar-find-previous:hover .toolbarbutton-icon { background-color: {{tint_prev_hover}} !important; }
 #tabbrowser-arrowscrollbox::part(scrollbutton-down), .findbar-find-next { list-style-image: {{icon_next}} !important; }
-#tabbrowser-arrowscrollbox::part(scrollbutton-down), .findbar-find-next > .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down), .findbar-find-next .toolbarbutton-icon { -webkit-mask: {{raster_next}} center / contain no-repeat !important; mask: {{raster_next}} center / contain no-repeat !important; background-color: {{tint_next}} !important; }
 #tabbrowser-arrowscrollbox::part(scrollbutton-down):hover, .findbar-find-next:hover { list-style-image: {{icon_next_hover}} !important; }
-#tabbrowser-arrowscrollbox::part(scrollbutton-down):hover, .findbar-find-next:hover > .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
+#tabbrowser-arrowscrollbox::part(scrollbutton-down):hover, .findbar-find-next:hover .toolbarbutton-icon { background-color: {{tint_next_hover}} !important; }
 .tab-icon-overlay[soundplaying], .tab-audio-button[soundplaying], .tab-icon-sound[soundplaying] { list-style-image: {{icon_sound}} !important; }
 .tab-icon-overlay[soundplaying], .tab-audio-button[soundplaying], .tab-icon-sound[soundplaying] { -webkit-mask: {{raster_sound}} center / contain no-repeat !important; mask: {{raster_sound}} center / contain no-repeat !important; background-color: {{tint_sound}} !important; }
 .tab-icon-overlay[soundplaying]:hover, .tab-audio-button[soundplaying]:hover, .tab-icon-sound[soundplaying]:hover { list-style-image: {{icon_sound_hover}} !important; }
@@ -772,13 +776,13 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
 .tab-icon-overlay[muted]:hover, .tab-audio-button[muted]:hover, .tab-icon-sound[muted]:hover { list-style-image: {{icon_muted_hover}} !important; }
 .tab-icon-overlay[muted]:hover, .tab-audio-button[muted]:hover, .tab-icon-sound[muted]:hover { background-color: {{tint_muted_hover}} !important; }
 #PlacesToolbarItems .bookmark-item[container], #OtherBookmarks, #BMB_bookmarksToolbar, #BMB_unsortedBookmarks { list-style-image: {{icon_folder}} !important; }
-#PlacesToolbarItems .bookmark-item[container] > .toolbarbutton-icon, #OtherBookmarks > .toolbarbutton-icon { -webkit-mask: {{raster_folder}} center / contain no-repeat !important; mask: {{raster_folder}} center / contain no-repeat !important; background-color: {{tint_folder}} !important; }
+#PlacesToolbarItems .bookmark-item[container] .toolbarbutton-icon, #OtherBookmarks .toolbarbutton-icon { -webkit-mask: {{raster_folder}} center / contain no-repeat !important; mask: {{raster_folder}} center / contain no-repeat !important; background-color: {{tint_folder}} !important; }
 #PlacesToolbarItems .bookmark-item[container]:hover, #OtherBookmarks:hover { list-style-image: {{icon_folder_hover}} !important; }
-#PlacesToolbarItems .bookmark-item[container]:hover > .toolbarbutton-icon, #OtherBookmarks:hover > .toolbarbutton-icon { background-color: {{tint_folder_hover}} !important; }
+#PlacesToolbarItems .bookmark-item[container]:hover .toolbarbutton-icon, #OtherBookmarks:hover .toolbarbutton-icon { background-color: {{tint_folder_hover}} !important; }
 #alltabs-button, #PlacesChevron, #PanelUI-menu-button .toolbarbutton-menu-dropmarker { list-style-image: {{icon_down}} !important; }
-#alltabs-button > .toolbarbutton-icon, #PlacesChevron > .toolbarbutton-icon { -webkit-mask: {{raster_down}} center / contain no-repeat !important; mask: {{raster_down}} center / contain no-repeat !important; background-color: {{tint_down}} !important; }
+#alltabs-button .toolbarbutton-icon, #PlacesChevron .toolbarbutton-icon { -webkit-mask: {{raster_down}} center / contain no-repeat !important; mask: {{raster_down}} center / contain no-repeat !important; background-color: {{tint_down}} !important; }
 #alltabs-button:hover, #PlacesChevron:hover { list-style-image: {{icon_down_hover}} !important; }
-#alltabs-button:hover > .toolbarbutton-icon, #PlacesChevron:hover > .toolbarbutton-icon { background-color: {{tint_down_hover}} !important; }
+#alltabs-button:hover .toolbarbutton-icon, #PlacesChevron:hover .toolbarbutton-icon { background-color: {{tint_down_hover}} !important; }
 .close-icon, .findbar-closebutton, .notification-close, .popup-notification-closebutton, .urlbarView-button-close { list-style-image: {{icon_close}} !important; }
 .close-icon > .toolbarbutton-icon, .findbar-closebutton > .toolbarbutton-icon, .notification-close > .toolbarbutton-icon { -webkit-mask: {{raster_close}} center / contain no-repeat !important; mask: {{raster_close}} center / contain no-repeat !important; background-color: {{tint_close}} !important; }
 .close-icon:hover, .findbar-closebutton:hover, .notification-close:hover { list-style-image: {{icon_close_hover}} !important; }
@@ -793,66 +797,66 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
   -moz-context-properties: fill !important; fill: currentColor !important;
 }
 .subviewbutton > .toolbarbutton-icon { margin-inline: 6px 10px !important; }
-#appMenu-new-tab-button2 > .toolbarbutton-icon { list-style-image: {{menu_newtab}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-new-tab-button2 .toolbarbutton-icon { list-style-image: {{menu_newtab}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_newtab}} center / contain no-repeat !important; mask: {{mask_newtab}} center / contain no-repeat !important; background-color: {{menu_tint_newtab}} !important; }
-#appMenu-new-tab-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_newtab_hover}} !important; }
-#appMenu-new-window-button2 > .toolbarbutton-icon { list-style-image: {{menu_window}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-new-tab-button2:hover .toolbarbutton-icon { list-style-image: {{menu_newtab_hover}} !important; }
+#appMenu-new-window-button2 .toolbarbutton-icon { list-style-image: {{menu_window}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_window}} center / contain no-repeat !important; mask: {{mask_window}} center / contain no-repeat !important; background-color: {{menu_tint_window}} !important; }
-#appMenu-new-window-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_window_hover}} !important; }
-#appMenu-new-private-window-button2 > .toolbarbutton-icon { list-style-image: {{menu_private}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-new-window-button2:hover .toolbarbutton-icon { list-style-image: {{menu_window_hover}} !important; }
+#appMenu-new-private-window-button2 .toolbarbutton-icon { list-style-image: {{menu_private}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_private}} center / contain no-repeat !important; mask: {{mask_private}} center / contain no-repeat !important; background-color: {{menu_tint_private}} !important; }
-#appMenu-new-private-window-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_private_hover}} !important; }
-#appMenu-bookmarks-button > .toolbarbutton-icon { list-style-image: {{menu_bookmarks}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-new-private-window-button2:hover .toolbarbutton-icon { list-style-image: {{menu_private_hover}} !important; }
+#appMenu-bookmarks-button .toolbarbutton-icon { list-style-image: {{menu_bookmarks}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_bookmarks}} center / contain no-repeat !important; mask: {{mask_bookmarks}} center / contain no-repeat !important; background-color: {{menu_tint_bookmarks}} !important; }
-#appMenu-bookmarks-button:hover > .toolbarbutton-icon { list-style-image: {{menu_bookmarks_hover}} !important; }
-#appMenu-history-button > .toolbarbutton-icon { list-style-image: {{menu_history}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-bookmarks-button:hover .toolbarbutton-icon { list-style-image: {{menu_bookmarks_hover}} !important; }
+#appMenu-history-button .toolbarbutton-icon { list-style-image: {{menu_history}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_history}} center / contain no-repeat !important; mask: {{mask_history}} center / contain no-repeat !important; background-color: {{menu_tint_history}} !important; }
-#appMenu-history-button:hover > .toolbarbutton-icon { list-style-image: {{menu_history_hover}} !important; }
-#appMenu-downloads-button > .toolbarbutton-icon { list-style-image: {{menu_downloads}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-history-button:hover .toolbarbutton-icon { list-style-image: {{menu_history_hover}} !important; }
+#appMenu-downloads-button .toolbarbutton-icon { list-style-image: {{menu_downloads}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_downloads}} center / contain no-repeat !important; mask: {{mask_downloads}} center / contain no-repeat !important; background-color: {{menu_tint_downloads}} !important; }
-#appMenu-downloads-button:hover > .toolbarbutton-icon { list-style-image: {{menu_downloads_hover}} !important; }
-#appMenu-passwords-button > .toolbarbutton-icon { list-style-image: {{menu_password}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-downloads-button:hover .toolbarbutton-icon { list-style-image: {{menu_downloads_hover}} !important; }
+#appMenu-passwords-button .toolbarbutton-icon { list-style-image: {{menu_password}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_password}} center / contain no-repeat !important; mask: {{mask_password}} center / contain no-repeat !important; background-color: {{menu_tint_password}} !important; }
-#appMenu-passwords-button:hover > .toolbarbutton-icon { list-style-image: {{menu_password_hover}} !important; }
-#appMenu-extensions-themes-button > .toolbarbutton-icon { list-style-image: {{menu_extensions}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-passwords-button:hover .toolbarbutton-icon { list-style-image: {{menu_password_hover}} !important; }
+#appMenu-extensions-themes-button .toolbarbutton-icon { list-style-image: {{menu_extensions}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_extensions}} center / contain no-repeat !important; mask: {{mask_extensions}} center / contain no-repeat !important; background-color: {{menu_tint_extensions}} !important; }
-#appMenu-extensions-themes-button:hover > .toolbarbutton-icon { list-style-image: {{menu_extensions_hover}} !important; }
-#appMenu-print-button2 > .toolbarbutton-icon { list-style-image: {{menu_print}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-extensions-themes-button:hover .toolbarbutton-icon { list-style-image: {{menu_extensions_hover}} !important; }
+#appMenu-print-button2 .toolbarbutton-icon { list-style-image: {{menu_print}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_print}} center / contain no-repeat !important; mask: {{mask_print}} center / contain no-repeat !important; background-color: {{menu_tint_print}} !important; }
-#appMenu-print-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_print_hover}} !important; }
-#appMenu-save-file-button2 > .toolbarbutton-icon { list-style-image: {{menu_save}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-print-button2:hover .toolbarbutton-icon { list-style-image: {{menu_print_hover}} !important; }
+#appMenu-save-file-button2 .toolbarbutton-icon { list-style-image: {{menu_save}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_save}} center / contain no-repeat !important; mask: {{mask_save}} center / contain no-repeat !important; background-color: {{menu_tint_save}} !important; }
-#appMenu-save-file-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_save_hover}} !important; }
-#appMenu-find-button2 > .toolbarbutton-icon { list-style-image: {{menu_search}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-save-file-button2:hover .toolbarbutton-icon { list-style-image: {{menu_save_hover}} !important; }
+#appMenu-find-button2 .toolbarbutton-icon { list-style-image: {{menu_search}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_search}} center / contain no-repeat !important; mask: {{mask_search}} center / contain no-repeat !important; background-color: {{menu_tint_search}} !important; }
-#appMenu-find-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_search_hover}} !important; }
-#appMenu-translate-button > .toolbarbutton-icon { list-style-image: {{menu_translate}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-find-button2:hover .toolbarbutton-icon { list-style-image: {{menu_search_hover}} !important; }
+#appMenu-translate-button .toolbarbutton-icon { list-style-image: {{menu_translate}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_translate}} center / contain no-repeat !important; mask: {{mask_translate}} center / contain no-repeat !important; background-color: {{menu_tint_translate}} !important; }
-#appMenu-translate-button:hover > .toolbarbutton-icon { list-style-image: {{menu_translate_hover}} !important; }
-#appMenu-zoomReduce-button2 > .toolbarbutton-icon { list-style-image: {{menu_zoom_out}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-translate-button:hover .toolbarbutton-icon { list-style-image: {{menu_translate_hover}} !important; }
+#appMenu-zoomReduce-button2 .toolbarbutton-icon { list-style-image: {{menu_zoom_out}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_zoom_out}} center / contain no-repeat !important; mask: {{mask_zoom_out}} center / contain no-repeat !important; background-color: {{menu_tint_zoom_out}} !important; }
-#appMenu-zoomReduce-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_zoom_out_hover}} !important; }
-#appMenu-zoomEnlarge-button2 > .toolbarbutton-icon { list-style-image: {{menu_zoom_in}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-zoomReduce-button2:hover .toolbarbutton-icon { list-style-image: {{menu_zoom_out_hover}} !important; }
+#appMenu-zoomEnlarge-button2 .toolbarbutton-icon { list-style-image: {{menu_zoom_in}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_zoom_in}} center / contain no-repeat !important; mask: {{mask_zoom_in}} center / contain no-repeat !important; background-color: {{menu_tint_zoom_in}} !important; }
-#appMenu-zoomEnlarge-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_zoom_in_hover}} !important; }
-#appMenu-fullscreen-button2 > .toolbarbutton-icon { list-style-image: {{menu_fullscreen}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-zoomEnlarge-button2:hover .toolbarbutton-icon { list-style-image: {{menu_zoom_in_hover}} !important; }
+#appMenu-fullscreen-button2 .toolbarbutton-icon { list-style-image: {{menu_fullscreen}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_fullscreen}} center / contain no-repeat !important; mask: {{mask_fullscreen}} center / contain no-repeat !important; background-color: {{menu_tint_fullscreen}} !important; }
-#appMenu-fullscreen-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_fullscreen_hover}} !important; }
-#appMenu-settings-button > .toolbarbutton-icon { list-style-image: {{menu_settings}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-fullscreen-button2:hover .toolbarbutton-icon { list-style-image: {{menu_fullscreen_hover}} !important; }
+#appMenu-settings-button .toolbarbutton-icon { list-style-image: {{menu_settings}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_settings}} center / contain no-repeat !important; mask: {{mask_settings}} center / contain no-repeat !important; background-color: {{menu_tint_settings}} !important; }
-#appMenu-settings-button:hover > .toolbarbutton-icon { list-style-image: {{menu_settings_hover}} !important; }
-#appMenu-more-button2 > .toolbarbutton-icon { list-style-image: {{menu_tools}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-settings-button:hover .toolbarbutton-icon { list-style-image: {{menu_settings_hover}} !important; }
+#appMenu-more-button2 .toolbarbutton-icon { list-style-image: {{menu_tools}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_tools}} center / contain no-repeat !important; mask: {{mask_tools}} center / contain no-repeat !important; background-color: {{menu_tint_tools}} !important; }
-#appMenu-more-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_tools_hover}} !important; }
-#appMenu-help-button2 > .toolbarbutton-icon { list-style-image: {{menu_help}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-more-button2:hover .toolbarbutton-icon { list-style-image: {{menu_tools_hover}} !important; }
+#appMenu-help-button2 .toolbarbutton-icon { list-style-image: {{menu_help}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_help}} center / contain no-repeat !important; mask: {{mask_help}} center / contain no-repeat !important; background-color: {{menu_tint_help}} !important; }
-#appMenu-help-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_help_hover}} !important; }
-#appMenu-quit-button2 > .toolbarbutton-icon { list-style-image: {{menu_quit}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-help-button2:hover .toolbarbutton-icon { list-style-image: {{menu_help_hover}} !important; }
+#appMenu-quit-button2 .toolbarbutton-icon { list-style-image: {{menu_quit}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_quit}} center / contain no-repeat !important; mask: {{mask_quit}} center / contain no-repeat !important; background-color: {{menu_tint_quit}} !important; }
-#appMenu-quit-button2:hover > .toolbarbutton-icon { list-style-image: {{menu_quit_hover}} !important; }
-#appMenu-fxa-label2 > .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
+#appMenu-quit-button2:hover .toolbarbutton-icon { list-style-image: {{menu_quit_hover}} !important; }
+#appMenu-fxa-label2 .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_account}} center / contain no-repeat !important; mask: {{mask_account}} center / contain no-repeat !important; background-color: {{menu_tint_account}} !important; }
-#appMenu-fxa-label2:hover > .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account_hover}} !important; }
+#appMenu-fxa-label2:hover .toolbarbutton-icon, #fxa-menu-avatar { list-style-image: {{menu_account_hover}} !important; }
 .subviewbutton-back > .toolbarbutton-icon { list-style-image: {{menu_back}} !important; content: none !important; width: 16px !important; height: 16px !important; display: inline-block !important;
   -webkit-mask: {{mask_back}} center / contain no-repeat !important; mask: {{mask_back}} center / contain no-repeat !important; background-color: {{menu_tint_back}} !important; }
 .subviewbutton-back:hover > .toolbarbutton-icon { list-style-image: {{menu_back_hover}} !important; }
@@ -868,17 +872,17 @@ toolbarbutton:hover > .toolbarbutton-icon, .subviewbutton:hover > .toolbarbutton
  * Library's toolbar buttons. Tree images take an image only, so the bar's icons
  * are used (with the mask style they fall back to Firefox's own). */
 #organizeButton { list-style-image: {{icon_settings}} !important; }
-#organizeButton > .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
+#organizeButton .toolbarbutton-icon { -webkit-mask: {{raster_settings}} center / contain no-repeat !important; mask: {{raster_settings}} center / contain no-repeat !important; background-color: {{tint_settings}} !important; }
 #organizeButton:hover { list-style-image: {{icon_settings_hover}} !important; }
-#organizeButton:hover > .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
+#organizeButton:hover .toolbarbutton-icon { background-color: {{tint_settings_hover}} !important; }
 #viewMenu { list-style-image: {{icon_sidebar}} !important; }
-#viewMenu > .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
+#viewMenu .toolbarbutton-icon { -webkit-mask: {{raster_sidebar}} center / contain no-repeat !important; mask: {{raster_sidebar}} center / contain no-repeat !important; background-color: {{tint_sidebar}} !important; }
 #viewMenu:hover { list-style-image: {{icon_sidebar_hover}} !important; }
-#viewMenu:hover > .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
+#viewMenu:hover .toolbarbutton-icon { background-color: {{tint_sidebar_hover}} !important; }
 #maintenanceButton { list-style-image: {{icon_save}} !important; }
-#maintenanceButton > .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
+#maintenanceButton .toolbarbutton-icon { -webkit-mask: {{raster_save}} center / contain no-repeat !important; mask: {{raster_save}} center / contain no-repeat !important; background-color: {{tint_save}} !important; }
 #maintenanceButton:hover { list-style-image: {{icon_save_hover}} !important; }
-#maintenanceButton:hover > .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
+#maintenanceButton:hover .toolbarbutton-icon { background-color: {{tint_save_hover}} !important; }
 treechildren::-moz-tree-image(title, container), treechildren::-moz-tree-image(title, open),
 treechildren::-moz-tree-image(title, query, hostContainer), treechildren::-moz-tree-image(title, query, folder),
 treechildren::-moz-tree-image(query) { list-style-image: {{icon_folder}} !important; }

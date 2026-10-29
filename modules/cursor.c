@@ -7,6 +7,11 @@
  *   ~/.Xresources                            Xcursor.theme, Xcursor.size for X11 apps;
  *                                            merged with xrdb when an X server runs
  *
+ * The Xresources block also carries a marker, themer.Xcursor (read by no program), so
+ * that after an unload the running server can be told to forget the cursor themer
+ * merged into it: xrdb -merge only adds, and new X11 programs would keep getting
+ * themer's cursor until the next login.
+ *
  * GTK's own keys (gtk-cursor-theme-name, gsettings cursor-theme) are set by the gtk
  * module and sway's seat command by the sway module, from the same setting. */
 #include <limits.h>
@@ -40,17 +45,35 @@ load(const TmTheme *t)
 	              t->cursor, t->cursor_size) < 0)
 		return -1;
 	tm_path(p, sizeof p, t, ".Xresources");
-	return tm_blockf(p, "cursor", "!", "", 0, "Xcursor.theme: %s\nXcursor.size: %d\n",
-	                 t->cursor, t->cursor_size);
+	return tm_blockf(p, "cursor", "!", "", 0, "Xcursor.theme: %s\nXcursor.size: %d\n"
+	                 "themer.Xcursor: %s %d\n", t->cursor, t->cursor_size, t->cursor, t->cursor_size);
 }
+
+/* After the merge: when the server holds the marker but ~/.Xresources no longer does
+ * (the module was unloaded), the server's resources are loaded again without the
+ * marker and without Xcursor.theme and Xcursor.size, unless the file sets those itself. */
+static const char forget[] =
+	"f=\"$HOME/.Xresources\"; "
+	"grep -q '^themer\\.Xcursor:' \"$f\" 2>/dev/null && exit 0; "
+	"xrdb -query | grep -q '^themer\\.Xcursor:' || exit 0; "
+	"keep=$( [ -f \"$f\" ] && xrdb -n \"$f\" 2>/dev/null | cut -d: -f1 | tr '\\n' ' ' ); "
+	"xrdb -query | awk -v keep=\"$keep\" '"
+	"BEGIN { n = split(keep, k, \" \"); for (i = 1; i <= n; i++) K[k[i]] = 1 } "
+	"{ key = $0; sub(/:.*/, \"\", key) } "
+	"key == \"themer.Xcursor\" { next } "
+	"(key == \"Xcursor.theme\" || key == \"Xcursor.size\") && !(key in K) { next } "
+	"{ print }' | xrdb -nocpp -load";
 
 /* X11 apps read the resources at start; merge them into the running server */
 static void
 reload(void)
 {
-	if (getenv("DISPLAY") && tm_have("xrdb"))
-		if (system("xrdb -merge \"$HOME/.Xresources\" >/dev/null 2>&1") != 0)
-			return;
+	if (!getenv("DISPLAY") || !tm_have("xrdb"))
+		return;
+	if (system("[ ! -f \"$HOME/.Xresources\" ] || xrdb -merge \"$HOME/.Xresources\" >/dev/null 2>&1") != 0)
+		return;
+	if (system(forget) != 0)
+		return;
 }
 
 static const TmModule mod = {

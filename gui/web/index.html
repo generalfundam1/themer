@@ -18,6 +18,7 @@ body { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 
 .menu { grid-column: 1 / -1; display: flex; gap: 4px; align-items: center; }
 .menu .title { margin-left: auto; font-family: var(--mono_font, monospace), monospace; }
 nav a { display: block; text-decoration: none; cursor: default; }
+nav a.sel { font-weight: bold; }   /* the page shown, marked even without the web module's look */
 main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; overflow: auto; }
 .page { display: none; min-width: 0; }
 .page.sel { display: block; }

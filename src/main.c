@@ -291,7 +291,9 @@ main(int argc, char *argv[])
 		char msg[256];
 
 		r = front_remove(&c, msg, sizeof msg);
-		puts(msg);
+		/* here the way back is themer resume: themer apply, which the login runs,
+		 * leaves the originals in place */
+		puts(r ? msg : "originals restored; themer resume (or Apply in a front end) styles everything again");
 		return r ? 1 : 0;               /* saved by front_remove */
 	} else if (!strcmp(cmd, "resume") && argc == 2) {
 		c.removed = 0;

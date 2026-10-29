@@ -58,12 +58,31 @@ enum { R_FILE = 'F', R_CREATED = 'C', R_DIR = 'D', R_BLOCK = 'B', R_KEY = 'K', R
 typedef struct {
 	char kind;
 	char *path;
-	char *s[3];
+	char *s[4];     /* s[3]: the line as themer wrote it (R_LINE, R_KEY), "" when not known */
 } Rec;
 
 typedef struct { char **v; int n, cap; } Lines;
 
 static int find_setline(const Lines *L, const char *prefix);
+
+/* two lines that read the same, leading and trailing blanks aside */
+static int
+same_line(const char *a, const char *b)
+{
+	size_t la, lb;
+
+	while (*a == ' ' || *a == '\t')
+		a++;
+	while (*b == ' ' || *b == '\t')
+		b++;
+	la = strlen(a);
+	lb = strlen(b);
+	while (la && (a[la - 1] == ' ' || a[la - 1] == '\t' || a[la - 1] == '\r'))
+		la--;
+	while (lb && (b[lb - 1] == ' ' || b[lb - 1] == '\t' || b[lb - 1] == '\r'))
+		lb--;
+	return la == lb && !strncmp(a, b, la);
+}
 
 static Rec *recs;
 static int nrecs, caprecs, recording;
@@ -86,7 +105,7 @@ recs_clear(void)
 {
 	for (int i = 0; i < nrecs; i++) {
 		free(recs[i].path);
-		for (int k = 0; k < 3; k++)
+		for (int k = 0; k < 4; k++)
 			free(recs[i].s[k]);
 	}
 	nrecs = 0;
@@ -167,6 +186,24 @@ rec_add(char kind, const char *path, const char *a, const char *b, const char *c
 	r->s[0] = xstrdup(a);
 	r->s[1] = xstrdup(b);
 	r->s[2] = xstrdup(c);
+	r->s[3] = xstrdup("");
+}
+
+/* notes, on the record just added (or the earlier one it merged into), the text
+ * themer wrote: unload puts the old text back only where the file still reads so,
+ * leaving a line the user has changed since as they made it */
+static void
+rec_wrote(char kind, const char *path, const char *a, const char *b, const char *text)
+{
+	if (!recording)
+		return;
+	for (int i = nrecs - 1; i >= 0; i--)
+		if (recs[i].kind == kind && !strcmp(recs[i].path, path) &&
+		    !strcmp(recs[i].s[0], a) && !strcmp(recs[i].s[1], b)) {
+			free(recs[i].s[3]);
+			recs[i].s[3] = xstrdup(text);
+			return;
+		}
 }
 
 static int
@@ -418,7 +455,7 @@ manifest_write(const char *mod)
 	for (i = 0; i < nrecs; i++) {
 		fprintf(f, "%c\t", recs[i].kind);
 		put_field(f, recs[i].path);
-		for (int k = 0; k < 3; k++) {
+		for (int k = 0; k < 4; k++) {
 			fputc('\t', f);
 			put_field(f, recs[i].s[k]);
 		}
@@ -460,7 +497,7 @@ manifest_read(const char *mod)
 		return -1;
 	recs_clear();
 	while (getline(&line, &cap, f) > 0) {
-		char *fld[5] = { 0 };
+		char *fld[6] = { 0 };
 		int k, i;
 		Rec *r;
 
@@ -474,8 +511,8 @@ manifest_read(const char *mod)
 		}
 		if (!line[0] || line[0] == '#')
 			continue;
-		k = split_tabs(line, fld, 5);
-		for (i = k; i < 5; i++)
+		k = split_tabs(line, fld, 6);
+		for (i = k; i < 6; i++)
 			fld[i] = (char *)empty;
 		if (escaped)
 			for (i = 1; i < k; i++)
@@ -485,7 +522,7 @@ manifest_read(const char *mod)
 		r = rec_new();
 		r->kind = fld[0][0];
 		r->path = xstrdup(fld[1]);
-		for (i = 0; i < 3; i++)
+		for (i = 0; i < 4; i++)
 			r->s[i] = xstrdup(fld[i + 2]);
 	}
 	free(line);
@@ -967,8 +1004,10 @@ tm_setline(const char *path, const char *prefix, const char *text)
 	lines_ins(&L, at, text);
 	r = lines_write(path, &L);
 	lines_free(&L);
-	if (r == 0)
+	if (r == 0) {
 		rec_add(R_LINE, path, prefix, "", old);
+		rec_wrote(R_LINE, path, prefix, "", text);
+	}
 	free(old);
 	return r < 0 ? -1 : 0;
 }
@@ -1463,6 +1502,7 @@ tm_ini(const char *path, const char *section, const char *key, const char *value
 	if (!existed)
 		rec_add(R_CREATED, path, "", "", "");
 	rec_add(R_KEY, path, section, key, old);
+	rec_wrote(R_KEY, path, section, key, line);
 	return 0;
 }
 
@@ -1581,6 +1621,8 @@ undo_key(const Rec *r)
 	if (lines_read(r->path, &L) < 0)
 		return;
 	ini_locate(&L, r->s[0], r->s[1], &start, &end, &k);
+	if (k >= 0 && r->s[3][0] && !same_line(L.v[k], r->s[3]))
+		k = -1;         /* the user has set it since: theirs stays */
 	if (k >= 0) {
 		lines_del(&L, k);
 		if (!strcmp(r->s[2], NEW_SECTION) || !strcmp(r->s[2], NEW_SECTION_BLANK)) {
@@ -1631,6 +1673,8 @@ undo_line(const Rec *r)
 	if (lines_read(r->path, &L) < 0)
 		return;
 	at = find_setline(&L, r->s[0]);
+	if (at >= 0 && r->s[3][0] && !same_line(L.v[at], r->s[3]))
+		at = -1;        /* the user has changed the line since: theirs stays */
 	if (at >= 0 && r->s[2][0]) {
 		lines_del(&L, at);
 		lines_ins(&L, at, r->s[2]);
@@ -1747,15 +1791,18 @@ undo_all(void)
 	}
 }
 
-/* removes everything the module recorded last time, then runs its unload hook */
-static void
+/* removes everything the module recorded last time, then runs its unload hook;
+ * 1 when there was something to remove */
+static int
 cleanup(const TmModule *m)
 {
 	char p[PATH_MAX];
+	int had = 0;
 
 	recording = 0;
 	snprintf(cur_mod, sizeof cur_mod, "%s", m->name);
 	if (manifest_read(m->name) == 0) {
+		had = 1;
 		undo_all();
 		dirs_retry();
 		if (manifest_path(p, sizeof p, m->name) == 0)
@@ -1766,13 +1813,14 @@ cleanup(const TmModule *m)
 	recs_clear();
 	if (m->unload)
 		m->unload();
+	return had;
 }
 
+/* 1 when the module had something loaded, which is now gone; 0 when it had nothing */
 int
 mod_unload(const TmModule *m)
 {
-	cleanup(m);
-	return 0;
+	return cleanup(m);
 }
 
 int

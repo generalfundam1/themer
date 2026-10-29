@@ -6,6 +6,9 @@ font-size = {{font_size}}
 
 background = #{{bg}}
 foreground = #{{fg}}
+# the window's own chrome (its header bar and tabs) in the terminal's colors too
+window-theme = ghostty
+
 cursor-color = #{{fg}}
 cursor-text = #{{bg}}
 selection-background = #{{acc}}

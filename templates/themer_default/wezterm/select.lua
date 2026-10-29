@@ -14,3 +14,15 @@ config.window_frame.button_bg = "#{{bg}}"
 config.window_frame.button_fg = "#{{fg}}"
 config.window_frame.button_hover_bg = "#{{control_hover}}"
 config.window_frame.button_hover_fg = "#{{fg}}"
+-- WezTerm's fancy tab bar (its default) takes the tab colors from config.colors only,
+-- not from the color scheme: the same tabs as the scheme's, here
+config.colors = config.colors or {}
+config.colors.tab_bar = {
+  background = "#{{bg}}",
+  inactive_tab_edge = "#{{line}}",
+  active_tab = { bg_color = "#{{acc}}", fg_color = "#{{accfg}}" },
+  inactive_tab = { bg_color = "#{{surf}}", fg_color = "#{{fg}}" },
+  inactive_tab_hover = { bg_color = "#{{control_hover}}", fg_color = "#{{fg}}" },
+  new_tab = { bg_color = "#{{bg}}", fg_color = "#{{fg}}" },
+  new_tab_hover = { bg_color = "#{{control_hover}}", fg_color = "#{{fg}}" },
+}

@@ -64,6 +64,26 @@ generate(const char *theme, char *out, size_t n)
 		fprintf(stderr, "themer: vivid: could not generate LS_COLORS from %s\n", theme);
 		return -1;
 	}
+	/* entries with a backslash ("*Icon\r", macOS's icon files) go: systemd reads a
+	 * backslash in environment.d as an escape and env.sh does not, so the two would
+	 * disagree on them */
+	{
+		char *w = out;
+
+		for (char *e = out; *e; ) {
+			char *end = strchr(e, ':');
+			size_t l = end ? (size_t)(end - e) : strlen(e);
+
+			if (!memchr(e, '\\', l)) {
+				if (w != out)
+					*w++ = ':';
+				memmove(w, e, l);
+				w += l;
+			}
+			e += l + (end ? 1 : 0);
+		}
+		*w = '\0';
+	}
 	return 0;
 }
 

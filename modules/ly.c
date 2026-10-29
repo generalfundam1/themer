@@ -45,7 +45,7 @@ load(const TmTheme *t)
 	tm_path(p, sizeof p, t, ".config/themer/system/ly.conf");
 	ly_color(bg, sizeof bg, t->bg, 0);
 	ly_color(fg, sizeof fg, t->fg, 0);
-	ly_color(line, sizeof line, t->fg, 0);
+	ly_color(line, sizeof line, t->line, 0);   /* outlines are the line role */
 	ly_color(urg, sizeof urg, t->urg, 0x01);    /* bold, as ly's default error text */
 	ly_color(acc, sizeof acc, t->acc, 0);
 	ly_color(ansi4, sizeof ansi4, t->ansi[4], 0);

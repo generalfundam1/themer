@@ -47,13 +47,17 @@
     background-color: #{{field}} !important; color: #{{fg}} !important;
   }
   /* controls on every page: the Chicago bevel */
-  button:not(.text-link):not(.plain), .button, input[type="button"], select, .select, menulist {
+  /* (not the flag star in the message cards: the card row has no room for a bevel and
+   * its padding, and the star is cut in half) */
+  button:not(.text-link):not(.plain):not(.tree-button-flag), .button, input[type="button"], select, .select, menulist {
     appearance: none !important; background-color: #{{face}} !important; color: #{{fg}} !important;
     border: 1px solid !important; border-color: #{{light}} #{{shade}} #{{shade}} #{{light}} !important;
+  }
+  button:not(.text-link):not(.plain):not(.tree-button-flag):not(.icon-button), .button:not(.icon-button), input[type="button"], select, .select, menulist {
     padding: {{pad_control}} !important;
   }
-  button:not(.text-link):not(.plain):hover, .button:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
-  button:not(.text-link):not(.plain):active, .button:active { background-color: #{{pressed}} !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important; }
+  button:not(.text-link):not(.plain):not(.tree-button-flag):hover, .button:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
+  button:not(.text-link):not(.plain):not(.tree-button-flag):active, .button:active { background-color: #{{pressed}} !important; border-color: #{{shade}} #{{light}} #{{light}} #{{shade}} !important; }
   button.primary, button[default], .primary { background-color: #{{acc}} !important; color: #{{accfg}} !important; border-color: #{{acc}} !important; }
   input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], textarea, .input-container input {
     appearance: none !important; background-color: #{{field}} !important; color: #{{fg}} !important;

@@ -6,3 +6,15 @@ config.color_scheme = "themer"
 config.font = require('wezterm').font("{{font_family}}")
 config.font_size = {{font_size}}
 config.use_fancy_tab_bar = false
+-- the tab colors again in config.colors, which is where WezTerm's fancy tab bar looks
+-- for them (should use_fancy_tab_bar be turned back on further down)
+config.colors = config.colors or {}
+config.colors.tab_bar = {
+  background = "#{{face}}",
+  inactive_tab_edge = "#{{line}}",
+  active_tab = { bg_color = "#{{acc}}", fg_color = "#{{tab_active_text}}" },
+  inactive_tab = { bg_color = "#{{face}}", fg_color = "#{{tab_text}}" },
+  inactive_tab_hover = { bg_color = "#{{hover_bg}}", fg_color = "#{{hover_fg}}" },
+  new_tab = { bg_color = "#{{face}}", fg_color = "#{{tab_text}}" },
+  new_tab_hover = { bg_color = "#{{hover_bg}}", fg_color = "#{{hover_fg}}" },
+}

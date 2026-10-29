@@ -25,6 +25,8 @@ static int
 profile_dir(const char *base, char *out, size_t n)
 {
 	char ini[PATH_MAX], line[PATH_MAX], section[64] = "", install[PATH_MAX] = "", first[PATH_MAX] = "";
+	char cur[PATH_MAX] = "", def[PATH_MAX] = "";
+	int curdef = 0;
 	const char *rel;
 	FILE *f;
 
@@ -35,15 +37,27 @@ profile_dir(const char *base, char *out, size_t n)
 	while (fgets(line, sizeof line, f)) {
 		line[strcspn(line, "\r\n")] = '\0';
 		if (line[0] == '[') {
+			/* the profile marked Default=1, for a profiles.ini without an [Install]
+			 * section (legacy profiles, older and ESR setups) */
+			if (curdef && cur[0] && !def[0])
+				snprintf(def, sizeof def, "%s", cur);
+			cur[0] = '\0';
+			curdef = 0;
 			snprintf(section, sizeof section, "%.63s", line);
 		} else if (!strncmp(section, "[Install", 8) && !strncmp(line, "Default=", 8)) {
 			snprintf(install, sizeof install, "%s", line + 8);
-		} else if (!strncmp(section, "[Profile", 8) && !strncmp(line, "Path=", 5) && !first[0]) {
-			snprintf(first, sizeof first, "%s", line + 5);
+		} else if (!strncmp(section, "[Profile", 8) && !strncmp(line, "Path=", 5)) {
+			if (!first[0])
+				snprintf(first, sizeof first, "%s", line + 5);
+			snprintf(cur, sizeof cur, "%s", line + 5);
+		} else if (!strncmp(section, "[Profile", 8) && !strcmp(line, "Default=1")) {
+			curdef = 1;
 		}
 	}
+	if (curdef && cur[0] && !def[0])
+		snprintf(def, sizeof def, "%s", cur);
 	fclose(f);
-	rel = install[0] ? install : first;
+	rel = install[0] ? install : def[0] ? def : first;
 	if (!rel[0])
 		return -1;
 	if (rel[0] == '/')

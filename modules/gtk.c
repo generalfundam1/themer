@@ -213,6 +213,53 @@ session_bus(void)
 	return rt && snprintf(p, sizeof p, "%s/bus", rt) < (int)sizeof p && stat(p, &st) == 0 && S_ISSOCK(st.st_mode);
 }
 
+/* gsettings keeps no undo of its own and unload cannot see a written key: the
+ * values the keys had before themer first set them are kept in
+ * ~/.config/themer/gtk-gsettings.saved (themer's own directory, not a recorded
+ * file, so it outlives the cleanup that runs before each load) and put back by the
+ * unload hook, which runs on unload and before every load. */
+static const char *const gkeys[] = {
+	"gtk-theme", "icon-theme", "cursor-theme", "cursor-size", "font-name",
+	"monospace-font-name", "color-scheme", "font-antialiasing", "font-hinting",
+	"font-rgba-order",
+};
+
+static void
+saved_path(char *p, size_t n)
+{
+	const char *home = getenv("HOME");
+
+	snprintf(p, n, "%s/.config/themer/gtk-gsettings.saved", home ? home : ".");
+}
+
+/* the current values, once: an existing file already holds the user's own */
+static void
+gsettings_save(void)
+{
+	char p[PATH_MAX], cmd[160], val[512];
+	FILE *out, *in;
+	int n = 0;
+
+	saved_path(p, sizeof p);
+	if (!access(p, F_OK) || !(out = fopen(p, "w")))
+		return;
+	for (size_t i = 0; i < sizeof gkeys / sizeof gkeys[0]; i++) {
+		/* the command is fixed text: no user value reaches the shell */
+		snprintf(cmd, sizeof cmd, "gsettings get org.gnome.desktop.interface %s 2>/dev/null", gkeys[i]);
+		if (!(in = popen(cmd, "r")))
+			continue;
+		if (fgets(val, sizeof val, in)) {
+			val[strcspn(val, "\n")] = '\0';
+			if (val[0] && fprintf(out, "%s\t%s\n", gkeys[i], val) > 0)
+				n++;
+		}
+		pclose(in);
+	}
+	fclose(out);
+	if (!n)
+		unlink(p);      /* nothing read (no schema, no answer): nothing to put back */
+}
+
 static void
 gsettings(const TmTheme *t, const char *font)
 {
@@ -237,7 +284,9 @@ gsettings(const TmTheme *t, const char *font)
 		gset("color-scheme", str, "default");
 	gset("font-antialiasing", str, aa);
 	gset("font-hinting", str, t->hinting);
-	gset("font-rgba-order", str, t->rgba);
+	/* the key has no "none" (that is font-antialiasing=grayscale, set above) */
+	if (strcmp(t->rgba, "none"))
+		gset("font-rgba-order", str, t->rgba);
 }
 
 /* Earlier builds rendered the whole theme into ~/.config/gtk-3.0/gtk.css. A user
@@ -396,7 +445,7 @@ load(const TmTheme *t)
 		for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++) {
 			char rel[PATH_MAX], target[PATH_MAX];
 
-			if (i == 2 && !has_gtk4)
+			if ((i == 2 && (!has_gtk4 || !on(t, "gtk.gtk4"))) || (i == 1 && !on(t, "gtk.gtk3")))
 				continue;
 			snprintf(rel, sizeof rel, ".config/themer/gtk/%s", parts[i]);
 			tm_path(target, sizeof target, t, rel);
@@ -451,8 +500,10 @@ load(const TmTheme *t)
 
 	/* without a session bus gsettings keeps its writes in memory and drops them:
 	 * nothing to do, and ten programs not started */
-	if ((!gs || strcmp(gs, "off")) && tm_have("gsettings") && session_bus())
+	if ((!gs || strcmp(gs, "off")) && tm_have("gsettings") && session_bus()) {
+		gsettings_save();
 		gsettings(t, font);
+	}
 
 	/* No GTK_THEME: the variable overrides settings.ini, and a session that still
 	 * carries an old value (a renamed set) gets Adwaita for everything. The theme
@@ -475,6 +526,39 @@ reload(void)
 		tm_run(portal);
 }
 
+/* puts the gsettings keys back as they were before themer (gsettings_save); the
+ * file goes once they are back, so it is kept while there is no session bus */
+static void
+unload(void)
+{
+	char p[PATH_MAX], line[640];
+	FILE *f;
+	int ok = 1;
+
+	saved_path(p, sizeof p);
+	if (!(f = fopen(p, "r")))
+		return;
+	if (!tm_have("gsettings") || !session_bus()) {
+		fclose(f);
+		return;
+	}
+	while (fgets(line, sizeof line, f)) {
+		char *tab = strchr(line, '\t');
+		const char *argv[] = { "gsettings", "set", "org.gnome.desktop.interface", line, NULL, NULL };
+
+		line[strcspn(line, "\n")] = '\0';
+		if (!tab)
+			continue;
+		*tab = '\0';
+		argv[4] = tab + 1;
+		if (tm_run(argv) != 0)
+			ok = 0;
+	}
+	fclose(f);
+	if (ok)
+		unlink(p);
+}
+
 /* any of GTK 2, 3 and 4 */
 static int
 present(const TmTheme *t)
@@ -490,6 +574,7 @@ static const TmModule mod = {
 	.default_on = 1,
 	.present = present,
 	.load = load,
+	.unload = unload,
 	.reload = reload,
 	.options = opts,
 	.noptions = TM_COUNT(opts),

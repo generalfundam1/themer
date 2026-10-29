@@ -48,7 +48,7 @@ QListView, QTreeView, QTableView, QAbstractItemView, QAbstractScrollArea {
 QLineEdit, QSpinBox, QDoubleSpinBox, QDateTimeEdit, QDateEdit, QTimeEdit { padding: {{pad_field}}; }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus, QPlainTextEdit:focus,
 QListView:focus, QTreeView:focus, QTableView:focus { border: 1px solid #{{acc}}; }
-QAbstractItemView::item { padding: {{pad_cell}}; }
+QAbstractItemView::item { padding: {{pad_cell}}; border: 0px; } /* the border makes Qt draw every item from the sheet: without it the padding applied only to hovered and selected items, whose text jumped */
 QAbstractItemView::item:hover { background-color: #{{surf}}; }
 QAbstractItemView::item:selected { background-color: #{{hover_bg}}; color: #{{hover_fg}}; }
 QTreeView::branch:has-children:closed { image: url({{qt_assets}}/arrow-right.svg); }

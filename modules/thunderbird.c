@@ -47,7 +47,10 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 	snprintf(size, sizeof size, "%d", font_size);
 	rule[0] = '\0';
 	if (font && strcmp(font, "own"))
-		snprintf(rule, sizeof rule, "font-family: \"%s\" !important;", fam);
+		/* the generic family after it, so a font that is not installed falls back
+		 * to its kind, not to the default serif */
+		snprintf(rule, sizeof rule, "font-family: \"%s\", %s !important;", fam,
+		         strcmp(font, "terminal") ? "sans-serif" : "monospace");
 	v[0] = (TmVar){ "font_family", fam };
 	v[1] = (TmVar){ "font_size", size };
 	v[2] = (TmVar){ "font_rule", rule };

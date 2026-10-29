@@ -2,17 +2,29 @@
  * its template (templates/launcher/) are shared with wmenu through launcher.h. */
 #include "launcher.h"
 
-/* dmenu's flags: normal and selected colors, and the font */
+/* dmenu's flags: normal and selected colors, and the font. dmenu takes X colors, so
+ * each gets its '#' (quoted: in the script a word starting with '#' is a comment), and
+ * an Xft font name, "family:size=N", where '-', ':' and ',' in the family are escaped
+ * (the pango-style "family N" names a family that does not exist, and fontconfig
+ * falls back to its default font and size). */
 static const char *
 args(const TmTheme *t)
 {
 	static char buf[512];
-	char fam[128];
+	char fam[128], esc[256], *o = esc;
 	int size;
 
 	tm_font_for(t, "dmenu.font", fam, sizeof fam, &size);
-	snprintf(buf, sizeof buf, "-nb %s -nf %s -sb %s -sf %s -fn \"%s %d\"",
-	         t->bg, t->fg, t->acc, t->accfg, fam, size);
+	for (const char *s = fam; *s && o < esc + sizeof esc - 3; s++) {
+		if (*s == '"' || *s == '$' || *s == '`' || *s == '\\')
+			continue;           /* nothing a font name needs; they would break the quoting */
+		if (*s == '-' || *s == ':' || *s == ',')
+			*o++ = '\\';
+		*o++ = *s;
+	}
+	*o = '\0';
+	snprintf(buf, sizeof buf, "-nb \"#%s\" -nf \"#%s\" -sb \"#%s\" -sf \"#%s\" -fn \"%s:size=%d\"",
+	         t->bg, t->fg, t->acc, t->accfg, esc, size);
 	return buf;
 }
 

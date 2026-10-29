@@ -62,6 +62,12 @@ menubar > menu[_moz-menuactive], menubar > menu[open] { background-color: #{{hov
   background-color: #{{bar}} !important; background-image: none !important;
   border: none !important; border-right: 1px solid #{{line}} !important;
 }
+/* the bevel of the buttons below takes 1px a side: Thunderbird places the window's
+ * content by the bar's width worked out from --spaces-button-padding, so the padding
+ * gives that pixel back and the bar keeps its width */
+#spacesToolbar :is(.spaces-toolbar-button, .spaces-toolbar-statusbar-button, .spaces-toolbar-pinned-button) {
+  padding: calc(var(--spaces-button-padding) - 1px) !important;
+}
 .spaces-toolbar-button { color: #{{bar_text}} !important; fill: #{{bar_text}} !important; background: transparent !important; }
 .spaces-toolbar-button:hover { color: #{{glyph_hover}} !important; fill: #{{glyph_hover}} !important; }
 .spaces-toolbar-button.current, .spaces-toolbar-button[open] { background-color: #{{acc}} !important; color: #{{accfg}} !important; fill: #{{accfg}} !important; }
@@ -84,10 +90,16 @@ menu[disabled], menuitem[disabled], menu[disabled] *, menuitem[disabled] * { col
 #status-bar, .statusbar, #statusbar { background-color: #{{bar}} !important; color: #{{bar_text}} !important; border-top: 1px solid #{{line}} !important; }
 
 /* ---- dialogs, compose, address book windows: controls with the Chicago bevel ---- */
-button, .button, toolbarbutton.menulist-button, menulist {
+button:not(.tree-button-flag), .button, toolbarbutton.menulist-button, menulist {
   appearance: none !important; background-color: #{{face}} !important; color: #{{fg}} !important;
   border: 1px solid !important; border-color: #{{light}} #{{shade}} #{{shade}} #{{light}} !important;
-  padding: {{pad_control}} !important; min-height: 0 !important;
+  min-height: 0 !important;
+}
+/* this file also reaches the panes (about:3pane is a chrome document): buttons that draw
+ * their icon as a background (.icon-button, New Message) keep Thunderbird's padding,
+ * which leaves the icon its room; the flag star in the message cards keeps its size */
+button:not(.tree-button-flag):not(.icon-button), .button:not(.icon-button), toolbarbutton.menulist-button, menulist {
+  padding: {{pad_control}} !important;
 }
 button:hover, .button:hover, menulist:hover { background-color: #{{hover_bg}} !important; color: #{{hover_fg}} !important; }
 button:active, .button:active, button[open], menulist[open] {

@@ -73,9 +73,15 @@ palette(char *active, char *disabled, char *inactive, size_t n, const TmTheme *t
 		t->fg, t->surf, t->bg, t->line, hb, hf, t->acc,
 		t->acc, t->bg, t->bg, t->bg, t->fg, t->ansi[8],
 	};
+	/* an unfocused window's selection: halfway from the active one to the surface, with
+	 * text that reads on it. The surface itself (Base) made the selection invisible
+	 * wherever the stylesheet does not draw it (qt5ct without a stylesheet, item views). */
+	char ihb[TM_COLOR_LEN], ihf[TM_COLOR_LEN];
+	tm_mix(ihb, sizeof ihb, hb, t->surf, 5);
+	tm_text_on(ihf, sizeof ihf, ihb, t->fg);
 	const char *ina[ROLE_COUNT] = {
 		t->fg, t->surf, t->surf, t->surf, t->line, t->line, t->fg, t->fg,
-		t->fg, t->surf, t->bg, t->line, t->surf, t->fg, t->fg,
+		t->fg, t->surf, t->bg, t->line, ihb, ihf, t->fg,
 		t->fg, t->bg, t->bg, t->bg, t->fg, t->ansi[8],
 	};
 	disabled_of(dis, sizeof dis, t);
@@ -212,7 +218,10 @@ qt_one(const TmTheme *t, const char *ct)
 	tm_ini(p, "Appearance", "custom_palette", "true");
 	tm_ini(p, "Appearance", "color_scheme_path", cpath);
 	tm_ini(p, "Appearance", "icon_theme", t->icons);
-	tm_ini(p, "Appearance", "stylesheets", qpath);
+	/* qt5ct and qt6ct read the stylesheet list from [Interface] (their QSS page saves
+	 * it as Interface/stylesheets; checked in qt5ct 1.2 and qt6ct 0.10): under
+	 * [Appearance] it was never loaded */
+	tm_ini(p, "Interface", "stylesheets", qpath);
 	tm_ini(p, "Fonts", "general", font);
 	tm_ini(p, "Fonts", "fixed", fixed);
 	return 0;
@@ -310,7 +319,10 @@ load(const TmTheme *t)
 		return -1;
 	if (q6 && (tm_have("qt6ct") || !access(p6, F_OK)) && qt_one(t, "qt6ct") < 0)
 		return -1;
-	tm_path(p, sizeof p, t, ".config/environment.d/40-themer-qt.conf");
+	/* 60-: after themer's own 50-themer.conf, whose default environment also names
+	 * QT_QPA_PLATFORMTHEME (qt5ct); environment.d and env.sh take the files in order
+	 * and the last one wins, so with 40- the plugin chosen here was overridden */
+	tm_path(p, sizeof p, t, ".config/environment.d/60-themer-qt.conf");
 	if (use_plugin) {
 		char path[2 * PATH_MAX + 2];
 

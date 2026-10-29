@@ -69,7 +69,8 @@ put(const char *section, const char *key, const char *hex)
 /* one color set: its backgrounds and the text over them */
 static void
 colorset(const char *section, const char *bg, const char *alt, const char *fg, const char *inactive,
-         const TmTheme *t, const char *link, const char *visited, const char *positive, const char *focus)
+         const TmTheme *t, const char *link, const char *visited, const char *positive, const char *focus,
+         const char *negative, const char *neutral)
 {
 	put(section, "BackgroundNormal", bg);
 	put(section, "BackgroundAlternate", alt);
@@ -78,8 +79,8 @@ colorset(const char *section, const char *bg, const char *alt, const char *fg, c
 	put(section, "ForegroundActive", focus);
 	put(section, "ForegroundLink", link);
 	put(section, "ForegroundVisited", visited);
-	put(section, "ForegroundNegative", t->urg);
-	put(section, "ForegroundNeutral", t->warn);
+	put(section, "ForegroundNegative", negative ? negative : t->urg);
+	put(section, "ForegroundNeutral", neutral ? neutral : t->warn);
 	put(section, "ForegroundPositive", positive);
 	put(section, "DecorationFocus", t->acc);
 	put(section, "DecorationHover", t->acc);
@@ -91,7 +92,7 @@ load(const TmTheme *t)
 	char view[TM_COLOR_LEN], raised[TM_COLOR_LEN], control[TM_COLOR_LEN], sidebar[TM_COLOR_LEN];
 	char dis[TM_COLOR_LEN], link[TM_COLOR_LEN], visited[TM_COLOR_LEN], pos[TM_COLOR_LEN], focus[TM_COLOR_LEN];
 	char scheme[PATH_MAX], globals[PATH_MAX], body[16384], font[160], fixed[160], small[160], fam[128];
-	char bg_rgb[16];
+	char bg_rgb[16], sel_neg[TM_COLOR_LEN], sel_neu[TM_COLOR_LEN], sel_pos[TM_COLOR_LEN];
 	const char *cur = NULL;
 	size_t o = 0;
 	int size;
@@ -107,15 +108,21 @@ load(const TmTheme *t)
 	tm_ensure_contrast(pos, sizeof pos, t->ansi[2], view, t->fg, 4.5);
 	tm_ensure_contrast(focus, sizeof focus, t->acc, view, t->fg, 3.0);
 
+	/* on the selection, the state colors are moved until they read on the accent (the
+	 * window's own red or yellow on a selected row was often under 2:1) */
+	tm_ensure_contrast(sel_neg, sizeof sel_neg, t->urg, t->acc, t->accfg, 4.5);
+	tm_ensure_contrast(sel_neu, sizeof sel_neu, t->warn, t->acc, t->accfg, 4.5);
+	tm_ensure_contrast(sel_pos, sizeof sel_pos, t->ansi[2], t->acc, t->accfg, 4.5);
+
 	nkeys = 0;
-	colorset("Colors:Window", t->bg, sidebar, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:View", view, raised, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:Button", raised, control, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:Selection", t->acc, t->acc, t->accfg, t->accfg, t, t->accfg, t->accfg, t->accfg, t->accfg);
-	colorset("Colors:Tooltip", raised, raised, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:Complementary", t->bg, sidebar, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:Header", raised, raised, t->fg, dis, t, link, visited, pos, focus);
-	colorset("Colors:Header][Inactive", t->bg, t->bg, t->fg, dis, t, link, visited, pos, focus);
+	colorset("Colors:Window", t->bg, sidebar, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:View", view, raised, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:Button", raised, control, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:Selection", t->acc, t->acc, t->accfg, t->accfg, t, t->accfg, t->accfg, sel_pos, t->accfg, sel_neg, sel_neu);
+	colorset("Colors:Tooltip", raised, raised, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:Complementary", t->bg, sidebar, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:Header", raised, raised, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
+	colorset("Colors:Header][Inactive", t->bg, t->bg, t->fg, dis, t, link, visited, pos, focus, NULL, NULL);
 	put("WM", "activeBackground", raised);
 	put("WM", "activeForeground", t->fg);
 	put("WM", "activeBlend", raised);
@@ -151,6 +158,22 @@ load(const TmTheme *t)
 	for (int i = 0; i < nkeys; i++)
 		if (tm_ini(globals, keys[i].section, keys[i].key, keys[i].value) < 0)
 			return -1;
+	/* the scheme's effects and contrast too, as System Settings copies them when it
+	 * applies a scheme: without them KDE programs kept the inactive-window effect of the
+	 * scheme before (a darkened selection) that Themer.colors turns off */
+	{
+		static const char *const fx[][3] = {
+			{ "ColorEffects:Disabled", "ColorAmount", "0" }, { "ColorEffects:Disabled", "ColorEffect", "0" },
+			{ "ColorEffects:Disabled", "ContrastAmount", "0.65" }, { "ColorEffects:Disabled", "ContrastEffect", "1" },
+			{ "ColorEffects:Disabled", "IntensityAmount", "0.1" }, { "ColorEffects:Disabled", "IntensityEffect", "2" },
+			{ "ColorEffects:Inactive", "ChangeSelectionColor", "false" }, { "ColorEffects:Inactive", "Enable", "false" },
+			{ "KDE", "contrast", "4" },
+		};
+
+		tm_ini(globals, "ColorEffects:Disabled", "Color", bg_rgb);
+		for (size_t i = 0; i < sizeof fx / sizeof fx[0]; i++)
+			tm_ini(globals, fx[i][0], fx[i][1], fx[i][2]);
+	}
 	tm_ini(globals, "General", "ColorScheme", "Themer");
 	tm_ini(globals, "General", "font", font);
 	tm_ini(globals, "General", "menuFont", font);
