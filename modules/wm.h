@@ -10,7 +10,9 @@
  *
  * Options:
  *   font      ui or terminal, for window titles and the bar
- *   menu      the launcher bound to $menu: auto, wmenu, dmenu, or none
+ *   menu      the launcher bound to $menu: auto, fuzzel, rofi, wmenu, dmenu, or none
+ *             (auto: the first of those whose module is on, Wayland-only ones left
+ *             out under i3)
  *   bar       auto: your own bar { } blocks are switched off (#themer-off:, put
  *             back on unload) and replaced: by waybar under sway when the waybar
  *             module is on, by themer's themed bar otherwise, keeping your bar's
@@ -33,7 +35,7 @@
 
 static const TmOption wm_options[] = {
 	{ "font",       "font for window titles and the bar", "ui|terminal", "ui", 0, 0 },
-	{ "menu",       "launcher for $menu (wmenu, dmenu, or none)", "auto|wmenu|dmenu|none", "auto", 0, 0 },
+	{ "menu",       "launcher for $menu: auto takes the first themed one (fuzzel, rofi, wmenu, dmenu)", "auto|fuzzel|rofi|wmenu|dmenu|none", "auto", 0, 0 },
 	{ "bar",        "auto replaces your bar with themer's (or waybar, when its module is on); themer: always themer's; keep: your own", "auto|themer|keep", "auto", 0, 0 },
 	TM_OPT_TEMPLATE,
 };
@@ -122,22 +124,35 @@ wm_bar_kind(const TmTheme *t, const char *wm)
 	return !strcmp(wm, "sway") && tm_loaded(t, "waybar") && tm_have("waybar") ? "waybar" : "themer";
 }
 
-/* The launcher script for $menu: the chosen menu's, if its module is loaded, or
- * "" for none. auto takes the first loaded menu whose binary is installed. */
+/* The launcher for $menu: the chosen menu, if its module is loaded, or "" for none.
+ * auto takes the first loaded one (fuzzel and wmenu only under sway, being Wayland
+ * programs). fuzzel and rofi read the theme from their own configs, which their
+ * modules write; wmenu and dmenu get it on the command line, from themer's scripts. */
 static void
 wm_menu_script(const TmTheme *t, const char *wm, char *out, size_t n)
 {
+	static const char *const order[] = { "fuzzel", "rofi", "wmenu", "dmenu" };
 	const char *choice = wm_opt(t, wm, "menu");
+	int wayland = !strcmp(wm, "sway");
 
 	out[0] = '\0';
-	if (!choice || !strcmp(choice, "auto"))
-		choice = tm_loaded(t, "wmenu") && tm_have("wmenu") ? "wmenu"
-		       : tm_loaded(t, "dmenu") && tm_have("dmenu") ? "dmenu" : "none";
-	if (strcmp(choice, "wmenu") && strcmp(choice, "dmenu"))
-		return;
+	if (!choice || !strcmp(choice, "auto")) {
+		choice = "none";
+		for (size_t i = 0; i < TM_COUNT(order); i++)
+			if ((wayland || (strcmp(order[i], "fuzzel") && strcmp(order[i], "wmenu"))) &&
+			    tm_loaded(t, order[i]) && tm_have(order[i])) {
+				choice = order[i];
+				break;
+			}
+	}
 	if (!tm_loaded(t, choice))
 		return;
-	snprintf(out, n, "%s/.config/themer/bin/themer-%s", t->home, choice);
+	if (!strcmp(choice, "fuzzel"))
+		snprintf(out, n, "fuzzel");
+	else if (!strcmp(choice, "rofi"))
+		snprintf(out, n, "rofi -show drun");
+	else if (!strcmp(choice, "wmenu") || !strcmp(choice, "dmenu"))
+		snprintf(out, n, "%s/.config/themer/bin/themer-%s", t->home, choice);
 }
 
 /* The window manager's own variables for its templates: the font, the bar block

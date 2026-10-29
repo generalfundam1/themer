@@ -115,6 +115,10 @@ themer-web [-p PORT] [-d | -q]      the same in the browser at http://localhost:
                                     while a browser module (firefox, stylus) is on;
                                     started while one runs, it opens that one's page
 themer apply                        re-apply everything and save state (run at login)
+themer remove                       Remove all styles: every module unloaded, your configs
+                                    as they were; the settings stay, and the login's
+                                    apply leaves it so until restore (or Apply)
+themer restore                      the styles back, after remove
 themer toggle                       flip dark/light and apply
 themer dark | light                 set mode and apply
 themer theme NAME                   switch theme and apply
@@ -153,6 +157,9 @@ themer scheme restore [NAME]        bring hidden built-in schemes back
 themer template list DIR [SET]      list template sets, or the files in SET
 themer template render MODULE SET FILE [OUT]
                                     render one template with the current theme
+themer system install|remove|sync|status [USER]
+                                    as root: the console, GRUB and ly in the theme (see
+                                    ly, the console and GRUB)
 themer -v                           version
 ```
 
@@ -260,13 +267,16 @@ page fills itself from.
 | **Theme** | the color scheme (find, Import…, Remove, Restore hidden), the mode, the template set (New set…, Import theme…, Check), and colors of your own over the scheme's |
 | **Fonts** | the interface, terminal and console fonts, and the rendering (hinting, antialiasing, subpixel order) |
 | **Icons** | the icon theme, drawn from its own files, and the mouse cursor and its size |
-| **Modules** | every module with its state (on, off, not installed); the selected one with its switch, its description, and its options under **Look** and **What it themes** |
+| **Modules** | every module, in three groups: **Loaded**, **Unloaded** and **Not installed** (a module whose program is missing cannot be loaded); the selected one with its switch, its description, and its options under **Look** and **What it themes** |
 | **System** | the server (themer-web: start or stop it, its port), the environment variables, and About |
 
-Apply (Ctrl+S), **Revert to applied** and Quit are the File menu in the windows, the
-buttons at the top of the web page, and the last rows of the TUI's menu (`a`, `r`,
-`q`). Leaving with unapplied changes asks first everywhere, and so does removing a
-scheme. The status line says the same thing after the same action in every front end.
+Apply (Ctrl+S), **Revert to applied**, **Remove all styles** and Quit are the File menu
+in the windows, the buttons at the top of the web page, and the last rows of the TUI's
+menu (`a`, `r`, `x`, `q`). **Remove all styles** (`themer remove`) takes every module's
+work out, so each program is back to its own look and your configs are as they were;
+your settings stay, the login's `themer apply` leaves things so, and Apply (or `themer
+restore`) puts the styles back. Leaving with unapplied changes asks first everywhere,
+and so do removing a scheme and Remove all styles. The status line says the same thing after the same action in every front end.
 
 `themer-gtk` and `themer-qt` are the TUI as a window, like nwg-look: the pages on the
 left, a preview on the right, Apply at the bottom. The preview is the real thing, not
@@ -378,12 +388,14 @@ QT_PLUGIN_PATH=/usr/local/lib/themer/qt/qt5:/usr/local/lib/themer/qt/qt6
 
 ## Modules
 
-**Detection.** A module says whether the program it themes is here (`present()` in the
-module API: the binary on `PATH`, a config file, a profile, a socket). An absent one is
-listed as *absent* by `themer module list`, shown as *(not installed)* in the TUI and
-the GUIs, and skipped by apply; it stays on, so it takes effect as soon as the program
-appears. Modules without a check (gtk, cursor, fontconfig, newt, st) always write; their
-files are harmless where the program is missing.
+**Detection.** A module themes one program, and is loadable only while that program is
+installed: `present()` in the module API looks for the program itself (its binary on
+`PATH`, its Flatpak, or, for a toolkit, its library), never for a config file. A
+module whose program is missing is off, whatever was saved, and cannot be switched on;
+apply removes anything it left from before. Every front end lists the modules in three
+groups, **Loaded**, **Unloaded** and **Not installed** (`themer module list` prints
+the same under `# ` headings). Modules that theme no one program (cursor, fontconfig,
+web, example) are always loadable.
 
 All on by default unless noted:
 
@@ -407,11 +419,41 @@ All on by default unless noted:
 | **newt** | `NEWT_COLORS` for nmtui and other newt dialogs, each colour mapped to the nearest terminal colour. Set in environment.d; copy the line to your shell profile for programs started elsewhere |
 | **st** *(off)* | a colours header; st's `config.h` needs one edit, see `modules/st.c` |
 | **web** | themer-web's own page: its look is the set's `web/page.css` (Themer Default's after Adwaita, Themer Chicago's bevelled), rendered as you browse; `mode` and `template` pin it like any module, off leaves the browser's own controls |
+| **hyprland** | border colours (the active one keeps Hyprland's two-colour gradient under Themer Default), group borders, the groupbar, the background and the font. Written to `~/.config/hypr/themer.lua` (loaded from the end of `hyprland.lua` with `pcall(require, "themer")`) and/or `themer.conf` (sourced from the end of `hyprland.conf`), for whichever of the two you have. Themer Chicago also squares the corners and turns shadows off |
+| **hyprlock** | with no `hyprlock.conf` of yours, a whole lock screen (hyprlock's own example, in the theme); with yours, `$themer_bg`, `$themer_accent`, `$themer_font` and the rest in `~/.config/hypr/themer-colors.conf`, sourced from the top of your file for your widgets to use |
+| **niri** | focus ring, border, urgent and insert-hint colours and the workspace background, in `~/.config/niri/themer.kdl`, included from the end of `config.kdl` (niri 25.11 and later; older ones are left alone) |
+| **river** | background and border colours as `riverctl` calls in `~/.config/river/themer`, run from the end of your `init` (a shell init; river-classic, the 0.3 line with `riverctl`) |
+| **bspwm** | border and preselection colours as `bspc config` calls in `~/.config/bspwm/themer`, run from the end of your `bspwmrc` and at once while bspwm runs |
+| **dwm** | a header with `fonts[]`, `dmenufont[]` and `colors[][3]`; dwm's `config.h` needs one edit, see `modules/dwm.c` (`$DWM_SRC` gets a copy) |
+| **labwc** | title bars, borders, menus and on-screen displays at the end of `themerc-override` (over whatever theme you use), and the fonts in `rc.xml`'s `<theme>`, after yours; Themer Chicago adds square corners |
+| **openbox** | a theme, `Themer`, in `~/.local/share/themes/Themer/openbox-3/`, selected and given the fonts by two marked blocks in `~/.config/openbox/rc.xml` (Clearlooks recoloured under Themer Default; flat, bevelled title bars under Themer Chicago) |
+| **kitty** | colors, font and tab bar in `~/.config/kitty/themer.conf`, included from the end of `kitty.conf`; running kittys reload (SIGUSR1) |
+| **alacritty** | colors and font in `~/.config/alacritty/themer.toml`, added to `general.import` in `alacritty.toml` (Alacritty 0.14+) |
+| **ghostty** | colors and font in `~/.config/ghostty/themer`, read with `config-file = ?themer` from the end of Ghostty's config; Ghostty 1.2+ reloads (SIGUSR2) |
+| **wezterm** | a `themer` color scheme in `~/.config/themer/wezterm/`, selected (with the font and window frame) from `wezterm.lua` |
+| **tmux** | the status line, pane borders, messages, menus and copy mode in `~/.config/themer/tmux/themer.conf`, sourced from the end of `~/.tmux.conf` (or `~/.config/tmux/tmux.conf`); a running server re-reads it |
+| **rofi** | the rofi launcher (X11, and Wayland from rofi 2.0): a theme, `~/.local/share/rofi/themes/themer.rasi`, selected by a marked `@theme` line at the end of `~/.config/rofi/config.rasi` |
+| **fuzzel** | the fuzzel launcher (Wayland): its font, `[colors]` and `[border]` keys in `~/.config/fuzzel/fuzzel.ini`, set in place |
+| **mako** | mako notifications (Wayland): font, colors, border and progress bar in `~/.config/mako/config`, set in place, plus the border of low and high urgency |
+| **dunst** | dunst notifications: a drop-in, `~/.config/dunst/dunstrc.d/90-themer.conf`; your `dunstrc` is not edited |
+| **swaync** | SwayNotificationCenter: its color names and custom properties, and the font, in a marked block at the end of `~/.config/swaync/style.css` |
+| **swaylock** | the swaylock lock screen (and swaylock-effects): the ring, its inside, line and text in every state, and the font, in `~/.config/swaylock/config`, set in place |
+| **btop** | the system monitor's colors as a theme of its own, `~/.config/btop/themes/themer.theme`, selected by `color_theme` in `btop.conf` (changed in place; Themer Chicago also squares the boxes) |
+| **zathura** | the document viewer's colors and font, a marked block at the end of `zathurarc` |
+| **bat** | syntax colors from the terminal's palette: `--theme="ansi"` (or `base16`) at the end of bat's `config` |
+| **lazygit** | the git interface's colors, `~/.config/themer/lazygit/config.yml`, merged over yours through `LG_CONFIG_FILE` (environment.d) |
+| **fzf** | the fuzzy finder's colors, `~/.config/themer/fzf/fzfrc`, through `FZF_DEFAULT_OPTS_FILE` (environment.d; fzf 0.47+) |
+| **vivid** | `LS_COLORS` for ls, fd, eza, tree and completion: a vivid theme, `~/.config/vivid/themes/themer.yml`, and its output in environment.d |
+| **starship** | the prompt's colors: a `themer` palette in `starship.toml` that defines every color name as the theme's, and `palette = "themer"` |
+| **helix** | Helix: a `themer` theme in `~/.config/helix/themes/themer.toml` (the interface in the theme's roles, the syntax in its terminal colors), selected with `theme = "themer"` in `config.toml`: your theme line changed in place, or a marked block at the top when you have none |
+| **vscode** | VS Code, VSCodium and Code - OSS (and their Flatpaks): VS Code's own Default Dark or Light Modern, recolored, through four top-level keys of each one's `User/settings.json`; no extension is installed |
+| **kde** | KDE programs (Dolphin, Kate, Okular, KWin's title bars): the theme as a KDE color scheme, `~/.local/share/color-schemes/Themer.colors`, and the same keys set in `~/.config/kdeglobals` with the fonts |
+| **ly** | the login manager's colours (screen, text, the box, errors, the animations), written to `~/.config/themer/system/ly.conf` and put into `/etc/ly` by the root unit (`sudo themer system install`) |
 | **example** *(off)* | the template module to copy |
 
-Built-in targets, not modules: **env** (`environment.d/50-themer.conf`), **tty** (the
-console palette and font, as root), **grub** (as root). They write system files the
-undo log cannot cover.
+Built-in targets, not modules: **env** (`environment.d/50-themer.conf` and `env.sh`),
+**tty** (the console's palette and font) and **grub** (GRUB's colors). Their system side
+needs root: see [ly, the console and GRUB](#ly-the-console-and-grub).
 
 **How modules change files.** Every write goes through the `tm_*` helpers in
 `themer_module.h` and is recorded in `~/.config/themer/undo/<module>.manifest`. Before
@@ -428,6 +470,269 @@ re-applying never duplicates anything; editing your configs while a module is on
 fine. After a change each module's reload hook tells its running program: sway and i3
 are reloaded when their socket variable is set, waybar gets SIGUSR2, xsettingsd gets
 SIGHUP.
+
+### Window managers
+
+Every window manager module does what the sway and i3 ones do: it writes the theme's
+colours (and its font, where the window manager draws text) to a file of its own and
+hooks that file into your config with a marked block, so unload puts your config back
+byte for byte. Borders, gaps, layouts and bindings stay yours; a set changes the
+look only where the program has one to change (Themer Chicago squares Hyprland's and
+labwc's corners and turns Hyprland's shadows off).
+
+**Hyprland.** Since 0.55 Hyprland reads `hyprland.lua` when it is there, and
+`hyprland.conf` (hyprlang) otherwise, for a release or two more. The module writes
+`themer.lua`, loaded from the end of `hyprland.lua` with `pcall(require, "themer")`, and
+`themer.conf`, sourced from the end of `hyprland.conf`, for whichever of the two you
+have. Each sets only colours and the font, through `hl.config` or the categories, so
+it wins over earlier lines and leaves everything else alone. Without either file
+nothing is written: Hyprland makes its example config on first start, and the next
+apply hooks into it. Hyprland re-reads changed files itself; `hyprctl reload` is
+also run inside a Hyprland session.
+
+**hyprlock.** Every block in a hyprlock config is a widget of its own, so a block
+added after yours would draw a second password field rather than recolour yours.
+With no `hyprlock.conf`, the module writes one: hyprlock's example lock screen (the
+clock, the date, the password field) in the theme. With yours, it gives your widgets
+the theme to use: `themer-colors.conf` defines `$themer_bg`, `$themer_fg`,
+`$themer_accent`, `$themer_urgent`, `$themer_field`, `$themer_font` and the rest, and a
+`source =` line at the top of your file loads it. Write `outer_color = $themer_accent`
+and the field follows every apply.
+
+**niri.** `themer.kdl` is included from the end of `config.kdl`. Included files merge
+into the config and win over what comes before them, so only the named colours
+change; whether the focus ring or the border is on, and how wide, stays as your
+config says. Includes came with niri 25.11: an older niri is left alone, with a
+message. niri re-reads its config when a file changes.
+
+**river and bspwm.** Both are configured by a script run at start (`init`,
+`bspwmrc`). The module writes the `riverctl` or `bspc config` calls to a file of its
+own and runs it from the end of your script; a running river or bspwm takes them at
+once. A script that is not a shell script is left alone, with a message. The river
+module is for river-classic, the 0.3 line that keeps `riverctl`; river 0.4 hands
+window management to separate programs.
+
+**dwm.** Like st, dwm is configured at compile time. The module writes
+`~/.config/themer/dwm/colors.h` (and `$DWM_SRC/themer-colors.h`) with `fonts[]`,
+`dmenufont[]` and `colors[][3]` in dwm's own layout. Delete those lines from your
+`config.h`, put `#include "themer-colors.h"` in their place, and rebuild after an
+apply.
+
+**labwc.** labwc's documented way to change a theme is `themerc-override`; the
+module's keys go at the end of it, over whatever theme `rc.xml` names. The fonts go
+in `rc.xml`'s `<theme>`, after your own `<font>` lines so they win. Without an
+`rc.xml`, one holding only that is made (labwc's defaults fill in the rest) and taken
+away on unload. `labwc --reconfigure` runs inside a labwc session.
+
+**Openbox.** The theme is a real Openbox theme, `Themer`, in
+`~/.local/share/themes/Themer/openbox-3/themerc`. Openbox uses the first `<name>` in
+`<theme>`, so the module puts `<name>Themer</name>` right after `<theme>` and your
+own `<name>` line stays as it was; the fonts go after your last `</font>`, since
+Openbox reads them in order. With no `~/.config/openbox/rc.xml` (Openbox then reads
+the system's), only the theme is written: copy `/etc/xdg/openbox/rc.xml` there and
+apply again.
+
+### Terminals
+
+**kitty** gets `themer.conf` next to `kitty.conf`, and a marked block at the end of
+`kitty.conf` (created when there is none) that includes it, so the theme is read
+after your own settings: the sixteen colors, background, foreground, cursor,
+selection, URL and window-border colors, the tab bar, and the font. Themer Default
+keeps kitty's own tab bar in the theme's colors, the focused tab in the accent;
+Themer Chicago draws flat separated tabs on a grey bar. Running kittys re-read their
+config (SIGUSR1) after every apply.
+
+**alacritty** writes `themer.toml` next to `alacritty.toml` and imports it
+(`general.import`, Alacritty 0.14 and later). TOML allows a table once and wants the
+root's keys before any table, so the import goes where your file already has one:
+added to your `import` line (last in a one-line list, so the theme wins over your other
+imports; first in a list spread over lines; the line is put back on unload), under
+your `[general]` table in a marked block, or as `general.import` in a block at the top
+of the file when it has neither (the file is created when there is none). Alacritty
+reads imports before the file itself, so colors you set in `alacritty.toml` still win
+over the theme's: take them out to follow the theme. Alacritty watches its config and
+its imports, so there is nothing to reload.
+
+**ghostty** writes `~/.config/ghostty/themer` and reads it with `config-file =
+?themer` from a block at the end of `config` (or `config.ghostty` when that is the only
+one; `config` is created when there is neither). Ghostty reads a `config-file` after
+the file that names it, and `config` after `config.ghostty`, so the theme wins over the
+same keys in your config. The font replaces your `font-family` list instead of
+joining it. Ghostty 1.2 and later reload on SIGUSR2; an older Ghostty would quit on it,
+so the module asks for the version first and leaves those alone.
+
+**wezterm** writes a color scheme, `themer`, to `~/.config/themer/wezterm/themer.toml`
+and selects it from `wezterm.lua` (`~/.wezterm.lua` when it exists, else
+`~/.config/wezterm/wezterm.lua`): a marked block right after the line that makes the
+config table (`local config = wezterm.config_builder()` or `local config = {}`) adds the
+scheme's directory, picks the scheme, and sets the font and the window frame. Lines
+further down your file still win, so a `config.color_scheme = ...` of your own keeps
+your scheme. Without a `wezterm.lua` the block is a whole config of its own, which
+unload takes away again. A `wezterm.lua` of another shape (one that returns a table
+built in place) is left alone: the scheme is written, and a message gives the two
+settings to add. The block names the theme and its main colors, so the file changes
+with the theme and WezTerm, which watches its config, reloads. Themer Chicago turns the
+fancy tab bar off for WezTerm's plain one, grey with the focused tab in the accent.
+
+**tmux** writes `~/.config/themer/tmux/themer.conf` and sources it (`source-file -q`)
+from a block at the end of `~/.tmux.conf`, or of `~/.config/tmux/tmux.conf` when only
+that one exists (`~/.tmux.conf` is created when there is neither). Themer Default keeps
+tmux's look: the status line in the accent where tmux's is green, messages in the
+warning color where tmux's are yellow, the active pane border, copy-mode selections
+and menus in the accent. Themer Chicago draws the status line as a grey taskbar with
+the current window raised in the accent. Every option is set with `set -gq`, so an
+older tmux skips the ones it does not have. A running server sources the file again
+after every apply; options the theme stops setting keep their value until the server
+restarts.
+
+### Launchers, notifications and the lock screen
+
+**rofi** writes a whole rofi theme, `~/.local/share/rofi/themes/themer.rasi`, from
+`templates/<set>/rofi/themer.rasi`, and selects it with `@theme "<that path>"` in a
+marked block at the end of `~/.config/rofi/config.rasi`. `@theme` starts the theme
+afresh, so a theme you chose earlier in the file gives way to it while the module is on
+and comes back on unload, when the block goes (and the file too, if themer created it).
+Your `configuration { }` block, modes and keys are left as they are. Themer Default is
+rofi's own default theme (square, dashed separators, the scrollbar at the side) in the
+theme's colors; Themer Chicago draws it square and flat with 1px solid separators and the
+input as a sunken field, as the dmenu and wmenu launchers look. As sway's or i3's
+launcher: `rofi -show drun`.
+
+**fuzzel** sets its keys in `~/.config/fuzzel/fuzzel.ini` one by one (`[main] font`, the
+`[colors]`, `[border] width` and `radius`), so your other keys stay and unload puts your
+values back. The keys come from `templates/<set>/fuzzel/fuzzel.ini`, laid out as
+fuzzel.ini is, so a set changes them by listing them. Colors are `RRGGBBAA`. Themer
+Default keeps fuzzel's rounded popover (radius 12, as Adwaita rounds its popovers);
+Chicago is square. As sway's or i3's launcher: `fuzzel`.
+
+**mako** sets its keys in `~/.config/mako/config` the same way: the global options
+(font, colors, border, progress bar) before your first `[criteria]` section, and the
+border color of `[urgency=low]` and `[urgency=high]`. A running mako re-reads the file
+(`makoctl reload`).
+
+**dunst** writes a drop-in, `~/.config/dunst/dunstrc.d/90-themer.conf`, which dunst reads
+after your `dunstrc`: the font, the frame, the progress bar (`highlight`) and the colors
+of each urgency. Your `dunstrc` is never edited. Dunst only reads the drop-ins next to
+the dunstrc it uses, so without one of your own (dunst then uses the system's) themer
+creates a `~/.config/dunst/dunstrc` holding nothing but a marked comment, and removes it
+on unload. A running dunst re-reads both (`dunstctl reload`).
+
+**swaync** puts a marked block at the end of `~/.config/swaync/style.css`: swaync's own
+color names, as `@define-color` (read before swaync 0.12) and as custom properties on
+`:root` (read from 0.12, GTK 4), and the font. Being last, it wins over your rules
+above it, and the rest of your stylesheet stays. Without a `style.css` of your own the
+file themer creates first imports the system's (`/etc/xdg/swaync/style.css`), so
+swaync's look is kept; it is removed on unload. Chicago also squares every corner and
+outlines the control center and the notifications in 1px. A running swaync re-reads
+its style (`swaync-client --reload-css`).
+
+**swaylock** sets its keys in `~/.config/swaylock/config` (one option per line, as on its
+command line without the dashes): the background, the ring, its inside, line and text
+while typing, clearing, verifying, after a wrong password and with Caps Lock on, the key
+and backspace highlights, the keyboard-layout box, and the font. Flags without a value
+(`ignore-empty-password`, `daemonize`) are yours and left alone. swaylock-effects reads
+the same file.
+
+### The command-line tools
+
+Each keeps its own look, in the theme's colors: the hues each tool uses for its parts
+come from the theme's terminal colors, the background and text from the theme's, and
+selections and the focused frame are the accent, as everywhere. All of them need the
+program itself installed.
+
+**btop** reads themes from `~/.config/btop/themes/`; themer writes `themer.theme`
+there (btop's default theme, hue for hue: boxes, meters and graphs in the terminal
+colors, gradients fading in from the background as btop's do) and sets
+`color_theme = "themer"` in `~/.config/btop/btop.conf`. btop rewrites `btop.conf`
+itself whenever a setting changes, keeping each line where it is, so the line is
+changed in place rather than in a marked block, and put back on unload. A set may
+change more lines the same way in `templates/<set>/btop/settings`: Themer Chicago sets
+`rounded_corners = False`. Before btop's first run there is no `btop.conf`; the lines
+then go in a marked block of a new file, which btop fills out on its next exit. A
+running btop takes the theme when restarted.
+
+**zathura**: a marked block of `set` lines at the end of `~/.config/zathura/zathurarc`,
+read last, so it overrides the same settings above it. The page area and status bar
+sit on the background, the input bar and completion on the surface, search hits in a
+see-through accent. Pages keep their own colors unless recolor mode is on (Ctrl-R):
+then they are drawn in the theme's text and background (`recolor-lightcolor`,
+`recolor-darkcolor`). `:source` in a running zathura reads it again.
+
+**bat** has no recolorable default theme (its Monokai Extended is fixed colors), so
+the module selects one of bat's own themes that draws in the terminal's palette:
+`ansi` (the eight colors) or `base16` (the sixteen), as `--theme=` at the end of
+`~/.config/bat/config` (or `$BAT_CONFIG_PATH`), after your own options. The terminal
+modules set that palette from the theme, so bat follows every theme and both modes
+with nothing generated; a `.tmTheme` in fixed colors would need `bat cache --build`
+after every apply, and would be wrong in a terminal themer does not reach.
+
+**lazygit** merges a list of config files, later ones over earlier ones, when
+`LG_CONFIG_FILE` names them. themer writes the theme's `gui.theme` keys to
+`~/.config/themer/lazygit/config.yml` and sets
+`LG_CONFIG_FILE=<your config.yml>,<that file>` in
+`~/.config/environment.d/40-themer-lazygit.conf`. lazygit will not start when a listed
+file is missing, so when you have no `~/.config/lazygit/config.yml` (or the older
+`~/.config/jesseduffield/lazygit/config.yml`) themer creates one holding only an empty
+marked block, and removes it on unload if nothing else was written to it.
+
+**fzf** (0.47 and later) reads `$FZF_DEFAULT_OPTS_FILE` before `$FZF_DEFAULT_OPTS`;
+themer writes `--color` options to `~/.config/themer/fzf/fzfrc` and sets the variable
+in `~/.config/environment.d/40-themer-fzf.conf`. fzf's text and background stay the
+terminal's, as in fzf's own scheme; the current line is the surface; matches, prompt
+and markers keep fzf's hues. Options of your own in `FZF_DEFAULT_OPTS` still win.
+
+**vivid** generates `LS_COLORS`. themer writes `~/.config/vivid/themes/themer.yml`
+(vivid's default theme, molokai, in the theme's colors), runs `vivid generate` on it,
+and puts the result in `~/.config/environment.d/40-themer-lscolors.conf`. A shell that
+sets `LS_COLORS` itself (`eval "$(dircolors)"`, `LS_COLORS="$(vivid generate molokai)"`)
+overrides the session's; write `vivid generate themer` there instead.
+
+**starship**'s modules name their colors (`bold green`, `purple`, `bright-black`), and
+starship looks a name up in the selected palette before the terminal's. themer adds a
+`[palettes.themer]` table that defines all sixteen names as the theme's terminal colors
+(a marked block at the end of `~/.config/starship.toml`, or `$STARSHIP_CONFIG`) and
+selects it with `palette = "themer"`. That is a top-level key, which TOML allows only
+before the first table: your own `palette = ...` line is changed in place (and put
+back on unload), and without one the line goes in a marked block at the very top. The
+prompt's layout and symbols stay yours.
+
+Variables set through environment.d reach programs started from the session after the
+next login.
+
+### Editors and KDE
+
+**helix**. Writes `~/.config/helix/themes/themer.toml` from `templates/<set>/helix/themer.toml`. Helix's theme keys come from a `[palette]` of the theme's roles and its terminal colors: `ui.*` in the roles (the status line and the selected menu item in the accent, popups on the surface color, the selection in the `control_active` tone), the syntax in ansi1–ansi6, comments in the `disabled` tone. In `~/.config/helix/config.toml` your `theme =` line becomes `theme = "themer"` and comes back on unload; without one, a marked block at the top of the file holds it, since a top-level key must come before any table. A running Helix takes it with `:config-reload`. Loadable when `hx` or `helix` is on PATH, or the Flatpak `com.helix_editor.Helix` is installed.
+
+**vscode**. Sets four top-level keys in `User/settings.json` with `tm_json_set`, which leaves the rest of the file (comments included) as it is and takes them out again, or puts your values back, on unload: `workbench.colorTheme` (Default Dark Modern or Default Light Modern, by the mode), `workbench.colorCustomizations` (`templates/<set>/vscode/colors.json`: the workbench in the roles and Adwaita tones, the terminal in the theme's colors), `editor.tokenColorCustomizations` (`tokens.json`: the syntax in the terminal colors), and with `font=terminal` the editor's and the integrated terminal's font. The editor and the chrome around it keep the Modern themes' relation: on the dark side the chrome a step darker than the editor, on the light side the editor white. VS Code watches its settings, so a running one changes at once. Settings directories: `~/.config/Code` for `code` (and `~/.config/Code - OSS`, where Arch's `code` keeps them, when it is there), `~/.config/Code - OSS` for `code-oss`, `~/.config/VSCodium` for `codium`, and `~/.var/app/com.visualstudio.code/config/Code` and `~/.var/app/com.vscodium.codium/config/VSCodium` for the Flatpaks. A missing `settings.json` is created holding only these. While the module is on, your own `workbench.colorCustomizations` is replaced by the theme's.
+
+**kde**. KDE programs take their palette from `kdeglobals`. The module writes the theme as a full KDE color scheme to `~/.local/share/color-schemes/Themer.colors` (so System Settings lists it) and sets the same keys in `~/.config/kdeglobals` with `tm_ini`, each restored on unload: the Window, View, Button, Selection, Tooltip, Complementary and Header sets (views in the `view` tone, buttons and headers in `raised`, selection in the accent; links in ansi4, visited ansi5, negative/neutral/positive text in the urgent color, the warning color and ansi2, each moved until it reads 4.5:1), KWin's title bar colors under `[WM]`, `[General] ColorScheme=Themer`, the fonts (`font`, `menuFont`, `toolBarFont`, `smallestReadableFont`, `fixed`, `[WM] activeFont`) and the icon theme. Plasma tells running programs; outside Plasma, restart them. Loadable when KDE Frameworks are installed (`libKF6ConfigCore` or `libKF5ConfigCore`, or `kreadconfig6`/`kreadconfig5`).
+
+### ly, the console and GRUB
+
+ly, the console's palette and font, and GRUB's colors are system settings that only
+root can change. Every apply, as you, writes what they should be into
+`~/.config/themer/system/` (`tty.palette` in setvtrgb's format, `console.conf`,
+`grub.conf`, and `ly.conf` while the ly module is on). Once, as root,
+
+```
+sudo themer system install
+```
+
+sets up a systemd path unit, `themer-system-<you>.path`, that watches that directory
+and runs `themer system sync <you>` as root whenever a file there changes, and at boot:
+the palette goes in with setvtrgb (kept in `/etc/themer/tty.palette` for boot), the font
+in `/etc/vconsole.conf`, GRUB's colors in `/etc/default/grub` (and `grub-mkconfig` when
+they changed), ly's colors in `/etc/ly/config.lua` (or `config.ini`). Each file in
+`/etc` it changes is backed up to `/etc/themer/backup/` first, and put back when your
+file goes away (Remove all styles, the ly module off) and by `sudo themer system
+remove`, which also takes the units away. `themer system status` says what is in place.
+Without systemd, install syncs once and tells you the command to run from your init
+system.
+
+Without root, a console you log in to still gets the palette at once: `env.sh`, sourced
+from your profile (see [Environment](#environment)), sets it with the console's own
+escape sequences when `TERM` is `linux`. The background and the text are palette
+entries 0 and 7, which the console draws the screen and plain text in.
 
 ### Where themer keeps its files
 
@@ -484,8 +789,16 @@ module reset` puts one back to its default. Two options every module has:
 | | `padding` | `tight` \| `normal` \| `loose` | `normal` |
 | fcitx, wmenu, dmenu | `font` | `ui` \| `terminal` | `ui` |
 | sway, i3 | `font` | `ui` \| `terminal` | `ui` |
-| | `menu` | `auto` \| `wmenu` \| `dmenu` \| `none` | `auto` |
+| | `menu` | `auto` (the first themed one: fuzzel, rofi, wmenu, dmenu; fuzzel and wmenu only under sway) \| `fuzzel` \| `rofi` \| `wmenu` \| `dmenu` \| `none` | `auto` |
 | | `bar` | `auto` (your `bar { }` blocks switched off and replaced: by waybar under sway when the waybar module is on, by themer's bar otherwise, which keeps your bar's `status_command`) \| `themer` (always themer's bar) \| `keep` (yours as it is) | `auto` |
+| hyprland, hyprlock, labwc, openbox | `font` | `ui` \| `terminal` | `ui` |
+| dwm | `font` | `ui` \| `terminal` | `terminal` |
+| kitty, alacritty, ghostty, wezterm | `font` | `terminal` \| `ui` | `terminal` |
+| rofi, fuzzel, mako, dunst, swaync, swaylock | `font` | `ui` \| `terminal` | `ui` |
+| zathura | `font` | `terminal` (zathura's own default is monospace) \| `ui` | `terminal` |
+| bat | `theme` | `ansi` (the terminal's eight colors) \| `base16` (all sixteen) | `ansi` |
+| vscode | `font` | `own` (VS Code's) \| `terminal` (the editor's and its terminal's) | `own` |
+| kde | `font` | `ui` \| `terminal` (menus, toolbars, windows; the fixed font is always the terminal font) | `ui` |
 | example | `style` | `short` \| `long` | |
 
 ## Templates
@@ -622,6 +935,14 @@ What each module directory takes, and what becomes of it on apply:
 | `newt/` | `newt.conf` | `NEWT_COLORS`. `{{newt_colors}}` |
 | `st/` | `colors.h` | st's `colorname[]` header |
 | `web/` | `page.css` | themer-web's page: its look (colours, edges, corners, padding), served as `/page.css`; the layout is the page's own. The shared names are CSS variables there (`var(--acc)`), so the page redraws as you browse |
+| `hyprland/` | `themer.lua`, `themer.conf` | written to `~/.config/hypr/`; `themer.lua` loaded from `hyprland.lua`, `themer.conf` sourced from `hyprland.conf`. Variables: `{{font_family}}`, `{{font_size}}` |
+| `hyprlock/` | `hyprlock.conf`, `colors.conf` | `hyprlock.conf` is the whole lock screen when you have none; `colors.conf` becomes `themer-colors.conf`, sourced from yours. Variables: `{{font_family}}`, `{{font_size}}` |
+| `niri/` | `themer.kdl` | written to `~/.config/niri/`, included from `config.kdl` |
+| `river/` | `themer` | `riverctl` calls, a shell file run from `init` |
+| `bspwm/` | `themer` | `bspc config` calls, a shell file run from `bspwmrc` |
+| `dwm/` | `colors.h` | the header (`~/.config/themer/dwm/colors.h`, and `$DWM_SRC/themer-colors.h`). Variables: `{{font_family}}`, `{{font_size}}` |
+| `labwc/` | `themerc`, `theme.xml` | `themerc` goes at the end of `themerc-override`; `theme.xml` is the inside of `<theme>` in `rc.xml`. Variables: `{{font_family}}`, `{{font_size}}` |
+| `openbox/` | `themerc`, `fonts.xml` | the theme's `openbox-3/themerc`; `fonts.xml` goes in `rc.xml`'s `<theme>`. Variables: `{{font_family}}`, `{{font_size}}`, `{{acc_hi}}` and `{{acc_lo}}` (the accent a step lighter and darker) |
 
 Every file sees the shared variables plus its module's own. Rendered text files must
 start with the marker (import adds it): that is how themer tells its own files from
@@ -1050,6 +1371,8 @@ build them with `tm_path`.
 | `tm_writex(path, fmt, ...)` | the same, executable (a script) | 0, -1 | deleted |
 | `tm_replacef(path, fmt, ...)` | takes over a file the program has only one of (waybar's `style.css`): the user's is kept and put back | 0, -1 | the user's file restored |
 | `tm_blockf(path, id, prefix, suffix, top, fmt, ...)` | a marked block in the user's file, first (`top = 1`) or last | 0, -1 | block cut out |
+| `tm_blockf_after(path, id, prefix, suffix, after, fmt, ...)` | a marked block right after the last line starting with `after` (`[general]`, a TOML table), or last | 0, -1 | block cut out |
+| `tm_json_set(path, key, value)` | one top-level key of a JSON (or JSONC) file, set to JSON text; the rest of the file as it is | 0, -1 | old value back, or the key taken out |
 | `tm_ini(path, section, key, value)` | one `key=value` in an ini file | 0, -1 | old value back |
 | `tm_setline(path, prefix, text)` | replaces the last line starting with `prefix`, in place | 0, 1 (no such line), -1 | old line back |
 | `tm_disable_block(path, keyword)` | comments out every top-level `keyword { ... }` | count, -1 | commented back in |
@@ -1063,6 +1386,8 @@ build them with `tm_path`.
 | `tm_shared(t, name, out, n)` | a derived tone by name (`hover_bg`) | 0, -1 | — |
 | `tm_contrast`, `tm_mix`, `tm_ensure_contrast`, `tm_text_on` | colour arithmetic (WCAG contrast, mixing in tenths) | see the header | — |
 | `tm_have(prog)` | is `prog` on `PATH` | 1, 0 | — |
+| `tm_have_flatpak(id)`, `tm_have_lib(soname)` | is the Flatpak app, or the shared library, installed (for `present()`) | 1, 0 | — |
+| `tm_signal(name, sig)` | signals the user's processes with that name (a reload) | count | — |
 | `tm_run(argv)` | runs a program without a shell, output discarded | exit status, -1 | — |
 
 ### Rules
