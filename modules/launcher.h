@@ -1,6 +1,6 @@
 /* launcher.h: shared by modules/wmenu.c and modules/dmenu.c. Each writes an
  * executable script, ~/.config/themer/bin/themer-<menu>, from
- * templates/launcher/<set>/launcher. The script lists the executables on PATH,
+ * templates/<set>/launcher/launcher. The script lists the executables on PATH,
  * shows them in the menu with the theme's colors and font, and runs the choice.
  * The sway and i3 modules bind $menu to the script when the module is loaded.
  *

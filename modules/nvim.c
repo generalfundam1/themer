@@ -1,5 +1,5 @@
 /* nvim.c: a colorscheme named "themer", plus a block that selects it.
- * The colorscheme is templates/nvim/<set>/themer.lua. The selecting block goes at the
+ * The colorscheme is templates/<set>/nvim/themer.lua. The selecting block goes at the
  * end of init.lua (select.lua) or init.vim (select.vim), so it runs after the user's
  * setup. A user's init.vim is kept as vimscript; otherwise init.lua is used. */
 #include <limits.h>

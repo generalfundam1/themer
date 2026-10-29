@@ -14,10 +14,10 @@
  * platformtheme option can select them instead (they were the only way before).
  *
  * The palette maps each role onto the contract. Fusion draws its bevels from
- * Light and Dark, which here are the surface color and the outline color, so
- * controls get the same flat, outlined look as the GTK theme. A flat
- * stylesheet adds the menus, tabs, buttons, and fields Fusion draws its own
- * way. Fonts come from the theme's UI and terminal fonts.
+ * Light and Dark, which here are the surface color and the outline color, so what
+ * the stylesheet leaves to Fusion stays flat; the set's stylesheet draws the rest
+ * (Themer Default's after Adwaita, Themer Chicago's flat and bevelled). Fonts come
+ * from the theme's UI and terminal fonts.
  *
  * What the theme implies is written: the style, the palette, the stylesheet, the
  * icon theme, and the fonts. The Interface page of qt5ct (dialogs, double-click

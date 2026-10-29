@@ -1,6 +1,6 @@
 /* fcitx.c: fcitx5 input method. Only acts when fcitx5 (or fcitx) is installed.
  * Sets the input-method variables for GTK and Qt, writes the candidate-window
- * theme from templates/fcitx/<set>/theme.conf, and selects it in classicui.conf. */
+ * theme from templates/<set>/fcitx/theme.conf, and selects it in classicui.conf. */
 #include <limits.h>
 #include <stdio.h>
 #include "themer_module.h"

@@ -191,7 +191,7 @@ wm_vars(const TmTheme *t, const char *wm, TmVar *v, int max)
 	return 5;
 }
 
-/* writes <wm>/themer.conf from templates/wm/<set>/themer.conf and includes it from
+/* writes <wm>/themer.conf from templates/<set>/wm/themer.conf and includes it from
  * <wm>/config. The bar block comes from bar.conf, through wm_vars. */
 static int
 wm_load(const TmTheme *t, const char *wm, const char *socket_var)

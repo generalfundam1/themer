@@ -874,9 +874,9 @@ serve(int fd)
 	handle(fd, method, path, body);
 }
 
-/* true if something already listens on the port */
+/* true if something already listens on port p */
 static int
-port_busy(int port)
+port_busy(int p)
 {
 	int s = socket(AF_INET, SOCK_STREAM, 0);
 	struct sockaddr_in a = { 0 };
@@ -885,7 +885,7 @@ port_busy(int port)
 	if (s < 0)
 		return 0;
 	a.sin_family = AF_INET;
-	a.sin_port = htons((unsigned short)port);
+	a.sin_port = htons((unsigned short)p);
 	a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	r = connect(s, (struct sockaddr *)&a, sizeof a) == 0;
 	close(s);

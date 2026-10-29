@@ -1,10 +1,11 @@
-/* waybar.c: a dwm-style bar in the terminal font.
+/* waybar.c: the bar's look, from the template set (Themer Default's after GNOME's
+ * top bar, Themer Chicago's dwm-style), in the terminal font by default.
  *
  * The module owns ~/.config/waybar/style.css. Your original is kept as
  * style.css.themer-orig and restored on unload, byte for byte. config.jsonc
  * is left alone, so your modules and format strings stay as they are.
  *
- * The look is in templates/waybar/<set>/style.css. This module supplies the font
+ * The look is in templates/<set>/waybar/style.css. This module supplies the font
  * and the padding: "padding" picks the spacing around workspaces and status
  * modules, in pixels. */
 #include <ctype.h>

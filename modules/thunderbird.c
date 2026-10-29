@@ -6,7 +6,7 @@
  * the blocks out again.
  *
  * Thunderbird draws from design tokens (--layout-background-*, --selected-item-*,
- * --tree-*, --button-*, ...); templates/thunderbird/<set>/tokens.css sets them to the
+ * --tree-*, --button-*, ...); templates/<set>/thunderbird/tokens.css sets them to the
  * theme's roles and goes into both files, followed by chrome.css or content.css.
  * Thunderbird reads the files at startup, with
  * toolkit.legacyUserProfileCustomizations.stylesheets set to true in its config

@@ -2,7 +2,7 @@
  * module themes the browser; this one themes the pages, through Stylus, which runs
  * in Firefox and the Chromium family alike.
  *
- * Every <site>.user.css in templates/stylus/<set>/ is rendered into
+ * Every <site>.user.css in templates/<set>/stylus/ is rendered into
  * ~/.config/themer/stylus/<site>.user.css, a UserCSS file with its metadata block
  * (@name, @version, @updateURL, @-moz-document ...). Stylus cannot be written to
  * from outside the browser, so the style is installed once by hand, from
@@ -111,7 +111,7 @@ template_vars(const TmTheme *t, TmVar *v, int max)
 
 TM_VARS(template_vars)
 
-/* the sites of a set: every *.user.css under templates/stylus/<set>/, plus those of
+/* the sites of a set: every *.user.css under templates/<set>/stylus/, plus those of
  * the built-in set, so a set that adds one site still gets the rest */
 static int
 sites(const TmTheme *t, char names[][64], int max)

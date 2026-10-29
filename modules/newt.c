@@ -2,7 +2,7 @@
  * newt draws in the terminal's own 16 ANSI colors and reads them by name from
  * NEWT_COLORS. Each theme color is mapped to the nearest of the theme's ANSI
  * colors, which are the colors foot draws. The mapping is computed here; the
- * layout of the file is templates/newt/<set>/newt.conf. The variable goes in
+ * layout of the file is templates/<set>/newt/newt.conf. The variable goes in
  * environment.d, so it reaches programs started from the systemd user session.
  * Programs started another way need NEWT_COLORS set in the shell profile. */
 #include <limits.h>

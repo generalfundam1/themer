@@ -1,5 +1,5 @@
 /* st.c: st has no runtime config; its colors are compiled in.
- * This module writes a colorname[] header from templates/st/<set>/colors.h. To use
+ * This module writes a colorname[] header from templates/<set>/st/colors.h. To use
  * it, edit st's config.h once: delete its colorname[] array and add
  *   #include "themer-colors.h"
  * in its place. The header goes to ~/.config/themer/st/ and, if ST_SRC is set, to

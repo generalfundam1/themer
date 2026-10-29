@@ -3,15 +3,15 @@
  * chrome/userContent.css (Firefox's own pages: settings, add-ons, the new tab).
  * Your own rules stay as they are; unloading cuts the blocks out again.
  *
- * The rules come from templates/firefox/<set>/userChrome.css and userContent.css.
+ * The rules come from templates/<set>/firefox/userChrome.css and userContent.css.
  * This module finds the profile, supplies the tab font and sizes, and embeds the
  * toolbar icons (icons.h), as images recolored to the bar ink, or, with the style
  * option set to mask, as masks over the ink: every icon's shape in the bar's color,
  * whatever its own artwork. With style set to firefox the icon theme stays out:
  * every stretch of the templates between "themer:icons" and "themer:icons end"
  * comments is cut, and Firefox draws its own icons (in the bar's ink, as it draws
- * them for any theme; the size options still apply). The style contract in themer_module.h applies: tabs are sway/i3 tabs, the
- * selected tab takes the accent, every edge is a 1px outline.
+ * them for any theme; the size options still apply). Sets that leave the icons to
+ * Firefox (Themer Default sets only its colors) use none of this.
  *
  * Firefox reads userChrome.css only when toolkit.legacyUserProfileCustomizations.stylesheets
  * is true; set that once in about:config. The module does not touch user.js. */

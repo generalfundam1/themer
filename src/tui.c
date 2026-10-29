@@ -37,8 +37,8 @@ static int ptop, pleft, pw, prow, pcol;
 static int pskip, pvis = 1 << 30, pfocus = -1;
 /* the settings as last saved, for front_sync to merge against */
 static Config base;
-static FILE *out, *sink;
-static char msg[160];
+static FILE *term, *sink;  /* where drawing goes: the terminal, or nowhere (sink) */
+static char status[160];  /* the message on the status line */
 static char lst[MAXL][NAME_LEN + 32];
 static int lstn;
 
@@ -60,7 +60,7 @@ setfg(const char *h)
 	int r, g, b;
 
 	rgb_of(h, &r, &g, &b);
-	fprintf(out, "\x1b[38;2;%d;%d;%dm", r, g, b);
+	fprintf(term, "\x1b[38;2;%d;%d;%dm", r, g, b);
 }
 
 static void
@@ -69,19 +69,19 @@ setbg(const char *h)
 	int r, g, b;
 
 	rgb_of(h, &r, &g, &b);
-	fprintf(out, "\x1b[48;2;%d;%d;%dm", r, g, b);
+	fprintf(term, "\x1b[48;2;%d;%d;%dm", r, g, b);
 }
 
 static void
 at(int r, int c)
 {
-	fprintf(out, "\x1b[%d;%dH", r, c);
+	fprintf(term, "\x1b[%d;%dH", r, c);
 }
 
 static void
 flash(const char *s)
 {
-	snprintf(msg, sizeof msg, "%s", s);
+	snprintf(status, sizeof status, "%s", s);
 }
 
 /* ---- terminal setup ---- */
@@ -89,7 +89,7 @@ flash(const char *s)
 static void
 term_off(void)
 {
-	fputs("\x1b[0m\x1b[?25h\x1b[?1049l", out);
+	fputs("\x1b[0m\x1b[?25h\x1b[?1049l", term);
 	fflush(stdout);
 	tcsetattr(STDIN_FILENO, TCSANOW, &orig);
 }
@@ -113,7 +113,7 @@ term_on(void)
 	struct termios t;
 	struct sigaction sa;
 
-	out = stdout;
+	term = stdout;
 	if (!sink)
 		sink = fopen("/dev/null", "w");
 	if (!sink)
@@ -128,7 +128,7 @@ term_on(void)
 	signal(SIGINT, onsig);
 	signal(SIGTERM, onsig);
 	setvbuf(stdout, NULL, _IOFBF, 1 << 16);
-	fputs("\x1b[?1049h\x1b[?25l", out);
+	fputs("\x1b[?1049h\x1b[?25l", term);
 }
 
 /* ---- keys ---- */
@@ -174,14 +174,14 @@ readkey(void)
 		if (r < 0 && errno != EINTR)
 			return K_ESC;
 		if (r < 0 || state_changed()) {     /* a resize, or the state file */
-			msg[0] = '\0';
+			status[0] = '\0';
 			tui_sync();
 			return K_REDRAW;
 		}
 	}
 	c = rd();
 
-	msg[0] = '\0';                 /* a message shows for one frame */
+	status[0] = '\0';                 /* a message shows for one frame */
 	if (c == -2)
 		return K_REDRAW;
 	if (c < 0)
@@ -240,12 +240,12 @@ bar(int row, const char *bgc, const char *fgc, const char *left, const char *rig
 	at(row, 1);
 	setbg(bgc);
 	setfg(fgc);
-	fputs("\x1b[1m", out);
-	fprintf(out, "%.*s", lw, left);
+	fputs("\x1b[1m", term);
+	fprintf(term, "%.*s", lw, left);
 	pad = max - lw - rw;
-	fprintf(out, "%*s", pad, "");
-	fprintf(out, "%.*s", rw, right);
-	fputs("\x1b[22m", out);
+	fprintf(term, "%*s", pad, "");
+	fprintf(term, "%.*s", rw, right);
+	fputs("\x1b[22m", term);
 }
 
 static void
@@ -257,11 +257,11 @@ frame_begin(const char *hint)
 	tui_sync();
 	getsize();
 	theme_scheme(cfg, &sc);
-	fputs("\x1b[0m\x1b[H", out);
+	fputs("\x1b[0m\x1b[H", term);
 	for (r = 1; r <= rows; r++) {
 		at(r, 1);
 		setbg(sc.hex[C_BG]);
-		fprintf(out, "%*s", cols - 1, "");
+		fprintf(term, "%*s", cols - 1, "");
 	}
 	snprintf(right, sizeof right, "%s  %s%s ", cfg->th.name,
 	         cfg->mode == MODE_DARK ? "dark" : "light", dirty ? "  *" : "");
@@ -272,15 +272,15 @@ frame_begin(const char *hint)
 static void
 frame_end(void)
 {
-	if (msg[0]) {
-		int len = strlen(msg), col = (cols - len) / 2 + 1;
+	if (status[0]) {
+		int len = strlen(status), col = (cols - len) / 2 + 1;
 
 		if (col < 1)
 			col = 1;
 		at(rows - 1, col);
 		setbg(sc.hex[C_BG]);
 		setfg(sc.hex[C_WARN]);
-		fputs(msg, out);
+		fputs(status, term);
 	}
 	fflush(stdout);
 }
@@ -290,7 +290,7 @@ frame_end(void)
 static void
 style(int st)
 {
-	fputs("\x1b[22m", out);
+	fputs("\x1b[22m", term);
 	switch (st) {
 	case ST_SEL:   setbg(sc.hex[C_ACC]);  setfg(sc.hex[C_ACCFG]); break;
 	case ST_DIM:   setbg(sc.hex[C_SURF]); setfg(sc.ansi[8]); break;
@@ -307,7 +307,7 @@ prow_at(void)
 {
 	int li = prow - ptop;
 
-	out = li >= pskip && li < pskip + pvis ? stdout : sink;
+	term = li >= pskip && li < pskip + pvis ? stdout : sink;
 	at(ptop + li - pskip, pleft);
 }
 
@@ -348,18 +348,18 @@ pbegin_at(const char *title, int inner, int w, int left, int top)
 	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("┌─ ", out);
-	fputs("\x1b[1m", out);
+	fputs("┌─ ", term);
+	fputs("\x1b[1m", term);
 	setfg(sc.hex[C_FG]);
-	fprintf(out, "%s", t);
-	fputs("\x1b[22m", out);
+	fprintf(term, "%s", t);
+	fputs("\x1b[22m", term);
 	setfg(sc.hex[C_ACC]);
-	fputs(" ", out);
+	fputs(" ", term);
 	for (k = 0; k < pw - tl - 3; k++)
-		fputs("─", out);
-	fputs("┐", out);
+		fputs("─", term);
+	fputs("┐", term);
 	prow++;
-	out = stdout;
+	term = stdout;
 }
 
 /* a centered panel of inner lines */
@@ -385,7 +385,7 @@ pstart(int st)
 	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("│", out);
+	fputs("│", term);
 	style(st);
 	pcol = 0;
 }
@@ -399,7 +399,7 @@ pput(const char *s)
 		n = room;
 	if (n <= 0)
 		return;
-	fprintf(out, "%.*s", n, s);
+	fprintf(term, "%.*s", n, s);
 	pcol += n;
 }
 
@@ -407,14 +407,14 @@ static void
 pend(void)
 {
 	while (pcol < pw) {
-		putc(' ', out);
+		putc(' ', term);
 		pcol++;
 	}
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("│", out);
+	fputs("│", term);
 	prow++;
-	out = stdout;
+	term = stdout;
 }
 
 static void
@@ -433,11 +433,11 @@ pbottom(void)
 	prow_at();
 	setbg(sc.hex[C_SURF]);
 	setfg(sc.hex[C_ACC]);
-	fputs("└", out);
+	fputs("└", term);
 	for (k = 0; k < pw; k++)
-		fputs("─", out);
-	fputs("┘", out);
-	out = stdout;
+		fputs("─", term);
+	fputs("┘", term);
+	term = stdout;
 }
 
 /* a 7-color row, a 16-color row and an ANSI row: the theme, shown in itself */
@@ -450,21 +450,21 @@ preview_lines(void)
 	pstart(ST_NORM);
 	for (i = 0; i < 8; i++) {
 		setfg(sc.ansi[i]);
-		fputs("██", out);
+		fputs("██", term);
 		pcol += 2;
 	}
 	pend();
 	pstart(ST_NORM);
 	for (i = 8; i < 16; i++) {
 		setfg(sc.ansi[i]);
-		fputs("██", out);
+		fputs("██", term);
 		pcol += 2;
 	}
 	pend();
 	pstart(ST_NORM);
 	for (i = 0; i < 7; i++) {
 		setfg(sc.hex[sem[i]]);
-		fputs("██", out);
+		fputs("██", term);
 		pcol += 2;
 	}
 	pend();
@@ -743,7 +743,7 @@ input(const char *title, const char *label, char *buf, size_t n)
 		pline(ST_NORM, "");
 		pstart(ST_INPUT);
 		pput(b);
-		fputs("\x1b[7m \x1b[27m", out);
+		fputs("\x1b[7m \x1b[27m", term);
 		pcol++;
 		pend();
 		pline(ST_NORM, "");
@@ -1434,14 +1434,14 @@ modules_menu(void)
 					int nc = 0, at = 0, r;
 
 					for (const char *p = o->choices; *p && nc < 64; ) {
-						size_t k = strcspn(p, "|");
+						size_t len = strcspn(p, "|");
 
-						snprintf(ch[nc], NAME_LEN, "%.*s", (int)k, p);
+						snprintf(ch[nc], NAME_LEN, "%.*s", (int)len, p);
 						if (!strcmp(ch[nc], cur))
 							at = nc;
 						items[nc] = ch[nc];
 						nc++;
-						p += k;
+						p += len;
 						if (*p)
 							p++;
 					}
@@ -1810,14 +1810,14 @@ server_menu(void)
 
 	for (;;) {
 		int port = front_web_port(cfg), up = front_web_running(port);
-		char status[128], portl[64], url[96];
+		char run[128], portl[64], url[96];
 		const char *items[3];
 		int nrow = up ? 3 : 2;
 
-		snprintf(status, sizeof status, "  %s", up ? "Stop the server" : "Start the server");
+		snprintf(run, sizeof run, "  %s", up ? "Stop the server" : "Start the server");
 		snprintf(portl, sizeof portl, "  Port           %d", port);
 		snprintf(url, sizeof url, "http://localhost:%d/", port);
-		items[0] = status;
+		items[0] = run;
 		items[1] = portl;
 		if (sel >= nrow)
 			sel = nrow - 1;

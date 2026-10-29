@@ -258,26 +258,6 @@ user_dir(char *out, size_t n)
 	return path_under_home(out, n, ".config/themer/themes");
 }
 
-int
-scheme_removed(const char *name)
-{
-	char p[PATH_MAX], line[NAME_LEN + 2];
-	FILE *f;
-	int found = 0;
-
-	if (user_dir(p, sizeof p) < 0 || strlen(p) + 10 >= sizeof p)
-		return 0;
-	strcat(p, "/.removed");
-	if (!(f = fopen(p, "r")))
-		return 0;
-	while (!found && fgets(line, sizeof line, f)) {
-		line[strcspn(line, "\r\n")] = '\0';
-		found = !strcmp(line, name);
-	}
-	fclose(f);
-	return found;
-}
-
 /* adds name to .removed (hide) or takes it off (show), or with name NULL and
  * hide 0 empties the list */
 static int
